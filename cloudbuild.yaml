@@ -1,0 +1,28 @@
+# Cloudbuild to create a Beat image from any repository
+# DO NOT EDIT
+
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  id: build_${_BEAT_NAME}
+  args: 
+    - build
+    - -f
+    - deploy/beats/standard/Dockerfile
+    - -t
+    - gcr.io/$PROJECT_ID/beats/${_BEAT_NAME}:${_BEAT_VERSION}
+    - --build-arg
+    - BEAT_PUBLISHER=${_BEAT_PUBLISHER}
+    - --build-arg
+    - BEAT_NAME=${_BEAT_NAME}
+    - --build-arg
+    - BEAT_VERSION=${_BEAT_VERSION}
+    - deploy/beats
+images:
+- 'gcr.io/$PROJECT_ID/beats/${_BEAT_NAME}:${_BEAT_VERSION}'
+
+# Substitutions MUST BE PROVIDED at build time
+# Example: gcloud builds submit --config ./deploy/beats/cloudbuild.yaml --substitutions=_BEAT_PUBLISHER="ctindel",_BEAT_NAME="fastcombeat",_BEAT_VERSION="v6.2.4"
+substitutions:
+  _BEAT_PUBLISHER: <org>
+  _BEAT_NAME: <repo>
+  _BEAT_VERSION: <tag>
