@@ -23,6 +23,6 @@ images:
 # Substitutions MUST BE PROVIDED at build time
 # Example: gcloud builds submit --config ./deploy/beats/cloudbuild.yaml --substitutions=_BEAT_PUBLISHER="ctindel",_BEAT_NAME="fastcombeat",_BEAT_VERSION="v6.2.4"
 substitutions:
-  _BEAT_PUBLISHER: <org>
-  _BEAT_NAME: <repo>
-  _BEAT_VERSION: <tag>
+  _BEAT_PUBLISHER: logrhythm 
+  _BEAT_NAME: pubsubbeat
+  _BEAT_VERSION: $BRANCH_NAME
