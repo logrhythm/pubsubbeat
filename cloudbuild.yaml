@@ -7,7 +7,7 @@ steps:
   args: 
     - build
     - -f
-    - deploy/beats/standard/Dockerfile
+    - Dockerfile
     - -t
     - gcr.io/$PROJECT_ID/beats/${_BEAT_NAME}:${_BEAT_VERSION}
     - --build-arg
