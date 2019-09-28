@@ -16,7 +16,7 @@ steps:
     - BEAT_NAME=${_BEAT_NAME}
     - --build-arg
     - BEAT_VERSION=${_BEAT_VERSION}
-    - deploy/beats
+    #- deploy/beats
 images:
 - 'gcr.io/$PROJECT_ID/beats/${_BEAT_NAME}:${_BEAT_VERSION}'
 
