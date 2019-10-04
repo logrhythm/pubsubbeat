@@ -13,16 +13,16 @@ pubsubbeat:
   #
   # To learn more about ADC:
   # - https://cloud.google.com/docs/authentication/production
-  credentials_file:
+  credentials_file: C:\Users\abhishek.upadhyay\Desktop\GCPSampleData\CredFiles\ProjectBeatLog-Editor.json
 
   # The GCP project ID with your Pub/Sub topic
-  project_id: my-gcp-project
+  project_id: beatsautomationlog
 
   # The Pub/Sub topic name. You must first create this topic.
-  topic: my-topic
+  topic: beatTestTopic
 
   # The Pub/Sub subscription name.
-  subscription.name: my-subscription
+  subscription.name: testSubsTest
 
   # Attempt to create the subscription.
   subscription.create: true # Defaults to true
