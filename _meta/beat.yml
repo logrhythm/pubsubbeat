@@ -46,7 +46,7 @@ pubsubbeat:
   # If the message is decoded successfully, a "json" field is added to the event with
   # the decoded json object. If the decoding fails, the "message" field includes the
   # plain text message payload.
-  json.enabled: false
+  json.enabled: true
 
   # If this setting is enabled, Pubsubbeat adds a "error.message" and "error.key: json" key
   # in case of JSON unmarshaling errors or when a text key is defined in the configuration
