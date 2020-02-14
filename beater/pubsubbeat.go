@@ -196,6 +196,8 @@ func getOrCreateSubscription(client *pubsub.Client, config *config.Config) (*pub
 	if st, ok := status.FromError(err); ok && st.Code() == codes.AlreadyExists {
 		// The subscription already exists.
 		subscription = client.Subscription(config.Subscription.Name)
+	} else if err != nil {
+		return nil, fmt.Errorf("project %q does not exists", err)
 	} else if ok && st.Code() == codes.NotFound {
 		return nil, fmt.Errorf("topic %q does not exists", config.Topic)
 	} else if !ok {
