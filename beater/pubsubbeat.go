@@ -15,18 +15,23 @@
 package beater
 
 import (
-	"fmt"
-	"time"
-
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
-
 	"context"
+	"errors"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path"
+	"time"
 
 	"runtime"
 
 	"encoding/json"
+
+	"github.com/logrhythm/pubsubbeat/crypto"
+
+	"github.com/elastic/beats/libbeat/beat"
+	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/libbeat/logp"
 
 	"cloud.google.com/go/pubsub"
 	"github.com/logrhythm/pubsubbeat/config"
@@ -166,15 +171,32 @@ func createPubsubClient(config *config.Config) (*pubsub.Client, error) {
 	ctx := context.Background()
 	userAgent := fmt.Sprintf(
 		"Elastic/Pubsubbeat (%s; %s)", runtime.GOOS, runtime.GOARCH)
+	tempFile, err := ioutil.TempFile(path.Dir(config.CredentialsFile), "temp")
+	if err != nil {
+		return nil, fmt.Errorf("fail to create temp file for decrypted credentials: %v", err)
+	}
 	options := []option.ClientOption{option.WithUserAgent(userAgent)}
 	if config.CredentialsFile != "" {
-		options = append(options, option.WithCredentialsFile(config.CredentialsFile))
+
+		c, err := ioutil.ReadFile(config.CredentialsFile) // just pass the file name
+		if err != nil {
+			return nil, fmt.Errorf("fail to encrypted credentials: %v", err)
+		}
+
+		decryptedContent, err := crypto.Decrypt(string(c))
+		if err != nil {
+			return nil, errors.New("error decrypting Content")
+		}
+		tempFile.WriteString(decryptedContent)
+		options = append(options, option.WithCredentialsFile(tempFile.Name()))
+
 	}
 
 	client, err := pubsub.NewClient(ctx, config.Project, options...)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create pubsub client: %v", err)
 	}
+	os.Remove(tempFile.Name())
 	return client, nil
 }
 
@@ -192,6 +214,7 @@ func getOrCreateSubscription(client *pubsub.Client, config *config.Config) (*pub
 		RetainAckedMessages: config.Subscription.RetainAckedMessages,
 		RetentionDuration:   config.Subscription.RetentionDuration,
 	})
+
 	st, ok := status.FromError(err)
 	if ok && st.Code() == codes.AlreadyExists {
 		// The subscription already exists.
