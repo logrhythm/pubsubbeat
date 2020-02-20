@@ -1,6 +1,7 @@
 package crypto
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,7 +18,8 @@ func TestDecrypt(t *testing.T) {
 		assert.Equal(t, TestString, actual)
 	})
 	t.Run("failure decryption", func(t *testing.T) {
-		_, err := Decrypt(TestString)
+		str := fmt.Sprintf("%d%s%s", encV1, "||", TestString)
+		_, err := Decrypt(str)
 		assert.NotNil(t, err)
 	})
 }
