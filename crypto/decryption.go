@@ -14,7 +14,7 @@ func Decrypt(securemess string) (decodedmess string, err error) {
 	if len(strings.TrimSpace(securemess)) == 0 {
 		return "", errors.New("string is empty")
 	}
-	decodedStr := strings.Split(securemess, strconv.Itoa(encV1)+"||")
+	decodedStr := strings.Split(securemess, "||")
 	if len(decodedStr) == 2 {
 		ver, err := strconv.Atoi(decodedStr[0])
 		if err != nil {
