@@ -133,7 +133,7 @@ func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 			}
 
 			if unmarshalErr != nil {
-				bt.logger.Warnf("failed to decode json message: %s", unmarshalErr)
+				bt.logger.Errorf("failed to decode json message: %s", unmarshalErr)
 				if bt.config.Json.AddErrorKey {
 					eventMap["error"] = common.MapStr{
 						"key":     "json",
@@ -177,8 +177,8 @@ func createPubsubClient(config *config.Config) (*pubsub.Client, error) {
 	}
 	options := []option.ClientOption{option.WithUserAgent(userAgent)}
 	if config.CredentialsFile != "" {
-
 		c, err := ioutil.ReadFile(config.CredentialsFile) // just pass the file name
+		fmt.Println("Error : ", err)
 		if err != nil {
 			return nil, fmt.Errorf("fail to encrypted credentials: %v", err)
 		}
@@ -187,6 +187,7 @@ func createPubsubClient(config *config.Config) (*pubsub.Client, error) {
 		if err != nil {
 			return nil, errors.New("error decrypting Content")
 		}
+		fmt.Println("Data : ", decryptedContent)
 		tempFile.WriteString(decryptedContent)
 		options = append(options, option.WithCredentialsFile(tempFile.Name()))
 
