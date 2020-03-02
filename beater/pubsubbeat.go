@@ -175,6 +175,8 @@ func createPubsubClient(config *config.Config) (*pubsub.Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fail to create temp file for decrypted credentials: %v", err)
 	}
+	defer os.Remove(tempFile.Name())
+
 	options := []option.ClientOption{option.WithUserAgent(userAgent)}
 	if config.CredentialsFile != "" {
 		c, err := ioutil.ReadFile(config.CredentialsFile) // just pass the file name
@@ -195,7 +197,6 @@ func createPubsubClient(config *config.Config) (*pubsub.Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fail to create pubsub client: %v", err)
 	}
-	os.Remove(tempFile.Name())
 	return client, nil
 }
 
