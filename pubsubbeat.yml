@@ -21,8 +21,8 @@ pubsubbeat:
   # The Pub/Sub topic name. You must first create this topic.
   topic: my-topic
 
-  # The Pub/Sub subscription name.
-  subscription.name: my-subscription
+  # The Pub/Sub subscription id.
+  subscription.id: my-subscription
 
   # Attempt to create the subscription.
   subscription.create: true # Defaults to true

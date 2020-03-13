@@ -55,7 +55,7 @@ func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 		return nil, err
 	}
 
-	logger := logp.NewLogger(fmt.Sprintf("PubSub: %s/%s/%s", config.Project, config.Topic, config.Subscription.Name))
+	logger := logp.NewLogger(fmt.Sprintf("PubSub: %s/%s/%s", config.Project, config.Topic, config.Subscription.Id))
 	logger.Infof("config retrieved: %+v", config)
 
 	client, err := createPubsubClient(config)
@@ -202,14 +202,14 @@ func createPubsubClient(config *config.Config) (*pubsub.Client, error) {
 
 func getOrCreateSubscription(client *pubsub.Client, config *config.Config) (*pubsub.Subscription, error) {
 	if !config.Subscription.Create {
-		subscription := client.Subscription(config.Subscription.Name)
+		subscription := client.Subscription(config.Subscription.Id)
 		return subscription, nil
 	}
 
 	topic := client.Topic(config.Topic)
 	ctx := context.Background()
 
-	subscription, err := client.CreateSubscription(ctx, config.Subscription.Name, pubsub.SubscriptionConfig{
+	subscription, err := client.CreateSubscription(ctx, config.Subscription.Id, pubsub.SubscriptionConfig{
 		Topic:               topic,
 		RetainAckedMessages: config.Subscription.RetainAckedMessages,
 		RetentionDuration:   config.Subscription.RetentionDuration,
@@ -218,7 +218,7 @@ func getOrCreateSubscription(client *pubsub.Client, config *config.Config) (*pub
 	st, ok := status.FromError(err)
 	if ok && st.Code() == codes.AlreadyExists {
 		// The subscription already exists.
-		subscription = client.Subscription(config.Subscription.Name)
+		subscription = client.Subscription(config.Subscription.Id)
 	} else if err != nil {
 		return nil, fmt.Errorf(st.Message())
 	} else if ok && st.Code() == codes.NotFound {

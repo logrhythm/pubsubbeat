@@ -29,7 +29,7 @@ type Config struct {
 	Topic           string `config:"topic" validate:"required"`
 	CredentialsFile string `config:"credentials_file"`
 	Subscription    struct {
-		Name                string        `config:"name" validate:"required"`
+		Id                  string        `config:"id" validate:"required"`
 		RetainAckedMessages bool          `config:"retain_acked_messages"`
 		RetentionDuration   time.Duration `config:"retention_duration"`
 		Create              bool          `config:"create"`

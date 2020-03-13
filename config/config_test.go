@@ -61,7 +61,7 @@ func TestGetAndValidateConfigMissingRequiredFields(t *testing.T) {
 		c.SetString("topic", -1, tc.Topic)
 
 		sConfig, _ := c.Child("subscription", -1)
-		sConfig.SetString("name", -1, tc.Subscription)
+		sConfig.SetString("id", -1, tc.Subscription)
 
 		_, err := GetAndValidateConfig(c)
 
@@ -179,7 +179,7 @@ func createDefaultTestConfig() *common.Config {
 	c.SetString("topic", -1, "a-topic")
 
 	sConfig := common.NewConfig()
-	sConfig.SetString("name", -1, "a-subscription")
+	sConfig.SetString("id", -1, "a-subscription")
 	sConfig.SetBool("retain_acked_messages", -1, false)
 	sConfig.SetString("retention_duration", -1, "10m")
 	c.SetChild("subscription", -1, sConfig)
