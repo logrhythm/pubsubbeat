@@ -21,7 +21,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
-	"sync"
 	"time"
 
 	"runtime"
@@ -50,9 +49,7 @@ type Pubsubbeat struct {
 	logger       *logp.Logger
 }
 
-var recordsReceivedInCycle int64
 var cycleTime int64 = 10 //will be in seconds
-var counterLock sync.RWMutex
 var receivedLogs int64
 
 func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
@@ -86,8 +83,6 @@ func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 
 func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 
-	// var receivedEventsLogCount int64
-	// var allEventsLogs int64
 	ch := make(chan int64, 1)
 
 	bt.logger.Info("pubsubbeat is running! Hit CTRL-C to stop it.")
@@ -162,12 +157,9 @@ func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 		}
 
 		receivedLogs = receivedLogs + 1
-		counterLock.Lock()
-		recordsReceivedInCycle = receivedLogs
 		go func() {
-			ch <- receivedLogs //recordsReceivedInCycle
+			ch <- receivedLogs
 		}()
-		counterLock.Unlock()
 
 		bt.client.Publish(beat.Event{
 			Timestamp: datetime,
@@ -257,7 +249,6 @@ func cycleRoutine(n time.Duration, ch chan int64) {
 	for {
 		logsReceived := <-ch
 		time.Sleep(n * time.Second)
-		counterLock.Lock()
 		var recordsPerSecond int64
 		if logsReceived > 0 {
 			recordsPerSecond = logsReceived / int64(cycleTime)
@@ -265,6 +256,5 @@ func cycleRoutine(n time.Duration, ch chan int64) {
 
 		logp.Info("Total number of logs received :  %d", logsReceived)
 		logp.Info("Events Flush Rate:  %v per second", recordsPerSecond)
-		counterLock.Unlock()
 	}
 }
