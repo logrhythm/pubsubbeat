@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"sync"
 	"time"
 
 	"runtime"
@@ -48,6 +49,11 @@ type Pubsubbeat struct {
 	subscription *pubsub.Subscription
 	logger       *logp.Logger
 }
+
+var recordsReceivedInCycle int64
+var cycleTime int64 = 10 //will be in seconds
+var counterLock sync.RWMutex
+var receivedLogs int64
 
 func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 	config, err := config.GetAndValidateConfig(cfg)
@@ -79,6 +85,11 @@ func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 }
 
 func (bt *Pubsubbeat) Run(b *beat.Beat) error {
+
+	// var receivedEventsLogCount int64
+	// var allEventsLogs int64
+	ch := make(chan int64, 1)
+
 	bt.logger.Info("pubsubbeat is running! Hit CTRL-C to stop it.")
 
 	var err error
@@ -97,8 +108,11 @@ func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 		bt.pubsubClient.Close()
 	}()
 
+	go cycleRoutine(time.Duration(cycleTime), ch)
+
 	err = bt.subscription.Receive(ctx, func(ctx context.Context, m *pubsub.Message) {
 		// This callback is invoked concurrently by multiple goroutines
+
 		var datetime time.Time
 		eventMap := common.MapStr{
 			"type":         b.Info.Name,
@@ -146,6 +160,15 @@ func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 		if datetime.IsZero() {
 			datetime = time.Now()
 		}
+
+		receivedLogs = receivedLogs + 1
+		counterLock.Lock()
+		recordsReceivedInCycle = receivedLogs
+		go func() {
+			ch <- receivedLogs //recordsReceivedInCycle
+		}()
+		counterLock.Unlock()
+
 		bt.client.Publish(beat.Event{
 			Timestamp: datetime,
 			Fields:    eventMap,
@@ -228,4 +251,20 @@ func getOrCreateSubscription(client *pubsub.Client, config *config.Config) (*pub
 	}
 
 	return subscription, nil
+}
+
+func cycleRoutine(n time.Duration, ch chan int64) {
+	for {
+		logsReceived := <-ch
+		time.Sleep(n * time.Second)
+		counterLock.Lock()
+		var recordsPerSecond int64
+		if logsReceived > 0 {
+			recordsPerSecond = logsReceived / int64(cycleTime)
+		}
+
+		logp.Info("Total number of logs received :  %d", logsReceived)
+		logp.Info("Events Flush Rate:  %v per second", recordsPerSecond)
+		counterLock.Unlock()
+	}
 }
