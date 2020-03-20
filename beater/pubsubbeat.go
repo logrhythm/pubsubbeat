@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"sync"
 	"time"
 
 	"runtime"
@@ -51,6 +52,8 @@ type Pubsubbeat struct {
 
 var cycleTime int64 = 10 //will be in seconds
 var receivedLogs int64
+var counterLock sync.RWMutex
+var ch = make(chan bool, 1)
 
 func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 	config, err := config.GetAndValidateConfig(cfg)
@@ -83,8 +86,6 @@ func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 
 func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 
-	ch := make(chan int64, 1)
-
 	bt.logger.Info("pubsubbeat is running! Hit CTRL-C to stop it.")
 
 	var err error
@@ -103,7 +104,7 @@ func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 		bt.pubsubClient.Close()
 	}()
 
-	go cycleRoutine(time.Duration(cycleTime), ch)
+	go cycleRoutine(time.Duration(cycleTime))
 
 	err = bt.subscription.Receive(ctx, func(ctx context.Context, m *pubsub.Message) {
 		// This callback is invoked concurrently by multiple goroutines
@@ -156,15 +157,14 @@ func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 			datetime = time.Now()
 		}
 
-		receivedLogs = receivedLogs + 1
-		go func() {
-			ch <- receivedLogs
-		}()
-
 		bt.client.Publish(beat.Event{
 			Timestamp: datetime,
 			Fields:    eventMap,
 		})
+
+		counterLock.Lock()
+		receivedLogs = receivedLogs + 1
+		counterLock.Unlock()
 
 		// TODO: Evaluate using AckHandler.
 		m.Ack()
@@ -179,6 +179,7 @@ func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 
 func (bt *Pubsubbeat) Stop() {
 	bt.client.Close()
+	ch <- true
 	close(bt.done)
 }
 
@@ -245,15 +246,23 @@ func getOrCreateSubscription(client *pubsub.Client, config *config.Config) (*pub
 	return subscription, nil
 }
 
-func cycleRoutine(n time.Duration, ch chan int64) {
+func cycleRoutine(n time.Duration) {
 	for {
-		logsReceived := <-ch
+		select {
+		case <-ch:
+			break
+		default:
+		}
+
 		time.Sleep(n * time.Second)
+		counterLock.Lock()
+		logsReceived := receivedLogs
 		var recordsPerSecond int64
 		if logsReceived > 0 {
 			recordsPerSecond = logsReceived / int64(cycleTime)
 		}
-
+		receivedLogs = 0
+		counterLock.Unlock()
 		logp.Info("Total number of logs received :  %d", logsReceived)
 		logp.Info("Events Flush Rate:  %v per second", recordsPerSecond)
 	}
