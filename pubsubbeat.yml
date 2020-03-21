@@ -24,6 +24,12 @@ pubsubbeat:
   # The Pub/Sub subscription name.
   subscription.name: my-subscription
 
+  #time interval to check heartbeat
+  heartbeatinterval : 5s
+
+  #flag to check heartbeat status
+  heartbeatdisabled: false
+
   # Attempt to create the subscription.
   subscription.create: true # Defaults to true
 

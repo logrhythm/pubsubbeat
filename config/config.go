@@ -22,6 +22,7 @@ import (
 	"os"
 
 	"github.com/elastic/beats/libbeat/common"
+	hb "github.com/logrhythm/pubsubbeat/heartbeat"
 )
 
 type Config struct {
@@ -42,12 +43,16 @@ type Config struct {
 		FieldsTimestampName   string `config:"fields_timestamp_name"`
 		FieldsTimestampFormat string `config:"fields_timestamp_format"`
 	}
+	HeartbeatInterval  time.Duration `config:"heartbeatinterval"`
+	HeartbeatDisabled  bool          `config:"heartbeatdisabled"`
 }
 
 func GetDefaultConfig() Config {
 	config := Config{}
 	config.Subscription.Create = true
 	config.Json.FieldsTimestampName = "@timestamp"
+	config.HeartbeatInterval = hb.IntervalValue
+	config.HeartbeatDisabled =  false
 	return config
 }
 
