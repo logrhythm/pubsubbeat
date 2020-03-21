@@ -36,6 +36,7 @@ import (
 
 	"cloud.google.com/go/pubsub"
 	"github.com/logrhythm/pubsubbeat/config"
+	"github.com/logrhythm/pubsubbeat/heartbeat"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -48,9 +49,13 @@ type Pubsubbeat struct {
 	pubsubClient *pubsub.Client
 	subscription *pubsub.Subscription
 	logger       *logp.Logger
+	StopChan     chan struct{}
 }
 
-const cycleTime = 10 //will be in seconds
+const (
+	cycleTime   = 10 //will be in seconds
+	ServiceName = "pubsubbeat"
+)
 
 var (
 	receivedLogsInCycle int64
@@ -108,6 +113,17 @@ func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 		bt.logger.Info("closing PubSub client...")
 		bt.pubsubClient.Close()
 	}()
+
+	// Self-reporting heartbeat
+	bt.StopChan = make(chan struct{})
+	hb := heartbeat.NewHeartbeatConfig(bt.config.HeartbeatInterval, bt.config.HeartbeatDisabled)
+	heartbeater, err := hb.CreateEnabled(bt.StopChan, ServiceName)
+	if err != nil {
+		logp.Info("Error while creating new heartbeat object: %v", err)
+	}
+	if heartbeater != nil {
+		heartbeater.Start(bt.StopChan, bt.client.Publish)
+	}
 
 	go cycleRoutine(time.Duration(cycleTime))
 
@@ -185,6 +201,7 @@ func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 func (bt *Pubsubbeat) Stop() {
 	bt.client.Close()
 	close(stopCh)
+	bt.StopChan <- struct{}{}
 	close(bt.done)
 }
 
