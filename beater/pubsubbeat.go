@@ -15,21 +15,28 @@
 package beater
 
 import (
-	"fmt"
-	"time"
-
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
-
 	"context"
+	"errors"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path"
+	"sync"
+	"time"
 
 	"runtime"
 
 	"encoding/json"
 
+	"github.com/logrhythm/pubsubbeat/crypto"
+
+	"github.com/elastic/beats/libbeat/beat"
+	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/libbeat/logp"
+
 	"cloud.google.com/go/pubsub"
 	"github.com/logrhythm/pubsubbeat/config"
+	"github.com/logrhythm/pubsubbeat/heartbeat"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -42,7 +49,21 @@ type Pubsubbeat struct {
 	pubsubClient *pubsub.Client
 	subscription *pubsub.Subscription
 	logger       *logp.Logger
+	StopChan     chan struct{}
 }
+
+const (
+	cycleTime   = 10 //will be in seconds
+	ServiceName = "pubsubbeat"
+)
+
+var (
+	receivedLogsInCycle int64
+	counterLock         sync.RWMutex
+	logsReceived        int64
+)
+
+var stopCh = make(chan struct{})
 
 func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 	config, err := config.GetAndValidateConfig(cfg)
@@ -74,6 +95,7 @@ func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 }
 
 func (bt *Pubsubbeat) Run(b *beat.Beat) error {
+
 	bt.logger.Info("pubsubbeat is running! Hit CTRL-C to stop it.")
 
 	var err error
@@ -92,8 +114,22 @@ func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 		bt.pubsubClient.Close()
 	}()
 
+	// Self-reporting heartbeat
+	bt.StopChan = make(chan struct{})
+	hb := heartbeat.NewHeartbeatConfig(bt.config.HeartbeatInterval, bt.config.HeartbeatDisabled)
+	heartbeater, err := hb.CreateEnabled(bt.StopChan, ServiceName)
+	if err != nil {
+		logp.Info("Error while creating new heartbeat object: %v", err)
+	}
+	if heartbeater != nil {
+		heartbeater.Start(bt.StopChan, bt.client.Publish)
+	}
+
+	go cycleRoutine(time.Duration(cycleTime))
+
 	err = bt.subscription.Receive(ctx, func(ctx context.Context, m *pubsub.Message) {
 		// This callback is invoked concurrently by multiple goroutines
+
 		var datetime time.Time
 		eventMap := common.MapStr{
 			"type":         b.Info.Name,
@@ -128,7 +164,7 @@ func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 			}
 
 			if unmarshalErr != nil {
-				bt.logger.Warnf("failed to decode json message: %s", unmarshalErr)
+				bt.logger.Errorf("failed to decode json message: %s", unmarshalErr)
 				if bt.config.Json.AddErrorKey {
 					eventMap["error"] = common.MapStr{
 						"key":     "json",
@@ -141,10 +177,15 @@ func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 		if datetime.IsZero() {
 			datetime = time.Now()
 		}
+
 		bt.client.Publish(beat.Event{
 			Timestamp: datetime,
 			Fields:    eventMap,
 		})
+
+		counterLock.Lock()
+		receivedLogsInCycle = receivedLogsInCycle + 1
+		counterLock.Unlock()
 
 		// TODO: Evaluate using AckHandler.
 		m.Ack()
@@ -159,6 +200,8 @@ func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 
 func (bt *Pubsubbeat) Stop() {
 	bt.client.Close()
+	close(stopCh)
+	bt.StopChan <- struct{}{}
 	close(bt.done)
 }
 
@@ -166,9 +209,26 @@ func createPubsubClient(config *config.Config) (*pubsub.Client, error) {
 	ctx := context.Background()
 	userAgent := fmt.Sprintf(
 		"Elastic/Pubsubbeat (%s; %s)", runtime.GOOS, runtime.GOARCH)
+	tempFile, err := ioutil.TempFile(path.Dir(config.CredentialsFile), "temp")
+	if err != nil {
+		return nil, fmt.Errorf("fail to create temp file for decrypted credentials: %v", err)
+	}
+	defer os.Remove(tempFile.Name())
+
 	options := []option.ClientOption{option.WithUserAgent(userAgent)}
 	if config.CredentialsFile != "" {
-		options = append(options, option.WithCredentialsFile(config.CredentialsFile))
+		c, err := ioutil.ReadFile(config.CredentialsFile) // just pass the file name
+		if err != nil {
+			return nil, fmt.Errorf("fail to encrypted credentials: %v", err)
+		}
+
+		decryptedContent, err := crypto.Decrypt(string(c))
+		if err != nil {
+			return nil, errors.New("error decrypting Content")
+		}
+		tempFile.WriteString(decryptedContent)
+		options = append(options, option.WithCredentialsFile(tempFile.Name()))
+
 	}
 
 	client, err := pubsub.NewClient(ctx, config.Project, options...)
@@ -193,9 +253,12 @@ func getOrCreateSubscription(client *pubsub.Client, config *config.Config) (*pub
 		RetentionDuration:   config.Subscription.RetentionDuration,
 	})
 
-	if st, ok := status.FromError(err); ok && st.Code() == codes.AlreadyExists {
+	st, ok := status.FromError(err)
+	if ok && st.Code() == codes.AlreadyExists {
 		// The subscription already exists.
 		subscription = client.Subscription(config.Subscription.Name)
+	} else if err != nil {
+		return nil, fmt.Errorf(st.Message())
 	} else if ok && st.Code() == codes.NotFound {
 		return nil, fmt.Errorf("topic %q does not exists", config.Topic)
 	} else if !ok {
@@ -203,4 +266,27 @@ func getOrCreateSubscription(client *pubsub.Client, config *config.Config) (*pub
 	}
 
 	return subscription, nil
+}
+
+func cycleRoutine(n time.Duration) {
+	for {
+		select {
+		case <-stopCh:
+			break
+		default:
+		}
+
+		time.Sleep(n * time.Second)
+		counterLock.Lock()
+		logsReceived = logsReceived + receivedLogsInCycle
+		var recordsPerSecond int64
+		if receivedLogsInCycle > 0 {
+			recordsPerSecond = receivedLogsInCycle / int64(cycleTime)
+		}
+		logp.Info("Total number of logs received in current cycle :  %d", receivedLogsInCycle)
+		receivedLogsInCycle = 0
+		counterLock.Unlock()
+		logp.Info("Total number of logs received :  %d", logsReceived)
+		logp.Info("Events Flush Rate:  %v messages per second", recordsPerSecond)
+	}
 }
