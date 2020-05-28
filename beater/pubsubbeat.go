@@ -62,7 +62,7 @@ func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	logp.Info("Config fields: %+v", config)
 	bt := &Pubsubbeat{
 		done:         make(chan struct{}),
 		config:       config,
