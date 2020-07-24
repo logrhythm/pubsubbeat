@@ -1,3 +1,6 @@
 [submodule "lrutilities"]
 	path = lrutilities
 	url = https://github.com/logrhythm/lrutilities
+[submodule "external"]
+	path = external
+	url = https://github.com/logrhythm/lrutilities.git
