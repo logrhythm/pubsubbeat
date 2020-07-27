@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gopkg.in/yaml.v2"
+	"github.com/go-yaml/yaml"
 )
 
 var (
