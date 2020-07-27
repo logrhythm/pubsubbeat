@@ -14,7 +14,7 @@ import (
 	"strings"
 
 	"github.com/elastic/beats/libbeat/logp"
-	"gopkg.in/yaml.v2"
+	"github.com/go-yaml/yaml"
 )
 
 var (

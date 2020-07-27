@@ -36,7 +36,7 @@ copy-vendor:
 	rm -R vendor/github.com/elastic/beats/winlogbeat
 
 	mkdir -p vendor/github.com/go-yaml
-	cp -R ${BEAT_GOPATH}/src/github.com/elastic/beats/vendor/github.com/go-yaml vendor/github.com/go-yaml
+	go get https://www.github.com/go-yaml
 
 
 .PHONY: git-init
