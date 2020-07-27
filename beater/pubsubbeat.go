@@ -28,7 +28,7 @@ import (
 
 	"encoding/json"
 
-	"github.com/lrutilities/crypto"
+	"github.com/logrhythm/pubsubbeat/external/crypto"
 
 	"github.com/elastic/beats/libbeat/beat"
 	"github.com/elastic/beats/libbeat/common"
