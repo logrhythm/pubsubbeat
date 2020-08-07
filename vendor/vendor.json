@@ -1,6 +1,6 @@
 {
 	"comment": "",
-	"ignore": "appengine test",
+	"ignore": "test",
 	"package": [
 		{
 			"checksumSHA1": "AH7jcN7pvaPDU6UjHdpT081DDGk=",
@@ -43,6 +43,12 @@
 			"path": "cloud.google.com/go/pubsub/internal/distribution",
 			"revision": "ada5c911bc7ed125d88d725d368eb5b4f0f731ea",
 			"revisionTime": "2018-03-13T23:25:41Z"
+		},
+		{
+			"checksumSHA1": "sxluRJHmkjYbZbKN2Ol9V86quHU=",
+			"path": "github.com/go-yaml/yaml",
+			"revision": "bec87e4332aede01fb63a4ab299d8af28480cd96",
+			"revisionTime": "2014-09-22T21:32:25Z"
 		},
 		{
 			"checksumSHA1": "kBeNcaKk56FguvPSUCEaH6AxpRc=",
@@ -499,7 +505,13 @@
 			"path": "google.golang.org/grpc/transport",
 			"revision": "13975c070286c7371aa3a8b3c230e90d7bf029fc",
 			"revisionTime": "2018-03-12T20:27:54Z"
+		},
+		{
+			"checksumSHA1": "wZxi5gt6Zfs4vh8795dNA/lva7g=",
+			"path": "gopkg.in/yaml.v2",
+			"revision": "0b1645d91e851e735d3e23330303ce81f70adbe3",
+			"revisionTime": "2020-05-06T23:08:38Z"
 		}
 	],
-	"rootPath": "github.com/GoogleCloudPlatform/pubsubbeat"
+	"rootPath": "github.com/logrhythm/pubsubbeat"
 }
