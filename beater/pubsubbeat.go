@@ -55,7 +55,6 @@ type Pubsubbeat struct {
 const (
 	cycleTime   = 10 //will be in seconds
 	ServiceName = "pubsubbeat"
-	FQBeatName  = "FullyQualifiedBeatName"
 )
 
 var (
@@ -94,7 +93,7 @@ func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 		logger:       logger,
 	}
 
-	fqBeatName = os.Getenv(FQBeatName)
+	fqBeatName = os.Getenv(config.FQBeatName)
 
 	return bt, nil
 }
