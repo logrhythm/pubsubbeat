@@ -43,16 +43,18 @@ type Config struct {
 		FieldsTimestampName   string `config:"fields_timestamp_name"`
 		FieldsTimestampFormat string `config:"fields_timestamp_format"`
 	}
-	HeartbeatInterval  time.Duration `config:"heartbeatinterval"`
-	HeartbeatDisabled  bool          `config:"heartbeatdisabled"`
+	HeartbeatInterval time.Duration `config:"heartbeatinterval"`
+	HeartbeatDisabled bool          `config:"heartbeatdisabled"`
 }
+
+var FQBeatName = "FullyQualifiedBeatName"
 
 func GetDefaultConfig() Config {
 	config := Config{}
 	config.Subscription.Create = true
 	config.Json.FieldsTimestampName = "@timestamp"
 	config.HeartbeatInterval = hb.IntervalValue
-	config.HeartbeatDisabled =  false
+	config.HeartbeatDisabled = false
 	return config
 }
 

@@ -2,12 +2,14 @@ package heartbeat
 
 import (
 	"encoding/json"
+	"os"
 	"time"
 
 	"github.com/elastic/beats/libbeat/beat"
 	"github.com/elastic/beats/libbeat/common"
 	"github.com/elastic/beats/libbeat/logp"
 	"github.com/golang/protobuf/ptypes/timestamp"
+	"github.com/logrhythm/pubsubbeat/config"
 )
 
 // Heartbeat is a structure for heartbeat
@@ -31,6 +33,8 @@ const (
 	ServiceStopped = 3
 )
 
+var fqBeatName string
+
 // Status is used for status of heartbeat1
 type Status struct {
 	Code        int64  `json:"code"`
@@ -52,6 +56,7 @@ type StatusBeater struct {
 // Start will begin reporting heartbeats through the beats
 func (sb *StatusBeater) Start(stopChan chan struct{}, publish func(event beat.Event)) {
 	go func() {
+		fqBeatName = os.Getenv(config.FQBeatName)
 		sb.Beat(ServiceStarted, "Service started", publish)
 		for {
 			select {
@@ -94,7 +99,8 @@ func (sb *StatusBeater) PublishEvent(logData []byte, publish func(event beat.Eve
 	event := beat.Event{
 		Timestamp: time.Now(),
 		Fields: common.MapStr{
-			"heartbeat": string(logData),
+			"heartbeat":              string(logData),
+			"fullyqualifiedbeatname": fqBeatName,
 		},
 	}
 	publish(event)

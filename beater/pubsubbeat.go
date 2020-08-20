@@ -61,6 +61,7 @@ var (
 	receivedLogsInCycle int64
 	counterLock         sync.RWMutex
 	logsReceived        int64
+	fqBeatName          string
 )
 
 var stopCh = make(chan struct{})
@@ -91,6 +92,9 @@ func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 		subscription: subscription,
 		logger:       logger,
 	}
+
+	fqBeatName = os.Getenv(config.FQBeatName)
+
 	return bt, nil
 }
 
@@ -132,10 +136,11 @@ func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 
 		var datetime time.Time
 		eventMap := common.MapStr{
-			"type":         b.Info.Name,
-			"message_id":   m.ID,
-			"publish_time": m.PublishTime,
-			"message":      string(m.Data),
+			"type":                   b.Info.Name,
+			"message_id":             m.ID,
+			"publish_time":           m.PublishTime,
+			"message":                string(m.Data),
+			"fullyqualifiedbeatname": fqBeatName,
 		}
 
 		if len(m.Attributes) > 0 {
