@@ -36,6 +36,7 @@ import (
 
 	"cloud.google.com/go/pubsub"
 	"github.com/logrhythm/pubsubbeat/config"
+	"github.com/logrhythm/pubsubbeat/environment"
 	"github.com/logrhythm/pubsubbeat/heartbeat"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
@@ -56,8 +57,6 @@ const (
 	cycleTime = 10 //will be in seconds
 	// ServiceName is the name of the service
 	ServiceName = "pubsubbeat"
-	// FQBeatName variable name for fully qualified beat name
-	FQBeatName = "FullyQualifiedBeatName"
 )
 
 var (
@@ -88,7 +87,12 @@ func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 	if err != nil {
 		return nil, err
 	}
+	fqBeatName = os.Getenv(environment.FQBeatName)
+
 	logp.Info("Config fields: %+v", config)
+
+	logp.Debug("Fully Qualified Beatname: %s", fqBeatName)
+
 	bt := &Pubsubbeat{
 		done:         make(chan struct{}),
 		config:       config,
@@ -96,8 +100,6 @@ func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 		subscription: subscription,
 		logger:       logger,
 	}
-
-	fqBeatName = os.Getenv(FQBeatName)
 
 	return bt, nil
 }
