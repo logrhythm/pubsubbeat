@@ -53,8 +53,11 @@ type Pubsubbeat struct {
 }
 
 const (
-	cycleTime   = 10 //will be in seconds
+	cycleTime = 10 //will be in seconds
+	// ServiceName is the name of the service
 	ServiceName = "pubsubbeat"
+	// FQBeatName variable name for fully qualified beat name
+	FQBeatName = "FullyQualifiedBeatName"
 )
 
 var (
@@ -66,6 +69,7 @@ var (
 
 var stopCh = make(chan struct{})
 
+// New creates an instance of pubsubbeat.
 func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 	config, err := config.GetAndValidateConfig(cfg)
 	if err != nil {
@@ -93,11 +97,12 @@ func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 		logger:       logger,
 	}
 
-	fqBeatName = os.Getenv(config.FQBeatName)
+	fqBeatName = os.Getenv(FQBeatName)
 
 	return bt, nil
 }
 
+// Run executes an instance of pubsubbeat.
 func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 
 	bt.logger.Info("pubsubbeat is running! Hit CTRL-C to stop it.")
@@ -203,6 +208,7 @@ func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 	return nil
 }
 
+// Stop a running instance of pubsubbeat.
 func (bt *Pubsubbeat) Stop() {
 	bt.client.Close()
 	close(stopCh)
