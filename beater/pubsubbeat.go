@@ -90,8 +90,7 @@ func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 	fqBeatName = os.Getenv(environment.FQBeatName)
 
 	logp.Info("Config fields: %+v", config)
-
-	logp.Debug("Fully Qualified Beatname: %s", fqBeatName)
+	logp.Info("Fully Qualified Beatname: %s", fqBeatName)
 
 	bt := &Pubsubbeat{
 		done:         make(chan struct{}),
