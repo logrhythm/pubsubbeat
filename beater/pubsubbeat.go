@@ -36,6 +36,7 @@ import (
 
 	"cloud.google.com/go/pubsub"
 	"github.com/logrhythm/pubsubbeat/config"
+	"github.com/logrhythm/pubsubbeat/environment"
 	"github.com/logrhythm/pubsubbeat/heartbeat"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
@@ -53,7 +54,8 @@ type Pubsubbeat struct {
 }
 
 const (
-	cycleTime   = 10 //will be in seconds
+	cycleTime = 10 //will be in seconds
+	// ServiceName is the name of the service
 	ServiceName = "pubsubbeat"
 )
 
@@ -66,6 +68,7 @@ var (
 
 var stopCh = make(chan struct{})
 
+// New creates an instance of pubsubbeat.
 func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 	config, err := config.GetAndValidateConfig(cfg)
 	if err != nil {
@@ -84,7 +87,11 @@ func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 	if err != nil {
 		return nil, err
 	}
+	fqBeatName = os.Getenv(environment.FQBeatName)
+
 	logp.Info("Config fields: %+v", config)
+	logp.Info("Fully Qualified Beatname: %s", fqBeatName)
+
 	bt := &Pubsubbeat{
 		done:         make(chan struct{}),
 		config:       config,
@@ -93,11 +100,10 @@ func New(b *beat.Beat, cfg *common.Config) (beat.Beater, error) {
 		logger:       logger,
 	}
 
-	fqBeatName = os.Getenv(config.FQBeatName)
-
 	return bt, nil
 }
 
+// Run executes an instance of pubsubbeat.
 func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 
 	bt.logger.Info("pubsubbeat is running! Hit CTRL-C to stop it.")
@@ -203,6 +209,7 @@ func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 	return nil
 }
 
+// Stop a running instance of pubsubbeat.
 func (bt *Pubsubbeat) Stop() {
 	bt.client.Close()
 	close(stopCh)

@@ -47,8 +47,6 @@ type Config struct {
 	HeartbeatDisabled bool          `config:"heartbeatdisabled"`
 }
 
-var FQBeatName = "FullyQualifiedBeatName"
-
 func GetDefaultConfig() Config {
 	config := Config{}
 	config.Subscription.Create = true

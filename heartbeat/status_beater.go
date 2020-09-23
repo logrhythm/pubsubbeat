@@ -9,7 +9,7 @@ import (
 	"github.com/elastic/beats/libbeat/common"
 	"github.com/elastic/beats/libbeat/logp"
 	"github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/logrhythm/pubsubbeat/config"
+	"github.com/logrhythm/pubsubbeat/environment"
 )
 
 // Heartbeat is a structure for heartbeat
@@ -33,6 +33,7 @@ const (
 	ServiceStopped = 3
 )
 
+// fqBeatName is the fully qualified beat name
 var fqBeatName string
 
 // Status is used for status of heartbeat1
@@ -56,7 +57,7 @@ type StatusBeater struct {
 // Start will begin reporting heartbeats through the beats
 func (sb *StatusBeater) Start(stopChan chan struct{}, publish func(event beat.Event)) {
 	go func() {
-		fqBeatName = os.Getenv(config.FQBeatName)
+		fqBeatName = os.Getenv(environment.FQBeatName)
 		sb.Beat(ServiceStarted, "Service started", publish)
 		for {
 			select {
