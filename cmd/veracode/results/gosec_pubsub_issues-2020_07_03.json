@@ -1,0 +1,31 @@
+{
+    "LOW": {
+        "G104": {
+            "confidence": "HIGH",
+            "cwe": {
+                "ID": "703",
+                "URL": "https://cwe.mitre.org/data/definitions/703.html"
+            },
+            "details": "Errors unhandled.",
+            "filelist": {
+                "/Users/arnold.miller/veracode/pubsub/github.com/logrhythm/pubsubbeat/beater/pubsubbeat.go": [
+                    {
+                        "code": "bt.pubsubClient.Close()",
+                        "column": "3",
+                        "line": "114"
+                    },
+                    {
+                        "code": "bt.client.Close()",
+                        "column": "2",
+                        "line": "202"
+                    },
+                    {
+                        "code": "tempFile.WriteString(decryptedContent)",
+                        "column": "3",
+                        "line": "229"
+                    }
+                ]
+            }
+        }
+    }
+}

@@ -1,0 +1,53 @@
+{
+	"Golang errors": {},
+	"Issues": [
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"ID": "703",
+				"URL": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled.",
+			"file": "/Users/arnold.miller/veracode/pubsub/github.com/logrhythm/pubsubbeat/beater/pubsubbeat.go",
+			"code": "bt.pubsubClient.Close()",
+			"line": "114",
+			"column": "3"
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"ID": "703",
+				"URL": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled.",
+			"file": "/Users/arnold.miller/veracode/pubsub/github.com/logrhythm/pubsubbeat/beater/pubsubbeat.go",
+			"code": "bt.client.Close()",
+			"line": "202",
+			"column": "2"
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"ID": "703",
+				"URL": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled.",
+			"file": "/Users/arnold.miller/veracode/pubsub/github.com/logrhythm/pubsubbeat/beater/pubsubbeat.go",
+			"code": "tempFile.WriteString(decryptedContent)",
+			"line": "229",
+			"column": "3"
+		}
+	],
+	"Stats": {
+		"files": 6,
+		"lines": 652,
+		"nosec": 0,
+		"found": 3
+	}
+}

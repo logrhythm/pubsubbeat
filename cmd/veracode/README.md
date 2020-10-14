@@ -1,25 +1,33 @@
 # Veracode and GoSec static security scans
 
+* repo: pubsubbeat, veracode branch: pubsub-veraCodeFake
+
 ## Veracode and GoSec files
 * post_vendor.sh     - bash script: post restore 'vendor' directory after veracode and gosec generation
 * prep_vendor.sh     - bash script: prepare 'vendor' directory for veracode and gosec generation
-* pubsub_go.mod      - automatic generated go.mod file via siem repo's WORKSPACE file's go_repository items
-**                   -      veracode_zip.sh uses this file to create veracode zip and gosec report file
-* veracode.json      - veracode control json file for pubsubbeat
+* pubsub_go.mod      - copied from automatic generated pubsub_go.mod via
+* *                  - repo: siem, branch: us7476_veracode, directory: cmd/veracode/pubsubbeat
+* *                  - any change to this file, need to update above repo: siem 
+* veracode.json      - veracode control json file for sophoscentralbeat
 * veracode_zip.sh    - bash script: generates all component zip files and gosec report files
-**                   -      Also supports Prepare and Post Clean
+* *                  - Also includes Prepare and Post Restore scripts
 
-* pubsubbeat repo's veracode branch: pubsub-veraCodeFake
-* Changes to these files in pubsubbeat repo, 
-** Need to be sync-ed back to siem repo's 'cmd/veraode/pubsubbeat' directory
-** siem repo, veracode branch: us7476_veracode
+## results directory      - gosec issue and result report files
+* gosec_pubsub_issues-2020_06_01.json - Release 2020.06 severity ordered issues
+* gosec_pubsub_result-2020_06_01.json - Release 2020.06 gosec generated results
+* gosec_pubsub_issues-2020_07_03.json - Release 2020.07 severity ordered issues
+* gosec_pubsub_result-2020_07_03.json - Release 2020.07 gosec generated results
+* gosec_pubsub_issues-2020_08_07.json - Release 2020.08 severity ordered issues
+* gosec_pubsub_result-2020_08_07.json - Release 2020.08 gosec generated results
+* gosec_pubsub_issues-2020_09_16.json - Release 2020.09 severity ordered issues
+* gosec_pubsub_result-2020_09_16.json - Release 2020.09 gosec generated results
+* gosec_pubsub_issues-2020_10_09.json - Release 2020.10 severity ordered issues
+* gosec_pubsub_result-2020_10_09.json - Release 2020.10 gosec generated results
 
-* In pubsubbeat repo's make the folowing directories if they do not exist
-** mkdir cmd/veraode
-** mkdir cmd/veraode/scripts
-** mkdir cmd/veraode/results
-
-* In pubsubbeat repo's make 'cmd/veraode' directory
-* Copy these post* prep* pubsub* veracode* files into the pubsubbeat repo's 'cmd/veraode' directory
-* Copy sibling 'scripts' directory's gosec*.sh gosec*.py __init__.py files
-** to pubsubbeat repo's 'cmd/veracode/scripts' directory
+## scripts directory      - python and shell scripts 
+*                         - keep in sync with repo: siem, branch: us7476_veracode, directory: cmd/veracode/scripts
+* __init__.py             - python module
+* gosec_ruleid_count.sh   - bash script: counts each rule_id in gosec output json file
+* gosec_rule_stdio.py     - python script: converts input (gosec report) to output (severity, rule, found-file order)
+* gosec_severity_count.sh - bash script: counts each severity in gosec output json file
+* gosec_rule_order.py     - python script: converts gosec output json into severity, rule, found-file order
