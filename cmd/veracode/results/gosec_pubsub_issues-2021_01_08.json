@@ -1,0 +1,50 @@
+{
+    "MEDIUM": {
+        "G304": {
+            "confidence": "HIGH",
+            "cwe": {
+                "ID": "22",
+                "URL": "https://cwe.mitre.org/data/definitions/22.html"
+            },
+            "details": "Potential file inclusion via variable",
+            "filelist": {
+                "/Users/arnold.miller/veracode/pubsub/github.com/logrhythm/pubsubbeat/lrutilities/crypto/encryption.go": [
+                    {
+                        "code": "ioutil.ReadFile(path)",
+                        "column": "15",
+                        "line": "85"
+                    }
+                ]
+            }
+        }
+    },
+    "LOW": {
+        "G104": {
+            "confidence": "HIGH",
+            "cwe": {
+                "ID": "703",
+                "URL": "https://cwe.mitre.org/data/definitions/703.html"
+            },
+            "details": "Errors unhandled.",
+            "filelist": {
+                "/Users/arnold.miller/veracode/pubsub/github.com/logrhythm/pubsubbeat/beater/pubsubbeat.go": [
+                    {
+                        "code": "bt.pubsubClient.Close()",
+                        "column": "3",
+                        "line": "124"
+                    },
+                    {
+                        "code": "bt.client.Close()",
+                        "column": "2",
+                        "line": "214"
+                    },
+                    {
+                        "code": "tempFile.WriteString(decryptedContent)",
+                        "column": "3",
+                        "line": "241"
+                    }
+                ]
+            }
+        }
+    }
+}
