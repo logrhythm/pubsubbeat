@@ -1,0 +1,67 @@
+{
+	"Golang errors": {},
+	"Issues": [
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"ID": "22",
+				"URL": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/root/veracode/src/github.com/logrhythm/pubsubbeat/lrutilities/crypto/encryption.go",
+			"code": "84: \tpath := filepath.Join(clientsCipherKeyPath, url.QueryEscape(clientsCipherKeyFileName))\n85: \tdata, err := ioutil.ReadFile(path)\n86: \tif err != nil {\n",
+			"line": "85",
+			"column": "15"
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"ID": "703",
+				"URL": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled.",
+			"file": "/root/veracode/src/github.com/logrhythm/pubsubbeat/beater/pubsubbeat.go",
+			"code": "240: \t\t}\n241: \t\ttempFile.WriteString(decryptedContent)\n242: \t\toptions = append(options, option.WithCredentialsFile(tempFile.Name()))\n",
+			"line": "241",
+			"column": "3"
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"ID": "703",
+				"URL": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled.",
+			"file": "/root/veracode/src/github.com/logrhythm/pubsubbeat/beater/pubsubbeat.go",
+			"code": "213: func (bt *Pubsubbeat) Stop() {\n214: \tbt.client.Close()\n215: \tclose(stopCh)\n",
+			"line": "214",
+			"column": "2"
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"ID": "703",
+				"URL": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled.",
+			"file": "/root/veracode/src/github.com/logrhythm/pubsubbeat/beater/pubsubbeat.go",
+			"code": "123: \t\tbt.logger.Info(\"closing PubSub client...\")\n124: \t\tbt.pubsubClient.Close()\n125: \t}()\n",
+			"line": "124",
+			"column": "3"
+		}
+	],
+	"Stats": {
+		"files": 10,
+		"lines": 852,
+		"nosec": 0,
+		"found": 4
+	}
+}

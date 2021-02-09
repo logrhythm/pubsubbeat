@@ -1,0 +1,50 @@
+{
+    "MEDIUM": {
+        "G304": {
+            "confidence": "HIGH", 
+            "cwe": {
+                "URL": "https://cwe.mitre.org/data/definitions/22.html", 
+                "ID": "22"
+            }, 
+            "details": "Potential file inclusion via variable", 
+            "filelist": {
+                "/root/veracode/src/github.com/logrhythm/pubsubbeat/lrutilities/crypto/encryption.go": [
+                    {
+                        "column": "15", 
+                        "line": "85", 
+                        "code": "84: \tpath := filepath.Join(clientsCipherKeyPath, url.QueryEscape(clientsCipherKeyFileName))\n85: \tdata, err := ioutil.ReadFile(path)\n86: \tif err != nil {\n"
+                    }
+                ]
+            }
+        }
+    }, 
+    "LOW": {
+        "G104": {
+            "confidence": "HIGH", 
+            "cwe": {
+                "URL": "https://cwe.mitre.org/data/definitions/703.html", 
+                "ID": "703"
+            }, 
+            "details": "Errors unhandled.", 
+            "filelist": {
+                "/root/veracode/src/github.com/logrhythm/pubsubbeat/beater/pubsubbeat.go": [
+                    {
+                        "column": "3", 
+                        "line": "241", 
+                        "code": "240: \t\t}\n241: \t\ttempFile.WriteString(decryptedContent)\n242: \t\toptions = append(options, option.WithCredentialsFile(tempFile.Name()))\n"
+                    }, 
+                    {
+                        "column": "2", 
+                        "line": "214", 
+                        "code": "213: func (bt *Pubsubbeat) Stop() {\n214: \tbt.client.Close()\n215: \tclose(stopCh)\n"
+                    }, 
+                    {
+                        "column": "3", 
+                        "line": "124", 
+                        "code": "123: \t\tbt.logger.Info(\"closing PubSub client...\")\n124: \t\tbt.pubsubClient.Close()\n125: \t}()\n"
+                    }
+                ]
+            }
+        }
+    }
+}
