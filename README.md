@@ -25,7 +25,7 @@ in the same directory with the name pubsubbeat.
 ```
 make
 ```
-
+    
 ### Run
 
 To run Pubsubbeat with debugging output enabled, run:
