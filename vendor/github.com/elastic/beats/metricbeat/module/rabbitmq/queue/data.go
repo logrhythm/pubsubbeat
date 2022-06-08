@@ -20,14 +20,13 @@ package queue
 import (
 	"encoding/json"
 
-	"github.com/elastic/beats/metricbeat/mb"
+	"github.com/pkg/errors"
 
-	"github.com/joeshaw/multierror"
+	"github.com/elastic/beats/v7/metricbeat/mb"
 
-	"github.com/elastic/beats/libbeat/common"
-	s "github.com/elastic/beats/libbeat/common/schema"
-	c "github.com/elastic/beats/libbeat/common/schema/mapstriface"
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/common"
+	s "github.com/elastic/beats/v7/libbeat/common/schema"
+	c "github.com/elastic/beats/v7/libbeat/common/schema/mapstriface"
 )
 
 var (
@@ -85,33 +84,23 @@ var (
 	}
 )
 
-func eventsMapping(content []byte, r mb.ReporterV2) {
+func eventsMapping(content []byte, r mb.ReporterV2) error {
 	var queues []map[string]interface{}
 	err := json.Unmarshal(content, &queues)
 	if err != nil {
-		logp.Err("Error: %+v", err)
-		r.Error(err)
-		return
+		return errors.Wrap(err, "error in mapping")
 	}
 
-	var errors multierror.Errors
 	for _, queue := range queues {
-		err := eventMapping(queue, r)
-		if err != nil {
-			errors = append(errors, err)
-		}
+		evt := eventMapping(queue)
+		r.Event(evt)
 	}
 
-	if len(errors) > 0 {
-		r.Error(errors.Err())
-	}
+	return nil
 }
 
-func eventMapping(queue map[string]interface{}, r mb.ReporterV2) error {
-	fields, err := schema.Apply(queue)
-	if err != nil {
-		return err
-	}
+func eventMapping(queue map[string]interface{}) mb.Event {
+	fields, _ := schema.Apply(queue)
 
 	moduleFields := common.MapStr{}
 	if v, err := fields.GetValue("vhost"); err == nil {
@@ -128,7 +117,5 @@ func eventMapping(queue map[string]interface{}, r mb.ReporterV2) error {
 		MetricSetFields: fields,
 		ModuleFields:    moduleFields,
 	}
-
-	r.Event(event)
-	return nil
+	return event
 }

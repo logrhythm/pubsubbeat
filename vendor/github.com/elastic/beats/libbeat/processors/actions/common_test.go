@@ -22,15 +22,17 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/processors"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/processors"
 )
 
 type testCase struct {
-	event common.MapStr
-	want  common.MapStr
-	cfg   []string
+	eventFields common.MapStr
+	eventMeta   common.MapStr
+	wantFields  common.MapStr
+	wantMeta    common.MapStr
+	cfg         []string
 }
 
 func testProcessors(t *testing.T, cases map[string]testCase) {
@@ -50,7 +52,13 @@ func testProcessors(t *testing.T, cases map[string]testCase) {
 				}
 			}
 
-			current := &beat.Event{Fields: test.event.Clone()}
+			current := &beat.Event{}
+			if test.eventFields != nil {
+				current.Fields = test.eventFields.Clone()
+			}
+			if test.eventMeta != nil {
+				current.Meta = test.eventMeta.Clone()
+			}
 			for i, processor := range ps {
 				var err error
 				current, err = processor.Run(current)
@@ -62,7 +70,8 @@ func testProcessors(t *testing.T, cases map[string]testCase) {
 				}
 			}
 
-			assert.Equal(t, test.want, current.Fields)
+			assert.Equal(t, test.wantFields, current.Fields)
+			assert.Equal(t, test.wantMeta, current.Meta)
 		})
 	}
 }

@@ -15,12 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package log
 
 import (
-	"fmt"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -30,10 +30,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/reader"
-	"github.com/elastic/beats/libbeat/reader/readfile"
-	"github.com/elastic/beats/libbeat/reader/readfile/encoding"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/reader"
+	"github.com/elastic/beats/v7/libbeat/reader/readfile"
+	"github.com/elastic/beats/v7/libbeat/reader/readfile/encoding"
 )
 
 func TestReadLine(t *testing.T) {
@@ -42,7 +43,7 @@ func TestReadLine(t *testing.T) {
 	logFile := absPath + "/tmp" + strconv.Itoa(rand.Int()) + ".log"
 
 	assert.NotNil(t, absPath)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	if err != nil {
 		t.Fatalf("Error creating the absolute path: %s", absPath)
@@ -52,18 +53,18 @@ func TestReadLine(t *testing.T) {
 	defer file.Close()
 	defer os.Remove(logFile)
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.NotNil(t, file)
 
 	firstLineString := "9Characte\n"
 	secondLineString := "This is line 2\n"
 
 	length, err := file.WriteString(firstLineString)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.NotNil(t, length)
 
 	length, err = file.WriteString(secondLineString)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.NotNil(t, length)
 
 	file.Sync()
@@ -71,11 +72,12 @@ func TestReadLine(t *testing.T) {
 	// Open file for reading
 	readFile, err := os.Open(logFile)
 	defer readFile.Close()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	source := File{File: readFile}
 
 	h := Harvester{
+		logger: logp.NewLogger("harvester"),
 		config: config{
 			LogConfig: LogConfig{
 				CloseInactive: 500 * time.Millisecond,
@@ -102,21 +104,21 @@ func TestReadLine(t *testing.T) {
 
 	// Read third line
 	_, text, bytesread, _, err := readLine(r)
-	fmt.Printf("received line: '%s'\n", text)
-	assert.Nil(t, err)
+	t.Logf("received line: '%s'\n", text)
+	assert.NoError(t, err)
 	assert.Equal(t, text, firstLineString[0:len(firstLineString)-1])
 	assert.Equal(t, bytesread, len(firstLineString))
 
 	// read second line
 	_, text, bytesread, _, err = readLine(r)
-	fmt.Printf("received line: '%s'\n", text)
+	t.Logf("received line: '%s'\n", text)
 	assert.Equal(t, text, secondLineString[0:len(secondLineString)-1])
 	assert.Equal(t, bytesread, len(secondLineString))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	// Read third line, which doesn't exist
 	_, text, bytesread, _, err = readLine(r)
-	fmt.Printf("received line: '%s'\n", text)
+	t.Logf("received line: '%s'\n", text)
 	assert.Equal(t, "", text)
 	assert.Equal(t, bytesread, 0)
 	assert.Equal(t, err, ErrInactive)

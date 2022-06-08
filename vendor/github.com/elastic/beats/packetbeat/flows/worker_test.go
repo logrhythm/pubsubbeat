@@ -24,15 +24,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/common/mapval"
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/go-lookslike/isdef"
+
+	"github.com/elastic/go-lookslike"
+
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/packetbeat/procs"
 )
 
-var (
-	// Use `go test -data` to update sample event files.
-	dataFlag = flag.Bool("data", false, "Write updated data.json files")
-)
+// Use `go test -data` to update sample event files.
+var dataFlag = flag.Bool("data", false, "Write updated data.json files")
 
 func TestCreateEvent(t *testing.T) {
 	logp.TestingSetup()
@@ -63,40 +65,43 @@ func TestCreateEvent(t *testing.T) {
 	}
 	bif.stats[0] = &flowStats{uintFlags: []uint8{1, 1}, uints: []uint64{10, 1}}
 	bif.stats[1] = &flowStats{uintFlags: []uint8{1, 1}, uints: []uint64{460, 2}}
-	event := createEvent(time.Now(), bif, true, nil, []string{"bytes", "packets"}, nil)
+	event := createEvent(procs.ProcessesWatcher{}, time.Now(), bif, true, nil, []string{"bytes", "packets"}, nil)
 
 	// Validate the contents of the event.
-	validate := mapval.MustCompile(mapval.Map{
-		"source": mapval.Map{
+	validate := lookslike.MustCompile(map[string]interface{}{
+		"source": map[string]interface{}{
 			"mac":     "01:02:03:04:05:06",
 			"ip":      "203.0.113.3",
 			"port":    port1,
 			"bytes":   uint64(10),
 			"packets": uint64(1),
 		},
-		"destination": mapval.Map{
+		"destination": map[string]interface{}{
 			"mac":     "06:05:04:03:02:01",
 			"ip":      "198.51.100.2",
 			"port":    port2,
 			"bytes":   uint64(460),
 			"packets": uint64(2),
 		},
-		"flow": mapval.Map{
-			"id":    mapval.KeyPresent,
+		"flow": map[string]interface{}{
+			"id":    isdef.KeyPresent,
 			"final": true,
-			"vlan":  mapval.KeyPresent,
+			"vlan":  isdef.KeyPresent,
 		},
-		"network": mapval.Map{
+		"network": map[string]interface{}{
 			"bytes":     uint64(470),
 			"packets":   uint64(3),
 			"type":      "ipv4",
 			"transport": "tcp",
 		},
-		"event": mapval.Map{
-			"start":    mapval.KeyPresent,
-			"end":      mapval.KeyPresent,
-			"duration": mapval.KeyPresent,
+		"event": map[string]interface{}{
+			"start":    isdef.KeyPresent,
+			"end":      isdef.KeyPresent,
+			"duration": isdef.KeyPresent,
 			"dataset":  "flow",
+			"kind":     "event",
+			"category": []string{"network"},
+			"action":   "network_flow",
 		},
 		"type": "flow",
 	})
@@ -117,7 +122,7 @@ func TestCreateEvent(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := ioutil.WriteFile("../_meta/sample_outputs/flow.json", output, 0644); err != nil {
+		if err := ioutil.WriteFile("../_meta/sample_outputs/flow.json", output, 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}

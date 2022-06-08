@@ -25,9 +25,9 @@ import (
 	"github.com/joeshaw/multierror"
 	"github.com/pkg/errors"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/libbeat/monitoring"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/monitoring"
 )
 
 var (
@@ -217,14 +217,6 @@ func mustHaveModule(ms MetricSet, base BaseMetricSet) error {
 // of them.
 func mustImplementFetcher(ms MetricSet) error {
 	var ifcs []string
-	if _, ok := ms.(EventFetcher); ok {
-		ifcs = append(ifcs, "EventFetcher")
-	}
-
-	if _, ok := ms.(EventsFetcher); ok {
-		ifcs = append(ifcs, "EventsFetcher")
-	}
-
 	if _, ok := ms.(ReportingMetricSet); ok {
 		ifcs = append(ifcs, "ReportingMetricSet")
 	}
@@ -241,15 +233,24 @@ func mustImplementFetcher(ms MetricSet) error {
 		ifcs = append(ifcs, "ReportingMetricSetV2Error")
 	}
 
+	if _, ok := ms.(ReportingMetricSetV2WithContext); ok {
+		ifcs = append(ifcs, "ReportingMetricSetV2WithContext")
+	}
+
 	if _, ok := ms.(PushMetricSetV2); ok {
 		ifcs = append(ifcs, "PushMetricSetV2")
 	}
+
+	if _, ok := ms.(PushMetricSetV2WithContext); ok {
+		ifcs = append(ifcs, "PushMetricSetV2WithContext")
+	}
+
 	switch len(ifcs) {
 	case 0:
 		return fmt.Errorf("MetricSet '%s/%s' does not implement an event "+
-			"producing interface (EventFetcher, EventsFetcher, "+
-			"ReportingMetricSet, ReportingMetricSetV2, ReportingMetricSetV2Error, PushMetricSet, or "+
-			"PushMetricSetV2)",
+			"producing interface ("+
+			"ReportingMetricSet, ReportingMetricSetV2, ReportingMetricSetV2Error, ReportingMetricSetV2WithContext"+
+			"PushMetricSet, PushMetricSetV2, or PushMetricSetV2WithContext)",
 			ms.Module().Name(), ms.Name())
 	case 1:
 		return nil

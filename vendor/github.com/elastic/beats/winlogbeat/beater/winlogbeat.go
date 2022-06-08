@@ -25,25 +25,23 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/libbeat/paths"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/esleg/eslegclient"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/outputs/elasticsearch"
+	"github.com/elastic/beats/v7/libbeat/paths"
+	"github.com/elastic/beats/v7/winlogbeat/module"
 
-	"github.com/elastic/beats/winlogbeat/checkpoint"
-	"github.com/elastic/beats/winlogbeat/config"
-	"github.com/elastic/beats/winlogbeat/eventlog"
+	"github.com/elastic/beats/v7/winlogbeat/checkpoint"
+	"github.com/elastic/beats/v7/winlogbeat/config"
+	"github.com/elastic/beats/v7/winlogbeat/eventlog"
 )
 
-// Debug logging functions for this package.
-var (
-	debugf = logp.MakeDebug("winlogbeat")
-)
-
-// Time the application was started.
-var startTime = time.Now().UTC()
+const pipelinesWarning = "Winlogbeat is unable to load the ingest pipelines" +
+	" because the Elasticsearch output is not configured/enabled. If you have" +
+	" already loaded the ingest pipelines, you can ignore this warning."
 
 // Winlogbeat is used to conform to the beat interface
 type Winlogbeat struct {
@@ -53,26 +51,29 @@ type Winlogbeat struct {
 	done       chan struct{}           // Channel to initiate shutdown of main event loop.
 	pipeline   beat.Pipeline           // Interface to publish event.
 	checkpoint *checkpoint.Checkpoint  // Persists event log state to disk.
+	log        *logp.Logger
 }
 
 // New returns a new Winlogbeat.
 func New(b *beat.Beat, _ *common.Config) (beat.Beater, error) {
 	// Read configuration.
 	config := config.DefaultSettings
-	err := b.BeatConfig.Unpack(&config)
-	if err != nil {
-		return nil, fmt.Errorf("Error reading configuration file. %v", err)
+	if err := b.BeatConfig.Unpack(&config); err != nil {
+		return nil, fmt.Errorf("error reading configuration file: %w", err)
 	}
+
+	log := logp.NewLogger("winlogbeat")
 
 	// resolve registry file path
 	config.RegistryFile = paths.Resolve(paths.Data, config.RegistryFile)
-	logp.Info("State will be read from and persisted to %s",
+	log.Infof("State will be read from and persisted to %s",
 		config.RegistryFile)
 
 	eb := &Winlogbeat{
 		beat:   b,
 		config: config,
 		done:   make(chan struct{}),
+		log:    log,
 	}
 
 	if err := eb.init(b); err != nil {
@@ -91,18 +92,25 @@ func (eb *Winlogbeat) init(b *beat.Beat) error {
 	for _, config := range config.EventLogs {
 		eventLog, err := eventlog.New(config)
 		if err != nil {
-			return fmt.Errorf("Failed to create new event log. %v", err)
+			return fmt.Errorf("failed to create new event log: %w", err)
 		}
-		debugf("Initialized EventLog[%s]", eventLog.Name())
+		eb.log.Debugf("initialized WinEventLog[%s]", eventLog.Name())
 
-		logger, err := newEventLogger(eventLog, config)
+		logger, err := newEventLogger(b.Info, eventLog, config, eb.log)
 		if err != nil {
-			return fmt.Errorf("Failed to create new event log. %v", err)
+			return fmt.Errorf("failed to create new event log: %w", err)
 		}
 
 		eb.eventLogs = append(eb.eventLogs, logger)
 	}
-
+	b.OverwritePipelinesCallback = func(esConfig *common.Config) error {
+		overwritePipelines := config.OverwritePipelines
+		esClient, err := eslegclient.NewConnectedClient(esConfig, "Winlogbeat")
+		if err != nil {
+			return err
+		}
+		return module.UploadPipelines(b.Info, esClient, overwritePipelines)
+	}
 	return nil
 }
 
@@ -112,9 +120,9 @@ func (eb *Winlogbeat) setup(b *beat.Beat) error {
 	config := &eb.config
 
 	var err error
-	eb.checkpoint, err = checkpoint.NewCheckpoint(config.RegistryFile, 10, 5*time.Second)
+	eb.checkpoint, err = checkpoint.NewCheckpoint(config.RegistryFile, config.RegistryFlush)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to initialize checkpoint registry: %w", err)
 	}
 
 	eb.pipeline = b.Publisher
@@ -127,23 +135,27 @@ func (eb *Winlogbeat) Run(b *beat.Beat) error {
 		return err
 	}
 
+	if b.Config.Output.Name() == "elasticsearch" {
+		callback := func(esClient *eslegclient.Connection) error {
+			return module.UploadPipelines(b.Info, esClient, eb.config.OverwritePipelines)
+		}
+		_, err := elasticsearch.RegisterConnectCallback(callback)
+		if err != nil {
+			return err
+		}
+	} else {
+		eb.log.Warn(pipelinesWarning)
+	}
+
 	acker := newEventACKer(eb.checkpoint)
 	persistedState := eb.checkpoint.States()
 
 	// Initialize metrics.
 	initMetrics("total")
 
-	// setup global event ACK handler
-	err := eb.pipeline.SetACKHandler(beat.PipelineACKHandler{
-		ACKEvents: acker.ACKEvents,
-	})
-	if err != nil {
-		return err
-	}
-
 	var wg sync.WaitGroup
 	for _, log := range eb.eventLogs {
-		state, _ := persistedState[log.source.Name()]
+		state := persistedState[log.source.Name()]
 
 		// Start a goroutine for each event log.
 		wg.Add(1)
@@ -154,7 +166,7 @@ func (eb *Winlogbeat) Run(b *beat.Beat) error {
 	defer eb.checkpoint.Shutdown()
 
 	if eb.config.ShutdownTimeout > 0 {
-		logp.Info("Shutdown will wait max %v for the remaining %v events to publish.",
+		eb.log.Infof("Shutdown will wait max %v for the remaining %v events to publish.",
 			eb.config.ShutdownTimeout, acker.Active())
 		ctx, cancel := context.WithTimeout(context.Background(), eb.config.ShutdownTimeout)
 		defer cancel()
@@ -166,7 +178,7 @@ func (eb *Winlogbeat) Run(b *beat.Beat) error {
 
 // Stop is used to tell the winlogbeat that it should cease executing.
 func (eb *Winlogbeat) Stop() {
-	logp.Info("Stopping Winlogbeat")
+	eb.log.Info("Stopping Winlogbeat")
 	if eb.done != nil {
 		close(eb.done)
 	}

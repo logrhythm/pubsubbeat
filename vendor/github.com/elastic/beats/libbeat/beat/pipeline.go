@@ -20,19 +20,17 @@ package beat
 import (
 	"time"
 
-	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common"
 )
 
+// Pipeline provides access to libbeat event publishing by creating a Client
+// instance.
 type Pipeline interface {
-	PipelineConnector
-	SetACKHandler(PipelineACKHandler) error
-}
-
-// PipelineConnector creates a publishing Client. This is typically backed by a Pipeline.
-type PipelineConnector interface {
 	ConnectWith(ClientConfig) (Client, error)
 	Connect() (Client, error)
 }
+
+type PipelineConnector = Pipeline
 
 // Client holds a connection to the beats publisher pipeline
 type Client interface {
@@ -48,34 +46,53 @@ type ClientConfig struct {
 
 	Processing ProcessingConfig
 
+	CloseRef CloseRef
+
 	// WaitClose sets the maximum duration to wait on ACK, if client still has events
 	// active non-acknowledged events in the publisher pipeline.
 	// WaitClose is only effective if one of ACKCount, ACKEvents and ACKLastEvents
 	// is configured
 	WaitClose time.Duration
 
+	// Configure ACK callback.
+	ACKHandler ACKer
+
 	// Events configures callbacks for common client callbacks
 	Events ClientEventer
+}
 
-	// ACK handler strategies.
-	// Note: ack handlers are run in another go-routine owned by the publisher pipeline.
-	//       They should not block for to long, to not block the internal buffers for
-	//       too long (buffers can only be freed after ACK has been processed).
-	// Note: It's not supported to configure multiple ack handler types. Use at
-	//       most one.
+// ACKer can be registered with a Client when connecting to the pipeline.
+// The ACKer will be informed when events are added or dropped by the processors,
+// and when an event has been ACKed by the outputs.
+//
+// Due to event publishing and ACKing are asynchronous operations, the
+// operations on ACKer are normally executed in different go routines. ACKers
+// are required to be multi-threading safe.
+type ACKer interface {
+	// AddEvent informs the ACKer that a new event has been send to the client.
+	// AddEvent is called after the processors have handled the event. If the
+	// event has been dropped by the processor `published` will be set to true.
+	// This allows the ACKer to do some bookeeping for dropped events.
+	AddEvent(event Event, published bool)
 
-	// ACKCount reports the number of published events recently acknowledged
-	// by the pipeline.
-	ACKCount func(int)
+	// ACK Events from the output and pipeline queue are forwarded to ACKEvents.
+	// The number of reported events only matches the known number of events downstream.
+	// ACKers might need to keep track of dropped events by themselves.
+	ACKEvents(n int)
 
-	// ACKEvents reports the events private data of recently acknowledged events.
-	// Note: The slice passed must be copied if the events are to be processed
-	//       after the handler returns.
-	ACKEvents func([]interface{})
+	// Close informs the ACKer that the Client used to publish to the pipeline has been closed.
+	// No new events should be published anymore. The ACKEvents method still will be actively called
+	// as long as there are pending events for the client in the pipeline. The Close signal can be used
+	// to supress any ACK event propagation if required.
+	// Close might be called from another go-routine than AddEvent and ACKEvents.
+	Close()
+}
 
-	// ACKLastEvent reports the last ACKed event out of a batch of ACKed events only.
-	// Only the events 'Private' field will be reported.
-	ACKLastEvent func(interface{})
+// CloseRef allows users to close the client asynchronously.
+// A CloseReg implements a subset of function required for context.Context.
+type CloseRef interface {
+	Done() <-chan struct{}
+	Err() error
 }
 
 // ProcessingConfig provides additional event processing settings a client can
@@ -98,6 +115,12 @@ type ProcessingConfig struct {
 	// the pipeline processors.
 	Processor ProcessorList
 
+	// KeepNull determines whether published events will keep null values or omit them.
+	KeepNull bool
+
+	// Disables the addition of host.name if it was enabled for the publisher.
+	DisableHost bool
+
 	// Private contains additional information to be passed to the processing
 	// pipeline builder.
 	Private interface{}
@@ -113,22 +136,9 @@ type ClientEventer interface {
 	DroppedOnPublish(Event) // event has been dropped, while waiting for the queue
 }
 
-// PipelineACKHandler configures some pipeline-wide event ACK handler.
-type PipelineACKHandler struct {
-	// ACKCount reports the number of published events recently acknowledged
-	// by the pipeline.
-	ACKCount func(int)
-
-	// ACKEvents reports the events recently acknowledged by the pipeline.
-	// Only the events 'Private' field will be reported.
-	ACKEvents func([]interface{})
-
-	// ACKLastEvent reports the last ACKed event per pipeline client.
-	// Only the events 'Private' field will be reported.
-	ACKLastEvents func([]interface{})
-}
-
 type ProcessorList interface {
+	Processor
+	Close() error
 	All() []Processor
 }
 
@@ -144,9 +154,15 @@ type Processor interface {
 type PublishMode uint8
 
 const (
-	// DefaultGuarantees are up to the pipeline configuration, as configured by the
-	// operator.
+	// DefaultGuarantees are up to the pipeline configuration itself.
 	DefaultGuarantees PublishMode = iota
+
+	// OutputChooses mode fully depends on the output and its configuration.
+	// Events might be dropped based on the users output configuration.
+	// In this mode no events are dropped within the pipeline. Events are only removed
+	// after the output has ACKed the events to the pipeline, even if the output
+	// did drop the events.
+	OutputChooses
 
 	// GuaranteedSend ensures events are retried until acknowledged by the output.
 	// Normally guaranteed sending should be used with some client ACK-handling

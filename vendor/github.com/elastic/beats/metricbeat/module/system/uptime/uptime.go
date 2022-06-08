@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build darwin || linux || openbsd || windows || (freebsd && cgo)
 // +build darwin linux openbsd windows freebsd,cgo
 
 package uptime
@@ -22,9 +23,9 @@ package uptime
 import (
 	"github.com/pkg/errors"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/mb/parse"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/parse"
 	sigar "github.com/elastic/gosigar"
 )
 
@@ -46,11 +47,10 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 }
 
 // Fetch fetches the uptime metric from the OS.
-func (m *MetricSet) Fetch(r mb.ReporterV2) {
+func (m *MetricSet) Fetch(r mb.ReporterV2) error {
 	var uptime sigar.Uptime
 	if err := uptime.Get(); err != nil {
-		r.Error(errors.Wrap(err, "failed to get uptime"))
-		return
+		return errors.Wrap(err, "failed to get uptime")
 	}
 
 	r.Event(mb.Event{
@@ -60,4 +60,6 @@ func (m *MetricSet) Fetch(r mb.ReporterV2) {
 			},
 		},
 	})
+
+	return nil
 }

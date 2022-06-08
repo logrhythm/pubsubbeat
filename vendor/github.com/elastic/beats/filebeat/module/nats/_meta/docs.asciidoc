@@ -1,27 +1,20 @@
 :modulename: nats
 :has-dashboards: false
 
-== nats module
+== NATS module
 
-This is the nats module.
+include::{libbeat-dir}/shared/integration-link.asciidoc[]
+
+This is the NATS module.
 
 include::../include/what-happens.asciidoc[]
+
+include::../include/gs-link.asciidoc[]
 
 [float]
 === Compatibility
 
 The +{modulename}+ module was tested with logs from version v1.4.0.
-
-
-include::../include/running-modules.asciidoc[]
-
-[float]
-=== Dashboard
-
-The Nats module comes with a predefined dashboard. For example:
-
-image::./images/filebeat_nats_dashboard.png[]
-
 
 include::../include/configuring-intro.asciidoc[]
 
@@ -35,6 +28,13 @@ include::../include/config-option-intro.asciidoc[]
 ==== `log` log fileset settings
 
 include::../include/var-paths.asciidoc[]
+
+[float]
+=== Dashboard
+
+The +{modulename}+ module comes with a predefined dashboard. For example:
+
+image::./images/filebeat_nats_dashboard.png[]
 
 :has-dashboards!:
 

@@ -1,9 +1,14 @@
 [
     {
-        "ecs.version": "1.0.0",
+        "event.category": [
+            "web"
+        ],
         "event.dataset": "haproxy.log",
         "event.duration": 0,
+        "event.kind": "event",
         "event.module": "haproxy",
+        "event.outcome": "failure",
+        "event.timezone": "-02:00",
         "fileset.name": "log",
         "haproxy.backend_name": "http-webservices",
         "haproxy.backend_queue": 0,
@@ -24,22 +29,34 @@
         "haproxy.server_queue": 0,
         "haproxy.termination_state": "SC--",
         "haproxy.total_waiting_time_ms": -1,
+        "http.request.method": "GET",
         "http.response.bytes": 213,
         "http.response.status_code": 503,
+        "http.version": "1.1",
         "input.type": "log",
         "log.offset": 0,
         "process.name": "haproxy",
         "process.pid": 19312,
+        "related.ip": [
+            "127.0.0.1"
+        ],
         "service.type": "haproxy",
         "source.address": "127.0.0.1",
         "source.ip": "127.0.0.1",
-        "source.port": 35982
+        "source.port": 35982,
+        "url.original": "/",
+        "url.path": "/"
     },
     {
-        "ecs.version": "1.0.0",
+        "event.category": [
+            "web"
+        ],
         "event.dataset": "haproxy.log",
         "event.duration": 0,
+        "event.kind": "event",
         "event.module": "haproxy",
+        "event.outcome": "failure",
+        "event.timezone": "-02:00",
         "fileset.name": "log",
         "haproxy.backend_name": "http-webservices",
         "haproxy.backend_queue": 0,
@@ -60,22 +77,34 @@
         "haproxy.server_queue": 0,
         "haproxy.termination_state": "SC--",
         "haproxy.total_waiting_time_ms": -1,
+        "http.request.method": "GET",
         "http.response.bytes": 213,
         "http.response.status_code": 503,
+        "http.version": "1.1",
         "input.type": "log",
         "log.offset": 186,
         "process.name": "haproxy",
         "process.pid": 29785,
+        "related.ip": [
+            "127.0.0.1"
+        ],
         "service.type": "haproxy",
         "source.address": "127.0.0.1",
         "source.ip": "127.0.0.1",
-        "source.port": 43738
+        "source.port": 43738,
+        "url.original": "/foo",
+        "url.path": "/foo"
     },
     {
-        "ecs.version": "1.0.0",
+        "event.category": [
+            "web"
+        ],
         "event.dataset": "haproxy.log",
         "event.duration": 0,
+        "event.kind": "event",
         "event.module": "haproxy",
+        "event.outcome": "failure",
+        "event.timezone": "-02:00",
         "fileset.name": "log",
         "haproxy.backend_name": "http-webservices",
         "haproxy.backend_queue": 0,
@@ -100,15 +129,22 @@
         "haproxy.server_queue": 0,
         "haproxy.termination_state": "SC--",
         "haproxy.total_waiting_time_ms": -1,
+        "http.request.method": "GET",
         "http.response.bytes": 213,
         "http.response.status_code": 503,
+        "http.version": "1.1",
         "input.type": "log",
         "log.offset": 394,
         "process.name": "haproxy",
         "process.pid": 7873,
+        "related.ip": [
+            "127.0.0.1"
+        ],
         "service.type": "haproxy",
         "source.address": "127.0.0.1",
         "source.ip": "127.0.0.1",
-        "source.port": 44542
+        "source.port": 44542,
+        "url.original": "/foo",
+        "url.path": "/foo"
     }
 ]

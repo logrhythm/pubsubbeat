@@ -1,45 +1,43 @@
 {
     "@timestamp": "2017-10-12T08:05:34.853Z",
-    "beat": {
-        "hostname": "host.example.com",
-        "name": "host.example.com"
+    "event": {
+        "dataset": "kafka.consumergroup",
+        "duration": 115000,
+        "module": "kafka"
     },
     "kafka": {
         "broker": {
-            "address": "172.18.0.2:9092",
+            "address": "172.21.0.2:9092",
             "id": 0
         },
         "consumergroup": {
-            "broker": {
-                "address": "172.18.0.2:9092",
-                "id": 0
-            },
             "client": {
-                "host": "172.18.0.1",
-                "id": "sarama",
-                "member_id": "sarama-fcb5a5db-0474-4f3a-a5af-29e2f14549c5"
+                "host": "127.0.0.1",
+                "id": "consumer-1",
+                "member_id": "consumer-1-8653cb3a-afed-4b1b-87d0-2a208319b41e"
             },
+            "consumer_lag": 77,
             "error": {
                 "code": 0
             },
-            "id": "test-group",
+            "id": "console-consumer-40539",
             "meta": "",
-            "offset": -1,
-            "partition": 0,
-            "topic": "metricbeat-test"
+            "offset": -1
         },
         "partition": {
             "id": 0,
-            "topic_id": "0-metricbeat-test"
+            "topic_id": "0-test"
         },
         "topic": {
-            "name": "metricbeat-test"
+            "name": "test"
         }
     },
     "metricset": {
-        "host": "kafka:9092",
-        "module": "kafka",
         "name": "consumergroup",
-        "rtt": 115
+        "period": 10000
+    },
+    "service": {
+        "address": "172.21.0.2:9092",
+        "type": "kafka"
     }
 }

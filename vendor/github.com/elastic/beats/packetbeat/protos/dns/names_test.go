@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 // Unit tests and benchmarks for the dns package.
@@ -31,7 +32,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/packetbeat/pb"
 )
 
 type dnsTestMsg struct {
@@ -110,7 +112,7 @@ func assertDNSMessage(t testing.TB, q dnsTestMsg) {
 	}
 
 	mapStr := common.MapStr{}
-	addDNSToMapStr(mapStr, dns, true, true)
+	addDNSToMapStr(mapStr, pb.NewFields(), dns, true, true)
 	if q.question != nil {
 		for k, v := range q.question {
 			assert.NotNil(t, mapStr["question"].(common.MapStr)[k])

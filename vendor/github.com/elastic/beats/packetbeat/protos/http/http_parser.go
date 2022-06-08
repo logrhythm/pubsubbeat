@@ -25,10 +25,10 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/common/streambuf"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/packetbeat/protos/tcp"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common/streambuf"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/packetbeat/protos/tcp"
 )
 
 // Http Message
@@ -45,7 +45,7 @@ type message struct {
 	cmdlineTuple *common.ProcessTuple
 	direction    uint8
 
-	//Request Info
+	// Request Info
 	requestURI   common.NetString
 	method       common.NetString
 	statusCode   uint16
@@ -62,6 +62,7 @@ type message struct {
 	isChunked     bool
 	headers       map[string]common.NetString
 	size          uint64
+	username      string
 
 	rawHeaders []byte
 
@@ -186,7 +187,7 @@ func (*parser) parseHTTPLine(s *stream, m *message) (cont, ok, complete bool) {
 		return false, false, false
 	}
 	if bytes.Equal(fline[0:5], constHTTPVersion) {
-		//RESPONSE
+		// RESPONSE
 		m.isRequest = false
 		version = fline[5:8]
 		m.statusCode, m.statusPhrase, err = parseResponseStatus(fline[9:])
@@ -288,7 +289,7 @@ func (parser *parser) parseHeaders(s *stream, m *message) (cont, ok, complete bo
 		s.parseOffset = 0
 
 		if !m.isRequest && ((100 <= m.statusCode && m.statusCode < 200) || m.statusCode == 204 || m.statusCode == 304) {
-			//response with a 1xx, 204 , or 304 status  code is always terminated
+			// response with a 1xx, 204 , or 304 status  code is always terminated
 			// by the first empty line after the  header fields
 			if isDebug {
 				debugf("Terminate response, status code %d", m.statusCode)

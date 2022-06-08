@@ -24,6 +24,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -104,7 +106,7 @@ func TestSplitHostnamePort(t *testing.T) {
 			request := &http.Request{
 				URL: url,
 			}
-			host, port, err := splitHostnamePort(request)
+			host, port, err := splitHostnamePort(request.URL.String())
 
 			if err != nil {
 				if test.expectedError == nil {
@@ -127,12 +129,12 @@ func TestSplitHostnamePort(t *testing.T) {
 
 func makeTestHTTPRequest(t *testing.T) *http.Request {
 	req, err := http.NewRequest("GET", "http://example.net", nil)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	return req
 }
 
 func TestZeroMaxRedirectShouldError(t *testing.T) {
-	checker := makeCheckRedirect(0)
+	checker := makeCheckRedirect(0, nil)
 	req := makeTestHTTPRequest(t)
 
 	res := checker(req, nil)
@@ -141,7 +143,7 @@ func TestZeroMaxRedirectShouldError(t *testing.T) {
 
 func TestNonZeroRedirect(t *testing.T) {
 	limit := 5
-	checker := makeCheckRedirect(limit)
+	checker := makeCheckRedirect(limit, nil)
 
 	var via []*http.Request
 	// Test requests within the limit
@@ -164,8 +166,27 @@ func TestRequestBuildingWithCustomHost(t *testing.T) {
 
 	request, err := buildRequest("localhost", &config, encoder)
 
-	if assert.Nil(t, err) {
+	if assert.NoError(t, err) {
 		assert.Equal(t, "custom-host", request.Host)
 		assert.Equal(t, "custom-host", request.Header.Get("Host"))
 	}
+}
+
+func TestRequestBuildingWithExplicitUserAgent(t *testing.T) {
+	expectedUserAgent := "some-user-agent"
+
+	var config = Config{
+		Check: checkConfig{
+			Request: requestParameters{
+				SendHeaders: map[string]string{
+					"User-Agent": expectedUserAgent,
+				},
+			},
+		},
+	}
+
+	request, err := buildRequest("localhost", &config, nilEncoder{})
+
+	require.NoError(t, err)
+	assert.Equal(t, expectedUserAgent, request.Header.Get("User-Agent"))
 }

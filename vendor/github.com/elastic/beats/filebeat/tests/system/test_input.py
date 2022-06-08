@@ -1,8 +1,12 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from filebeat import BaseTest
+import json
 import os
+import shutil
+import sys
 import time
+import unittest
 
 from beat.beat import Proc
 
@@ -12,6 +16,71 @@ Tests for the input functionality.
 
 
 class Test(BaseTest):
+    def test_fixup_registry_entries_with_global_id(self):
+        """
+        Should update the registry correctly when an filestream input that
+        did not have an ID set is given an ID. The observable effect in the
+        registry is the entries using the old '.global' ID migrated to use the
+        new ID.
+        """
+        testfile = os.path.join(self.working_dir, "log", "test.log")
+        self.render_config_template(
+            template_name="filestream-fixup-id",
+            path=testfile,
+        )
+        os.mkdir(os.path.join(self.working_dir, "log/"))
+
+        with open(testfile, 'w') as file:
+            offset = 0  # keep count of the bytes written
+            for n in range(0, 5):
+                offset += file.write("hello world\n")
+
+        os.makedirs(self.registry.path)
+        registry_file = os.path.join(self.registry.path, "log.json")
+
+        # Windows requires some extra escaping, Linux works either way.
+        # We encode 'testfile' as a JSON string and then remove the '"'
+        # added by the encoding
+        testfile = json.encoder.c_encode_basestring(testfile)
+        testfile = testfile.replace('"', '')
+
+        template_path = "./tests/system/input/filestream-fix-registry-global-id.j2"
+        self.render_template(template_path, registry_file, log_file=testfile, offset=offset)
+
+        shutil.copyfile(os.path.join(os.getcwd(), "tests", "system", "input", "registry-meta.json"),
+                        os.path.join(self.registry.path, "meta.json"))
+
+        proc = self.start_beat()
+
+        # wait for the "Start next scan" log message, this means the file has been
+        # fully harvested
+        self.wait_until(
+            lambda: self.log_contains(
+                "Start next scan"),
+            max_timeout=10)
+
+        proc.check_kill_and_wait()
+
+        reg = self.access_registry()
+        self.wait_until(reg.exists)
+        entries = [entry for entry in reg.load()]
+
+        # We got the latest entry for each key in the registry,
+        # this means 2 entries.
+        # They're ordered by the time of creation, so we can be sure the
+        # first uses the old, '.global' ID, and the second is the 'fixed' one
+        assert len(entries) == 2, "the registry must contain one entry with the '.globa' ID and another with the 'fixed' ID"
+        global_entry = entries[0]
+        fixed_entry = entries[1]
+
+        # Compare the key excluding the inode and device ID bits
+        assert global_entry['_key'].startswith('filestream::.global::native::'), "old key must contain '.global' ID"
+        assert fixed_entry['_key'].startswith(
+            'filestream::test-fix-global-id::native::'), "key in registry does not have the expected ID"
+
+        # Compare the TTL because it indicates if the entry has been 'removed' or not
+        assert global_entry['ttl'] == 0, "ttl must be 0 because that's the effect of 'removing' the entry from the registry"
+        assert fixed_entry['ttl'] != 0, "ttl must not be 0 because the entry has been added recently"
 
     def test_ignore_older_files(self):
         """
@@ -93,9 +162,9 @@ class Test(BaseTest):
         rotations = 2
         iterations = 3
         for r in range(rotations):
-            with open(testfile, 'w', 0) as file:
+            with open(testfile, 'wb', 0) as file:
                 for n in range(iterations):
-                    file.write("hello world {}\n".format(r * iterations + n))
+                    file.write(bytes("hello world {}\n".format(r * iterations + n), "utf-8"))
                     time.sleep(0.1)
             os.rename(testfile, testfile + str(time.time()))
 
@@ -176,8 +245,7 @@ class Test(BaseTest):
 
         # wait for file to be closed due to close_inactive
         self.wait_until(
-            lambda: self.log_contains(
-                "Closing file: {}\n".format(os.path.abspath(testfile))),
+            lambda: self.log_contains("Closing file"),
             max_timeout=10)
 
         # wait a bit longer (on 1.0.1 this would cause the harvester
@@ -303,8 +371,7 @@ class Test(BaseTest):
 
         # wait for file to be closed due to close_inactive
         self.wait_until(
-            lambda: self.log_contains(
-                "Closing file: {}\n".format(os.path.abspath(testfile))),
+            lambda: self.log_contains("Closing file"),
             max_timeout=10)
 
         # write second line
@@ -357,8 +424,7 @@ class Test(BaseTest):
 
         # wait for file to be closed due to close_inactive
         self.wait_until(
-            lambda: self.log_contains(
-                "Closing file: {}\n".format(os.path.abspath(testfile))),
+            lambda: self.log_contains("Closing file"),
             max_timeout=10)
 
         filebeat.check_kill_and_wait()
@@ -405,7 +471,7 @@ class Test(BaseTest):
         self.wait_until(
             lambda: self.log_contains(
                 # Still checking for old file name as filename does not change in harvester
-                "Closing file: "),
+                "Closing file"),
             max_timeout=10)
 
         filebeat.check_kill_and_wait()
@@ -465,7 +531,7 @@ class Test(BaseTest):
         self.wait_until(
             lambda: self.log_contains_count(
                 # Checking if two files were closed
-                "Closing file: ") == 2,
+                "Closing file") == 2,
             max_timeout=10)
 
         filebeat.check_kill_and_wait()
@@ -634,10 +700,10 @@ class Test(BaseTest):
         with open(testfile_path, 'a') as testfile:
             testfile.write("entry2\n")
 
-        filebeat = self.start_beat(output="filebeat2.log")
+        filebeat = self.start_beat()
 
         self.wait_until(
-            lambda: self.output_has_message("entry2"),
+            lambda: self.output_has_message("entry2", output_file="output/filebeat-"+self.today+"-1.ndjson"),
             max_timeout=10,
             name="output contains 'entry2'")
 
@@ -662,3 +728,133 @@ class Test(BaseTest):
                 "recursive glob disabled"),
             max_timeout=10)
         filebeat.check_kill_and_wait()
+
+    def test_input_processing_pipeline_disable_host(self):
+        """
+        Check processing_pipeline.disable_host in input config.
+        """
+        self.render_config_template(
+            path=os.path.abspath(self.working_dir) + "/test.log",
+            publisher_pipeline={
+                "disable_host": True,
+            },
+        )
+        with open(self.working_dir + "/test.log", "w") as f:
+            f.write("test message\n")
+
+        filebeat = self.start_beat()
+        self.wait_until(lambda: self.output_has(lines=1))
+        filebeat.check_kill_and_wait()
+
+        output = self.read_output()
+        assert "host.name" not in output[0]
+
+    def test_path_based_identity_tracking(self):
+        """
+        Renamed files are picked up again as the path of the file has changed.
+        """
+        self.render_config_template(
+            path=os.path.abspath(self.working_dir) + "/log/*",
+            close_eof="true",
+            input_raw="  file_identity.path: ~",
+        )
+
+        testfile = os.path.join(self.working_dir, "log", "test.log")
+        self.__write_hello_word_to_test_input_file(testfile)
+
+        proc = self.start_beat()
+
+        # wait until the file is picked up
+        self.wait_until(lambda: self.output_has(lines=1))
+
+        renamedfile = os.path.join(self.working_dir, "log", "renamed.log")
+        os.rename(testfile, renamedfile)
+
+        # wait until the both messages are received by the output
+        self.wait_until(lambda: self.output_has(lines=2))
+        proc.check_kill_and_wait()
+
+        # assert that renaming of the file went undetected
+        assert not self.log_contains("File rename was detected:" + testfile + " -> " + renamedfile)
+
+    @unittest.skip("Skipped as flaky: https://github.com/elastic/beats/issues/20010")
+    @unittest.skipIf(sys.platform.startswith("win"), "inode_marker is not supported on windows")
+    def test_inode_marker_based_identity_tracking(self):
+        """
+        File is picked up again if the contents of the marker file changes.
+        """
+
+        marker_location = os.path.join(self.working_dir, "marker")
+        with open(marker_location, 'w') as m:
+            m.write("very-unique-string")
+
+        self.render_config_template(
+            path=os.path.abspath(self.working_dir) + "/log/*",
+            close_eof="true",
+            input_raw="  file_identity.inode_marker.path: " + marker_location,
+        )
+
+        testfile = os.path.join(self.working_dir, "log", "test.log")
+        self.__write_hello_word_to_test_input_file(testfile)
+
+        proc = self.start_beat()
+
+        # wait until the file is picked up
+        self.wait_until(lambda: self.log_contains("Start harvester for new file: " + testfile))
+
+        # change the ID in the marker file to simulate a new file
+        with open(marker_location, 'w') as m:
+            m.write("different-very-unique-id")
+
+        self.wait_until(lambda: self.log_contains("Start harvester for new file: " + testfile))
+
+        # wait until the both messages are received by the output
+        self.wait_until(lambda: self.output_has(lines=2))
+        proc.check_kill_and_wait()
+
+    @unittest.skipIf(sys.platform.startswith("win"), "inode_marker is not supported on windows")
+    def test_inode_marker_based_identity_tracking_to_path_based(self):
+        """
+        File reading can be continued after file_identity is changed.
+        """
+
+        marker_location = os.path.join(self.working_dir, "marker")
+        with open(marker_location, 'w') as m:
+            m.write("very-unique-string")
+
+        self.render_config_template(
+            path=os.path.abspath(self.working_dir) + "/log/*",
+            input_raw="  file_identity.inode_marker.path: " + marker_location,
+        )
+
+        testfile = os.path.join(self.working_dir, "log", "test.log")
+        self.__write_hello_word_to_test_input_file(testfile)
+
+        proc = self.start_beat()
+
+        # wait until the file is picked up
+        self.wait_until(lambda: self.log_contains("Start harvester for new file: " + testfile))
+
+        self.wait_until(lambda: self.output_has(lines=1))
+        proc.check_kill_and_wait()
+
+        self.render_config_template(
+            path=os.path.abspath(self.working_dir) + "/log/*",
+            rotateonstartup="false",
+            input_raw="  file_identity.path: ~",
+        )
+
+        with open(testfile, 'w+') as f:
+            f.write("hello world again\n")
+
+        proc = self.start_beat()
+
+        # on startup output is rotated
+        self.wait_until(lambda: self.output_has(lines=1, output_file="output/filebeat-" + self.today + "-1.ndjson"))
+        self.wait_until(lambda: self.output_has(lines=1))
+        proc.check_kill_and_wait()
+
+    def __write_hello_word_to_test_input_file(self, testfile):
+        os.mkdir(self.working_dir + "/log/")
+        with open(testfile, 'w') as f:
+            f.write("hello world\n")

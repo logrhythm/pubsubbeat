@@ -22,12 +22,12 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/elastic/beats/libbeat/common"
-	s "github.com/elastic/beats/libbeat/common/schema"
-	c "github.com/elastic/beats/libbeat/common/schema/mapstriface"
-	"github.com/elastic/beats/metricbeat/helper/elastic"
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/module/kibana"
+	"github.com/elastic/beats/v7/libbeat/common"
+	s "github.com/elastic/beats/v7/libbeat/common/schema"
+	c "github.com/elastic/beats/v7/libbeat/common/schema/mapstriface"
+	"github.com/elastic/beats/v7/metricbeat/helper/elastic"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/module/kibana"
 )
 
 var (
@@ -52,7 +52,7 @@ var (
 	}
 )
 
-func eventMapping(r mb.ReporterV2, content []byte) error {
+func eventMapping(r mb.ReporterV2, content []byte, isXpack bool) error {
 	var event mb.Event
 	event.RootFields = common.MapStr{}
 	event.RootFields.Put("service.name", kibana.ModuleName)
@@ -63,10 +63,7 @@ func eventMapping(r mb.ReporterV2, content []byte) error {
 		return errors.Wrap(err, "failure parsing Kibana Status API response")
 	}
 
-	dataFields, err := schema.Apply(data)
-	if err != nil {
-		return errors.Wrap(err, "failure to apply status schema")
-	}
+	dataFields, _ := schema.Apply(data)
 
 	// Set service ID
 	uuid, err := dataFields.GetValue("uuid")
@@ -85,6 +82,13 @@ func eventMapping(r mb.ReporterV2, content []byte) error {
 	dataFields.Delete("version")
 
 	event.MetricSetFields = dataFields
+
+	// xpack.enabled in config using standalone metricbeat writes to `.monitoring` instead of `metricbeat-*`
+	// When using Agent, the index name is overwritten anyways.
+	if isXpack {
+		index := elastic.MakeXPackMonitoringIndexName(elastic.Kibana)
+		event.Index = index
+	}
 
 	r.Event(event)
 	return nil

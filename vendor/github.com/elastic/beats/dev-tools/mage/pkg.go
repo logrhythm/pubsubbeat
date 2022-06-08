@@ -20,7 +20,10 @@ package mage
 import (
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"runtime"
+	"strconv"
 
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
@@ -40,16 +43,24 @@ func Package() error {
 			"UseCommunityBeatPackaging, UseElasticBeatPackaging or USeElasticBeatWithoutXPackPackaging first.")
 	}
 
+	// platforms := updateWithDarwinUniversal(Platforms)
+	platforms := Platforms
+
 	var tasks []interface{}
-	for _, target := range Platforms {
+	for _, target := range platforms {
 		for _, pkg := range Packages {
-			if pkg.OS != target.GOOS() {
+			if pkg.OS != target.GOOS() || pkg.Arch != "" && pkg.Arch != target.Arch() {
 				continue
 			}
 
 			for _, pkgType := range pkg.Types {
-				if pkgType == DMG && runtime.GOOS != "darwin" {
-					log.Printf("Skipping DMG package type because build host isn't darwin")
+				if !isPackageTypeSelected(pkgType) {
+					log.Printf("Skipping %s package type because it is not selected", pkgType)
+					continue
+				}
+
+				if target.Name == "linux/arm64" && pkgType == Docker && runtime.GOARCH != "arm64" {
+					log.Printf("Skipping Docker package type because build host isn't arm")
 					continue
 				}
 
@@ -59,19 +70,40 @@ func Package() error {
 					continue
 				}
 
+				agentPackageType := TarGz
+				if pkg.OS == "windows" {
+					agentPackageType = Zip
+				}
+
+				agentPackageArch, err := getOSArchName(target, agentPackageType)
+				if err != nil {
+					log.Printf("Skipping arch %v for package type %v: %v", target.Arch(), pkgType, err)
+					continue
+				}
+
+				agentPackageDrop, _ := os.LookupEnv("AGENT_DROP_PATH")
+
 				spec := pkg.Spec.Clone()
 				spec.OS = target.GOOS()
 				spec.Arch = packageArch
 				spec.Snapshot = Snapshot
 				spec.evalContext = map[string]interface{}{
-					"GOOS":        target.GOOS(),
-					"GOARCH":      target.GOARCH(),
-					"GOARM":       target.GOARM(),
-					"Platform":    target,
-					"PackageType": pkgType.String(),
-					"BinaryExt":   binaryExtension(target.GOOS()),
+					"GOOS":          target.GOOS(),
+					"GOARCH":        target.GOARCH(),
+					"GOARM":         target.GOARM(),
+					"Platform":      target,
+					"AgentArchName": agentPackageArch,
+					"PackageType":   pkgType.String(),
+					"BinaryExt":     binaryExtension(target.GOOS()),
+					"AgentDropPath": agentPackageDrop,
 				}
-				spec.packageDir = packageStagingDir + "/" + pkgType.AddFileExtension(spec.Name+"-"+target.GOOS()+"-"+target.Arch())
+
+				spec.packageDir, err = pkgType.PackagingDir(packageStagingDir, target, spec)
+				if err != nil {
+					log.Printf("Skipping arch %v for package type %v: %v", target.Arch(), pkgType, err)
+					continue
+				}
+
 				spec = spec.Evaluate()
 
 				tasks = append(tasks, packageBuilder{target, spec, pkgType}.Build)
@@ -81,6 +113,35 @@ func Package() error {
 
 	Parallel(tasks...)
 	return nil
+}
+
+// updateWithDarwinUniversal checks if darwin/amd64 and darwin/arm64, are listed
+// if so, the universal binary was built, then we need to package it as well.
+func updateWithDarwinUniversal(platforms BuildPlatformList) BuildPlatformList {
+	if IsDarwinUniversal() {
+		platforms = append(platforms,
+			BuildPlatform{
+				Name:  "darwin/universal",
+				Flags: CGOSupported | CrossBuildSupported | Default,
+			})
+	}
+
+	return platforms
+}
+
+// isPackageTypeSelected returns true if SelectedPackageTypes is empty or if
+// pkgType is present on SelectedPackageTypes. It returns false otherwise.
+func isPackageTypeSelected(pkgType PackageType) bool {
+	if len(SelectedPackageTypes) == 0 {
+		return true
+	}
+
+	for _, t := range SelectedPackageTypes {
+		if t == pkgType {
+			return true
+		}
+	}
+	return false
 }
 
 type packageBuilder struct {
@@ -97,9 +158,11 @@ func (b packageBuilder) Build() error {
 }
 
 type testPackagesParams struct {
-	HasModules   bool
-	HasMonitorsD bool
-	HasModulesD  bool
+	HasModules           bool
+	HasMonitorsD         bool
+	HasModulesD          bool
+	HasRootUserContainer bool
+	MinModules           *int
 }
 
 // TestPackagesOption defines a option to the TestPackages target.
@@ -109,6 +172,14 @@ type TestPackagesOption func(params *testPackagesParams)
 func WithModules() func(params *testPackagesParams) {
 	return func(params *testPackagesParams) {
 		params.HasModules = true
+	}
+}
+
+// MinModules sets the minimum number of modules to require
+func MinModules(n int) func(params *testPackagesParams) {
+	return func(params *testPackagesParams) {
+		minModules := n
+		params.MinModules = &minModules
 	}
 }
 
@@ -123,6 +194,13 @@ func WithMonitorsD() func(params *testPackagesParams) {
 func WithModulesD() func(params *testPackagesParams) {
 	return func(params *testPackagesParams) {
 		params.HasModulesD = true
+	}
+}
+
+// WithRootUserContainer allows root when checking user in container
+func WithRootUserContainer() func(params *testPackagesParams) {
+	return func(params *testPackagesParams) {
+		params.HasRootUserContainer = true
 	}
 }
 
@@ -148,6 +226,10 @@ func TestPackages(options ...TestPackagesOption) error {
 		args = append(args, "--modules")
 	}
 
+	if params.MinModules != nil {
+		args = append(args, "--min-modules", strconv.Itoa(*params.MinModules))
+	}
+
 	if params.HasMonitorsD {
 		args = append(args, "--monitors.d")
 	}
@@ -156,9 +238,14 @@ func TestPackages(options ...TestPackagesOption) error {
 		args = append(args, "--modules.d")
 	}
 
+	if params.HasRootUserContainer {
+		args = append(args, "--root-user-container")
+	}
+
 	if BeatUser == "root" {
 		args = append(args, "-root-owner")
 	}
+
 	args = append(args, "-files", MustExpand("{{.PWD}}/build/distributions/*"))
 
 	if out, err := goTest(args...); err != nil {
@@ -168,5 +255,40 @@ func TestPackages(options ...TestPackagesOption) error {
 		return err
 	}
 
+	return nil
+}
+
+// TestLinuxForCentosGLIBC checks the GLIBC requirements of linux/amd64 and
+// linux/386 binaries to ensure they meet the requirements for RHEL 6 which has
+// glibc 2.12.
+func TestLinuxForCentosGLIBC() error {
+	switch Platform.Name {
+	case "linux/amd64", "linux/386":
+		return TestBinaryGLIBCVersion(filepath.Join("build/golang-crossbuild", BeatName+"-linux-"+Platform.GOARCH), "2.12")
+	default:
+		return nil
+	}
+}
+
+func TestBinaryGLIBCVersion(elfPath, maxGlibcVersion string) error {
+	requiredGlibc, err := ReadGLIBCRequirement(elfPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+
+	upperBound, err := NewSemanticVersion(maxGlibcVersion)
+	if err != nil {
+		return err
+	}
+
+	if !requiredGlibc.LessThanOrEqual(upperBound) {
+		return fmt.Errorf("dynamically linked binary %q requires glibc "+
+			"%v, but maximum allowed glibc is %v",
+			elfPath, requiredGlibc, upperBound)
+	}
+	fmt.Printf(">> testBinaryGLIBCVersion: %q requires glibc %v or greater\n", elfPath, requiredGlibc)
 	return nil
 }

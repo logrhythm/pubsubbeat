@@ -18,24 +18,23 @@
 package ilm
 
 import (
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
 )
 
 type noopSupport struct{}
 type noopManager struct{}
 
 // NewNoopSupport creates a noop ILM implementation with ILM support being always
-// disabled.  Attempts to install a policy or create a write alias will fail.
+// disabled.  Attempts to install a policy will fail.
 func NewNoopSupport(info beat.Info, config *common.Config) (Supporter, error) {
 	return (*noopSupport)(nil), nil
 }
 
-func (*noopSupport) Mode() Mode                      { return ModeDisabled }
-func (*noopSupport) Alias() Alias                    { return Alias{} }
+func (*noopSupport) Enabled() bool                   { return false }
 func (*noopSupport) Policy() Policy                  { return Policy{} }
+func (*noopSupport) Overwrite() bool                 { return false }
 func (*noopSupport) Manager(_ ClientHandler) Manager { return (*noopManager)(nil) }
 
-func (*noopManager) Enabled() (bool, error)            { return false, nil }
-func (*noopManager) EnsureAlias() error                { return errOf(ErrOpNotAvailable) }
+func (*noopManager) CheckEnabled() (bool, error)       { return false, nil }
 func (*noopManager) EnsurePolicy(_ bool) (bool, error) { return false, errOf(ErrOpNotAvailable) }

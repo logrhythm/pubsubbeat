@@ -18,16 +18,17 @@
 package dns
 
 import (
+	"context"
 	"strconv"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/sync/errgroup"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/libbeat/monitoring"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/monitoring"
 )
 
 func TestDNSProcessorRun(t *testing.T) {
@@ -91,6 +92,36 @@ func TestDNSProcessorRun(t *testing.T) {
 		v, _ := event.GetValue("source.domain")
 		assert.Equal(t, gatewayName, v)
 	})
+
+	t.Run("metadata target", func(t *testing.T) {
+		config := defaultConfig
+		config.reverseFlat = map[string]string{
+			"@metadata.ip": "@metadata.domain",
+		}
+
+		p := &processor{
+			Config:   config,
+			resolver: &stubResolver{},
+			log:      logp.NewLogger(logName),
+		}
+
+		event := &beat.Event{
+			Meta: common.MapStr{
+				"ip": gatewayIP,
+			},
+		}
+
+		expMeta := common.MapStr{
+			"ip":     gatewayIP,
+			"domain": gatewayName,
+		}
+
+		newEvent, err := p.Run(event)
+		assert.NoError(t, err)
+		assert.Equal(t, expMeta, newEvent.Meta)
+		assert.Equal(t, event.Fields, newEvent.Fields)
+	})
+
 }
 
 func TestDNSProcessorTagOnFailure(t *testing.T) {
@@ -137,14 +168,12 @@ func TestDNSProcessorRunInParallel(t *testing.T) {
 
 	const numGoroutines = 10
 	const numEvents = 500
-	var wg sync.WaitGroup
 
 	// Start several goroutines.
-	wg.Add(numGoroutines)
-	for i := 0; i < numGoroutines; i++ {
-		go func() {
-			defer wg.Done()
+	g, _ := errgroup.WithContext(context.Background())
 
+	for i := 0; i < numGoroutines; i++ {
+		g.Go(func() error {
 			// Execute processor.
 			for i := 0; i < numEvents; i++ {
 				_, err := p.Run(&beat.Event{
@@ -153,11 +182,15 @@ func TestDNSProcessorRunInParallel(t *testing.T) {
 					},
 				})
 				if err != nil {
-					t.Fatal(err)
+					return err
 				}
 			}
-		}()
+			return nil
+		})
 	}
 
-	wg.Wait()
+	err = g.Wait()
+	if err != nil {
+		t.Fatal(err)
+	}
 }

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package monitor
@@ -32,6 +33,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func alwaysInclude(path string) bool {
+	return false
+}
+
 func TestNonRecursive(t *testing.T) {
 	dir, err := ioutil.TempDir("", "monitor")
 	assertNoError(t, err)
@@ -44,7 +49,7 @@ func TestNonRecursive(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	watcher, err := New(false)
+	watcher, err := New(false, alwaysInclude)
 	assertNoError(t, err)
 
 	assertNoError(t, watcher.Add(dir))
@@ -54,7 +59,7 @@ func TestNonRecursive(t *testing.T) {
 	testDirOps(t, dir, watcher)
 
 	subdir := filepath.Join(dir, "subdir")
-	os.Mkdir(subdir, 0750)
+	os.Mkdir(subdir, 0o750)
 
 	ev, err := readTimeout(t, watcher)
 	assertNoError(t, err)
@@ -63,7 +68,7 @@ func TestNonRecursive(t *testing.T) {
 
 	// subdirs are not watched
 	subfile := filepath.Join(subdir, "file.dat")
-	assertNoError(t, ioutil.WriteFile(subfile, []byte("foo"), 0640))
+	assertNoError(t, ioutil.WriteFile(subfile, []byte("foo"), 0o640))
 
 	_, err = readTimeout(t, watcher)
 	assert.Error(t, err)
@@ -92,7 +97,7 @@ func TestRecursive(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	watcher, err := New(true)
+	watcher, err := New(true, alwaysInclude)
 	assertNoError(t, err)
 
 	assertNoError(t, watcher.Add(dir))
@@ -102,7 +107,7 @@ func TestRecursive(t *testing.T) {
 	testDirOps(t, dir, watcher)
 
 	subdir := filepath.Join(dir, "subdir")
-	os.Mkdir(subdir, 0750)
+	os.Mkdir(subdir, 0o750)
 
 	ev, err := readTimeout(t, watcher)
 	assertNoError(t, err)
@@ -147,7 +152,7 @@ func TestRecursiveNoFollowSymlink(t *testing.T) {
 
 	// Start the watcher
 
-	watcher, err := New(true)
+	watcher, err := New(true, alwaysInclude)
 	assertNoError(t, err)
 
 	assertNoError(t, watcher.Add(dir))
@@ -156,7 +161,7 @@ func TestRecursiveNoFollowSymlink(t *testing.T) {
 	// Create a file in the other dir
 
 	file := filepath.Join(linkedDir, "not.seen")
-	assertNoError(t, ioutil.WriteFile(file, []byte("hello"), 0640))
+	assertNoError(t, ioutil.WriteFile(file, []byte("hello"), 0o640))
 
 	// No event is received
 	ev, err := readTimeout(t, watcher)
@@ -198,8 +203,8 @@ func TestRecursiveSubdirPermissions(t *testing.T) {
 
 	for _, name := range []string{"a", "b", "c"} {
 		path := filepath.Join(outDir, name)
-		assertNoError(t, os.Mkdir(path, 0755))
-		assertNoError(t, ioutil.WriteFile(filepath.Join(path, name), []byte("Hello"), 0644))
+		assertNoError(t, os.Mkdir(path, 0o755))
+		assertNoError(t, ioutil.WriteFile(filepath.Join(path, name), []byte("Hello"), 0o644))
 	}
 
 	// Make a subdir not accessible
@@ -208,7 +213,7 @@ func TestRecursiveSubdirPermissions(t *testing.T) {
 
 	// Setup watches on watched dir
 
-	watcher, err := New(true)
+	watcher, err := New(true, alwaysInclude)
 	assertNoError(t, err)
 
 	assertNoError(t, watcher.Start())
@@ -263,12 +268,110 @@ func TestRecursiveSubdirPermissions(t *testing.T) {
 	}
 }
 
+func TestRecursiveExcludedPaths(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping permissions test on Windows")
+	}
+
+	// Create dir to be watched
+
+	dir, err := ioutil.TempDir("", "monitor")
+	assertNoError(t, err)
+	if runtime.GOOS == "darwin" {
+		if dirAlt, err := filepath.EvalSymlinks(dir); err == nil {
+			dir = dirAlt
+		}
+	}
+	defer os.RemoveAll(dir)
+
+	// Create not watched dir
+
+	outDir, err := ioutil.TempDir("", "non-watched")
+	assertNoError(t, err)
+	if runtime.GOOS == "darwin" {
+		if dirAlt, err := filepath.EvalSymlinks(outDir); err == nil {
+			outDir = dirAlt
+		}
+	}
+	defer os.RemoveAll(outDir)
+
+	// Populate not watched subdir
+
+	for _, name := range []string{"a", "b", "c"} {
+		path := filepath.Join(outDir, name)
+		assertNoError(t, os.Mkdir(path, 0o755))
+		assertNoError(t, ioutil.WriteFile(filepath.Join(path, name), []byte("Hello"), 0o644))
+	}
+
+	// excludes file/dir named "b"
+	selectiveExclude := func(path string) bool {
+		r := filepath.Base(path) == "b"
+		t.Logf("path: %v, excluded: %v\n", path, r)
+		return r
+	}
+
+	// Setup watches on watched dir
+
+	watcher, err := New(true, selectiveExclude)
+	assertNoError(t, err)
+
+	assertNoError(t, watcher.Start())
+	assertNoError(t, watcher.Add(dir))
+
+	defer func() {
+		assertNoError(t, watcher.Close())
+	}()
+
+	// No event is received
+
+	ev, err := readTimeout(t, watcher)
+	assert.Equal(t, errReadTimeout, err)
+	if err != errReadTimeout {
+		t.Fatalf("Expected timeout, got event %+v", ev)
+	}
+
+	// Move the outside directory into the watched
+
+	dest := filepath.Join(dir, "subdir")
+	assertNoError(t, os.Rename(outDir, dest))
+
+	// Receive all events
+
+	var evs []fsnotify.Event
+	for {
+		// No event is received
+		ev, err := readTimeout(t, watcher)
+		if err == errReadTimeout {
+			break
+		}
+		assertNoError(t, err)
+		evs = append(evs, ev)
+	}
+
+	// Verify that events for all accessible files are received
+	// "b" and "b/b" are missing as they are excluded
+
+	expected := map[string]fsnotify.Op{
+		dest:                       fsnotify.Create,
+		filepath.Join(dest, "a"):   fsnotify.Create,
+		filepath.Join(dest, "a/a"): fsnotify.Create,
+		filepath.Join(dest, "c"):   fsnotify.Create,
+		filepath.Join(dest, "c/c"): fsnotify.Create,
+	}
+	assert.Len(t, evs, len(expected))
+	for _, ev := range evs {
+		op, found := expected[ev.Name]
+		assert.True(t, found, ev.Name)
+		assert.Equal(t, op, ev.Op)
+	}
+}
+
 func testDirOps(t *testing.T, dir string, watcher Watcher) {
 	fpath := filepath.Join(dir, "file.txt")
 	fpath2 := filepath.Join(dir, "file2.txt")
 
 	// Create
-	assertNoError(t, ioutil.WriteFile(fpath, []byte("hello"), 0640))
+	assertNoError(t, ioutil.WriteFile(fpath, []byte("hello"), 0o640))
 
 	ev, err := readTimeout(t, watcher)
 	assertNoError(t, err)
@@ -279,7 +382,7 @@ func testDirOps(t *testing.T, dir string, watcher Watcher) {
 	// Repeat the write if no event is received. Under macOS often
 	// the write fails to generate a write event for non-recursive watcher
 	for i := 0; i < 3; i++ {
-		f, err := os.OpenFile(fpath, os.O_RDWR|os.O_APPEND, 0640)
+		f, err := os.OpenFile(fpath, os.O_RDWR|os.O_APPEND, 0o640)
 		assertNoError(t, err)
 		f.WriteString(" world\n")
 		f.Sync()

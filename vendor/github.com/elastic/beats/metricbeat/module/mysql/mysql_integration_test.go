@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build integration
 // +build integration
 
 package mysql
@@ -24,14 +25,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/tests/compose"
-	_ "github.com/elastic/beats/metricbeat/mb/testing"
+	"github.com/elastic/beats/v7/libbeat/tests/compose"
+	_ "github.com/elastic/beats/v7/metricbeat/mb/testing"
 )
 
 func TestNewDB(t *testing.T) {
-	compose.EnsureUp(t, "mysql")
+	service := compose.EnsureUp(t, "mysql")
 
-	db, err := NewDB(GetMySQLEnvDSN())
+	db, err := NewDB(GetMySQLEnvDSN(service.Host()))
 	assert.NoError(t, err)
 
 	err = db.Ping()

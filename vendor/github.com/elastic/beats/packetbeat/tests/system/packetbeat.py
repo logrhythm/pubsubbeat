@@ -2,14 +2,11 @@ import os
 import sys
 import subprocess
 import json
-
-sys.path.append(os.path.join(os.path.dirname(__file__), '../../../libbeat/tests/system'))
-
 from beat.beat import TestCase
 from beat.beat import Proc
 
 TRANS_REQUIRED_FIELDS = ["@timestamp", "type", "status",
-                         "agent.type", "agent.hostname", "agent.version",
+                         "agent.type", "agent.name", "agent.version",
                          "event.kind", "event.category", "event.dataset", "event.start",
                          "source.ip", "destination.ip",
                          "client.ip", "server.ip",
@@ -17,7 +14,7 @@ TRANS_REQUIRED_FIELDS = ["@timestamp", "type", "status",
                          ]
 
 FLOWS_REQUIRED_FIELDS = ["@timestamp", "type",
-                         "agent.type", "agent.hostname", "agent.version",
+                         "agent.type", "agent.name", "agent.version",
                          "event.kind", "event.category", "event.dataset", "event.action", "event.start", "event.end", "event.duration",
                          "source.ip", "destination.ip",
                          "flow.id",
@@ -36,7 +33,7 @@ class BaseTest(TestCase):
     def run_packetbeat(self, pcap,
                        cmd=None,
                        config="packetbeat.yml",
-                       output="packetbeat.log",
+                       output=None,
                        extra_args=[],
                        debug_selectors=[],
                        exit_code=0,
@@ -46,6 +43,9 @@ class BaseTest(TestCase):
         Waits for the process to finish before returning to
         the caller.
         """
+
+        if output is None:
+            output = "packetbeat-" + self.today + ".ndjson"
 
         if cmd is None:
             cmd = self.beat_path + "/packetbeat.test"
@@ -90,7 +90,7 @@ class BaseTest(TestCase):
     def start_packetbeat(self,
                          cmd=None,
                          config="packetbeat.yml",
-                         output="packetbeat.log",
+                         output=None,
                          extra_args=[],
                          debug_selectors=[]):
         """
@@ -98,6 +98,9 @@ class BaseTest(TestCase):
         caller is responsible for stopping / waiting for the
         Proc instance.
         """
+        if output is None:
+            output = "packetbeat-" + self.today + ".ndjson"
+
         if cmd is None:
             cmd = self.beat_path + "/packetbeat.test"
 
@@ -122,11 +125,16 @@ class BaseTest(TestCase):
         return proc
 
     def read_output(self,
-                    output_file="output/packetbeat",
+                    output_file=None,
                     types=None,
                     required_fields=None):
+
+        if output_file is None:
+            output_file = "output/packetbeat-"+self.today+".ndjson"
+        print(output_file)
+
         jsons = []
-        with open(os.path.join(self.working_dir, output_file), "r") as f:
+        with open(os.path.join(self.working_dir, output_file), "r", encoding='utf_8') as f:
             for line in f:
                 document = self.flatten_object(json.loads(line), self.dict_fields)
                 if not types or document["type"] in types:

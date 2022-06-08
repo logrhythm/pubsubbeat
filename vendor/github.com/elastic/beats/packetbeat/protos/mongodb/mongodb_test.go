@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package mongodb
@@ -26,10 +27,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/packetbeat/protos"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/packetbeat/procs"
+	"github.com/elastic/beats/v7/packetbeat/protos"
 )
 
 type eventStore struct {
@@ -46,7 +48,7 @@ func mongodbModForTests() (*eventStore, *mongodbPlugin) {
 	var mongodb mongodbPlugin
 	results := &eventStore{}
 	config := defaultConfig
-	mongodb.init(results.publish, &config)
+	mongodb.init(results.publish, procs.ProcessesWatcher{}, &config)
 	return results, &mongodb
 }
 
@@ -88,7 +90,7 @@ func TestSimpleFindLimit1(t *testing.T) {
 			"00000000746573742e72667374617572" +
 			"616e7473000000000001000000050000" +
 			"0000")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	respData, err := hex.DecodeString(
 		"020200004a0000000a00000001000000" +
 			"08000000000000000000000000000000" +
@@ -123,7 +125,7 @@ func TestSimpleFindLimit1(t *testing.T) {
 			"53686f70000272657374617572616e74" +
 			"5f696400090000003330303735343435" +
 			"0000")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	tcptuple := testTCPTuple()
 	req := protos.Packet{Payload: reqData}
@@ -157,7 +159,7 @@ func TestSimpleFindLimit1_split(t *testing.T) {
 			"00000000746573742e72667374617572" +
 			"616e7473000000000001000000050000" +
 			"0000")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	respData1, err := hex.DecodeString(
 		"020200004a0000000a00000001000000" +
 			"08000000000000000000000000000000" +
@@ -168,6 +170,7 @@ func TestSimpleFindLimit1_split(t *testing.T) {
 			"1b000000013000e6762ff7c97652c001" +
 			"3100d5b14ae9996c4440000273747265" +
 			"657400100000004d6f72726973205061")
+	assert.NoError(t, err)
 
 	respData2, err := hex.DecodeString(
 		"726b2041766500027a6970636f646500" +
@@ -181,6 +184,7 @@ func TestSimpleFindLimit1_split(t *testing.T) {
 			"0000000964617465000044510a410100" +
 			"00026772616465000200000041001073" +
 			"636f72650006000000000332002b0000")
+	assert.NoError(t, err)
 
 	respData3, err := hex.DecodeString(
 		"00096461746500009cda693c01000002" +
@@ -196,7 +200,7 @@ func TestSimpleFindLimit1_split(t *testing.T) {
 			"53686f70000272657374617572616e74" +
 			"5f696400090000003330303735343435" +
 			"0000")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	tcptuple := testTCPTuple()
 	req := protos.Packet{Payload: reqData}
@@ -381,7 +385,7 @@ func TestDocumentLengthBoundsChecked(t *testing.T) {
 			"06000000" +
 			// Document (1 byte instead of 2)
 			"00")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	tcptuple := testTCPTuple()
 	req := protos.Packet{Payload: reqData}

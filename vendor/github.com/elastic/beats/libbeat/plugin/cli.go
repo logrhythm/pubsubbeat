@@ -15,8 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//+build linux,go1.8 darwin,go1.10
-//+build cgo
+//go:build ((linux && go1.8) || (darwin && go1.10)) && cgo
+// +build linux,go1.8 darwin,go1.10
+// +build cgo
 
 package plugin
 
@@ -24,12 +25,13 @@ import (
 	"flag"
 	"strings"
 
-	"github.com/elastic/beats/libbeat/common/cfgwarn"
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/common/cfgwarn"
+	"github.com/elastic/beats/v7/libbeat/logp"
 )
 
 type pluginList struct {
-	paths []string
+	paths  []string
+	logger *logp.Logger
 }
 
 func (p *pluginList) String() string {
@@ -39,7 +41,7 @@ func (p *pluginList) String() string {
 func (p *pluginList) Set(v string) error {
 	for _, path := range p.paths {
 		if path == v {
-			logp.Warn("%s is already a registered plugin", path)
+			p.logger.Warnf("%s is already a registered plugin", path)
 			return nil
 		}
 	}
@@ -47,7 +49,9 @@ func (p *pluginList) Set(v string) error {
 	return nil
 }
 
-var plugins = &pluginList{}
+var plugins = &pluginList{
+	logger: logp.NewLogger("cli"),
+}
 
 func init() {
 	flag.Var(plugins, "plugin", "Load additional plugins")
@@ -59,7 +63,7 @@ func Initialize() error {
 	}
 
 	for _, path := range plugins.paths {
-		logp.Info("loading plugin bundle: %v", path)
+		plugins.logger.Infof("loading plugin bundle: %v", path)
 
 		if err := LoadPlugins(path); err != nil {
 			return err

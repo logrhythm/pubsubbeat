@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common"
 )
 
 type mongodbMessage struct {
@@ -150,7 +150,7 @@ func awaitsReply(c opCode) bool {
 	return c == opQuery || c == opGetMore
 }
 
-// List of mongodb user commands (send throuwh a query of the legacy protocol)
+// List of mongodb user commands (send through a query of the legacy protocol)
 // see http://docs.mongodb.org/manual/reference/command/
 //
 // This list was obtained by calling db.listCommands() and some grepping.

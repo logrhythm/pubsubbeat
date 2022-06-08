@@ -18,28 +18,39 @@
 package util
 
 import (
+	"fmt"
 	"testing"
 
-	v1 "github.com/ericchiang/k8s/apis/meta/v1"
-	"github.com/stretchr/testify/assert"
+	k8s "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/common/kubernetes"
+	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common/kubernetes"
 )
 
 func TestBuildMetadataEnricher(t *testing.T) {
 	watcher := mockWatcher{}
+	nodeWatcher := mockWatcher{}
+	namespaceWatcher := mockWatcher{}
 	funcs := mockFuncs{}
-	resource := &mockResource{
-		uid:       "mockuid",
-		name:      "enrich",
-		namespace: "default",
-		labels: map[string]string{
-			"label": "value",
+	resource := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:  types.UID("mockuid"),
+			Name: "enrich",
+			Labels: map[string]string{
+				"label": "value",
+			},
+			Namespace: "default",
 		},
 	}
 
-	enricher := buildMetadataEnricher(&watcher, funcs.update, funcs.delete, funcs.index)
+	enricher := buildMetadataEnricher(&watcher, &nodeWatcher, &namespaceWatcher, funcs.update, funcs.delete, funcs.index)
 	assert.NotNil(t, watcher.handler)
 
 	enricher.Start()
@@ -61,6 +72,7 @@ func TestBuildMetadataEnricher(t *testing.T) {
 		{
 			"name":    "enrich",
 			"_module": common.MapStr{"label": "value", "pod": common.MapStr{"name": "enrich", "uid": "mockuid"}},
+			"meta":    common.MapStr{"orchestrator": common.MapStr{"cluster": common.MapStr{"name": "gke-4242"}}},
 		},
 	}, events)
 
@@ -78,6 +90,7 @@ func TestBuildMetadataEnricher(t *testing.T) {
 			"name":    "enrich",
 			"uid":     "mockuid",
 			"_module": common.MapStr{"label": "value"},
+			"meta":    common.MapStr{"orchestrator": common.MapStr{"cluster": common.MapStr{"name": "gke-4242"}}},
 		},
 	}, events)
 
@@ -104,41 +117,32 @@ type mockFuncs struct {
 }
 
 func (f *mockFuncs) update(m map[string]common.MapStr, obj kubernetes.Resource) {
+	accessor, _ := meta.Accessor(obj)
 	f.updated = obj
 	meta := common.MapStr{
-		"pod": common.MapStr{
-			"name": obj.GetMetadata().GetName(),
-			"uid":  obj.GetMetadata().GetUid(),
+		"kubernetes": common.MapStr{
+			"pod": common.MapStr{
+				"name": accessor.GetName(),
+				"uid":  string(accessor.GetUID()),
+			},
 		},
 	}
-	for k, v := range obj.GetMetadata().Labels {
-		meta[k] = v
+	for k, v := range accessor.GetLabels() {
+		meta.Put(fmt.Sprintf("kubernetes.%v", k), v)
 	}
-	m[obj.GetMetadata().GetName()] = meta
+	meta.Put("orchestrator.cluster.name", "gke-4242")
+	m[accessor.GetName()] = meta
 }
 
 func (f *mockFuncs) delete(m map[string]common.MapStr, obj kubernetes.Resource) {
+	accessor, _ := meta.Accessor(obj)
 	f.deleted = obj
-	delete(m, obj.GetMetadata().GetName())
+	delete(m, accessor.GetName())
 }
 
 func (f *mockFuncs) index(m common.MapStr) string {
 	f.indexed = m
 	return m["name"].(string)
-}
-
-type mockResource struct {
-	name, namespace, uid string
-	labels               map[string]string
-}
-
-func (r *mockResource) GetMetadata() *v1.ObjectMeta {
-	return &v1.ObjectMeta{
-		Uid:       &r.uid,
-		Name:      &r.name,
-		Namespace: &r.namespace,
-		Labels:    r.labels,
-	}
 }
 
 type mockWatcher struct {
@@ -154,6 +158,15 @@ func (m *mockWatcher) Start() error {
 func (m *mockWatcher) Stop() {
 
 }
+
 func (m *mockWatcher) AddEventHandler(r kubernetes.ResourceEventHandler) {
 	m.handler = r
+}
+
+func (m *mockWatcher) Store() cache.Store {
+	return nil
+}
+
+func (m *mockWatcher) Client() k8s.Interface {
+	return nil
 }

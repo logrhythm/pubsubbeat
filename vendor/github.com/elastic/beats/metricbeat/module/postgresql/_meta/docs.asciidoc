@@ -1,7 +1,20 @@
+include::{libbeat-dir}/shared/integration-link.asciidoc[]
+
+:modulename!:
+
 This module periodically fetches metrics from
 https://www.postgresql.org/[PostgreSQL] servers.
 
 Default metricsets are `activity`, `bgwriter` and `database`.
+
+
+[float]
+=== Dashboard
+
+The PostgreSQL module comes with a predefined dashboard showing databse related metrics. For example:
+
+image::./images/metricbeat-postgresql-overview.png[]
+
 
 [float]
 === Module-specific configuration notes
@@ -45,5 +58,5 @@ precedence over those specified in the `username` and `password` config options.
 [float]
 === Compatibility
 
-This module was tested with PostgreSQL 9.5.3 and is expected to work with all
+This module was tested with PostgreSQL 9, 10, 11, 12 and 13. It is expected to work with all
 versions >= 9.

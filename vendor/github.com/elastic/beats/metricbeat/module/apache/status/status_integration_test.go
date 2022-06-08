@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build integration
 // +build integration
 
 package status
@@ -22,17 +23,17 @@ package status
 import (
 	"testing"
 
-	"github.com/elastic/beats/libbeat/tests/compose"
-	mbtest "github.com/elastic/beats/metricbeat/mb/testing"
-	"github.com/elastic/beats/metricbeat/module/apache"
-
 	"github.com/stretchr/testify/assert"
+
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/tests/compose"
+	mbtest "github.com/elastic/beats/v7/metricbeat/mb/testing"
 )
 
 func TestFetch(t *testing.T) {
-	compose.EnsureUp(t, "apache")
+	service := compose.EnsureUp(t, "apache")
 
-	f := mbtest.NewReportingMetricSetV2Error(t, getConfig())
+	f := mbtest.NewReportingMetricSetV2Error(t, getConfig(service.Host()))
 	events, errs := mbtest.ReportingFetchV2Error(f)
 	if len(errs) > 0 {
 		t.Fatalf("Expected 0 error, had %d. %v\n", len(errs), errs)
@@ -48,10 +49,41 @@ func TestFetch(t *testing.T) {
 	}
 }
 
-func getConfig() map[string]interface{} {
+func TestFetchFleetMode(t *testing.T) {
+	service := compose.EnsureUp(t, "apache")
+
+	f := mbtest.NewReportingMetricSetV2Error(t, getConfig(service.Host()))
+	f.(*MetricSet).isFleetMode = true // silently simulate running in the fleet mode
+
+	events, errs := mbtest.ReportingFetchV2Error(f)
+	if len(errs) > 0 {
+		t.Fatalf("Expected 0 error, had %d. %v\n", len(errs), errs)
+	}
+	assert.NotEmpty(t, events)
+	event := events[0]
+
+	t.Logf("%s/%s event: %+v", f.Module().Name(), f.Name(), event)
+
+	// Check number of fields.
+	if len(event.MetricSetFields) < 11 {
+		t.Fatal("Too few top-level elements in the event")
+	}
+
+	_, err := event.MetricSetFields.GetValue("total_kbytes")
+	assert.Equal(t, common.ErrKeyNotFound, err, "apache.status.total_kbytes shouldn't be present in the fleet mode")
+
+	totalBytes, err := event.MetricSetFields.GetValue("total_bytes")
+	assert.NoError(t, err, "apache.status.total_bytes should be present in the fleet mode")
+	assert.GreaterOrEqual(t, totalBytes.(int64), int64(0), "apache.status.total_bytes should be non-negative")
+
+	_, err = event.MetricSetFields.GetValue("hostname")
+	assert.Equal(t, common.ErrKeyNotFound, err, "apache.status.hostname shouldn't be present in the fleet mode")
+}
+
+func getConfig(host string) map[string]interface{} {
 	return map[string]interface{}{
 		"module":     "apache",
 		"metricsets": []string{"status"},
-		"hosts":      []string{apache.GetApacheEnvHost()},
+		"hosts":      []string{host},
 	}
 }

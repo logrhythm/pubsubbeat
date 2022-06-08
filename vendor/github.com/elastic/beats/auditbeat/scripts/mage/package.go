@@ -18,9 +18,10 @@
 package mage
 
 import (
-	"github.com/pkg/errors"
+	"errors"
+	"fmt"
 
-	"github.com/elastic/beats/dev-tools/mage"
+	devtools "github.com/elastic/beats/v7/dev-tools/mage"
 )
 
 // PackagingFlavor specifies the type of packaging (OSS vs X-Pack).
@@ -37,21 +38,22 @@ const (
 //
 // Customizations specific to Auditbeat:
 // - Include audit.rules.d directory in packages.
+// - Add elastic-agent specific config to x-pack tar.gz package.
 func CustomizePackaging(pkgFlavor PackagingFlavor) {
 	var (
-		shortConfig = mage.PackageFile{
-			Mode:   0600,
+		shortConfig = devtools.PackageFile{
+			Mode:   0o600,
 			Source: "{{.PackageDir}}/auditbeat.yml",
-			Dep: func(spec mage.PackageSpec) error {
-				return generateConfig(pkgFlavor, mage.ShortConfigType, spec)
+			Dep: func(spec devtools.PackageSpec) error {
+				return generateConfig(pkgFlavor, devtools.ShortConfigType, spec)
 			},
 			Config: true,
 		}
-		referenceConfig = mage.PackageFile{
-			Mode:   0644,
+		referenceConfig = devtools.PackageFile{
+			Mode:   0o644,
 			Source: "{{.PackageDir}}/auditbeat.reference.yml",
-			Dep: func(spec mage.PackageSpec) error {
-				return generateConfig(pkgFlavor, mage.ReferenceConfigType, spec)
+			Dep: func(spec devtools.PackageSpec) error {
+				return generateConfig(pkgFlavor, devtools.ReferenceConfigType, spec)
 			},
 		}
 	)
@@ -60,68 +62,76 @@ func CustomizePackaging(pkgFlavor PackagingFlavor) {
 		sampleRulesSource        = "{{.PackageDir}}/audit.rules.d/sample-rules.conf.disabled"
 		defaultSampleRulesTarget = "audit.rules.d/sample-rules.conf.disabled"
 	)
-	sampleRules := mage.PackageFile{
-		Mode:   0644,
+	sampleRules := devtools.PackageFile{
+		Mode:   0o644,
 		Source: sampleRulesSource,
-		Dep: func(spec mage.PackageSpec) error {
+		Dep: func(spec devtools.PackageSpec) error {
 			if spec.OS != "linux" {
 				return errors.New("audit rules are for linux only")
 			}
 
 			// Origin rule file.
 			params := map[string]interface{}{"ArchBits": archBits}
-			origin := mage.OSSBeatDir(
+			origin := devtools.OSSBeatDir(
 				"module/auditd/_meta/audit.rules.d",
 				spec.MustExpand("sample-rules-linux-{{call .ArchBits .GOARCH}}bit.conf", params),
 			)
 
-			if err := mage.Copy(origin, spec.MustExpand(sampleRulesSource)); err != nil {
-				return errors.Wrap(err, "failed to copy sample rules")
+			if err := devtools.Copy(origin, spec.MustExpand(sampleRulesSource)); err != nil {
+				return fmt.Errorf("failed to copy sample rules: %w", err)
 			}
 			return nil
 		},
 	}
 
-	for _, args := range mage.Packages {
-		for _, pkgType := range args.Types {
-			sampleRulesTarget := defaultSampleRulesTarget
+	for _, args := range devtools.Packages {
+		if len(args.Types) == 0 {
+			continue
+		}
 
-			switch pkgType {
-			case mage.TarGz, mage.Zip:
-				args.Spec.ReplaceFile("{{.BeatName}}.yml", shortConfig)
-				args.Spec.ReplaceFile("{{.BeatName}}.reference.yml", referenceConfig)
-			case mage.Deb, mage.RPM, mage.DMG:
-				args.Spec.ReplaceFile("/etc/{{.BeatName}}/{{.BeatName}}.yml", shortConfig)
-				args.Spec.ReplaceFile("/etc/{{.BeatName}}/{{.BeatName}}.reference.yml", referenceConfig)
-				sampleRulesTarget = "/etc/{{.BeatName}}/" + defaultSampleRulesTarget
-			case mage.Docker:
-				args.Spec.ExtraVar("user", "root")
-			default:
-				panic(errors.Errorf("unhandled package type: %v", pkgType))
-			}
+		sampleRulesTarget := defaultSampleRulesTarget
 
-			if args.OS == "linux" {
-				args.Spec.Files[sampleRulesTarget] = sampleRules
+		switch pkgType := args.Types[0]; pkgType {
+		case devtools.TarGz, devtools.Zip:
+			args.Spec.ReplaceFile("{{.BeatName}}.yml", shortConfig)
+			args.Spec.ReplaceFile("{{.BeatName}}.reference.yml", referenceConfig)
+
+			// Add an Elastic Agent specific config to the Elastic licensed packages.
+			if XPackPackaging == pkgFlavor {
+				args.Spec.Files["{{.BeatName}}.elastic-agent.yml"] = devtools.PackageFile{
+					Mode:   0o644,
+					Source: "auditbeat.elastic-agent.yml",
+				}
 			}
-			break
+		case devtools.Deb, devtools.RPM:
+			args.Spec.ReplaceFile("/etc/{{.BeatName}}/{{.BeatName}}.yml", shortConfig)
+			args.Spec.ReplaceFile("/etc/{{.BeatName}}/{{.BeatName}}.reference.yml", referenceConfig)
+			sampleRulesTarget = "/etc/{{.BeatName}}/" + defaultSampleRulesTarget
+		case devtools.Docker:
+		default:
+			panic(fmt.Errorf("unhandled package type: %v", pkgType))
+		}
+
+		if args.OS == "linux" {
+			args.Spec.Files[sampleRulesTarget] = sampleRules
 		}
 	}
 }
 
-func generateConfig(pkgFlavor PackagingFlavor, ct mage.ConfigFileType, spec mage.PackageSpec) error {
-	var args mage.ConfigFileParams
+func generateConfig(pkgFlavor PackagingFlavor, ct devtools.ConfigFileType, spec devtools.PackageSpec) error {
+	var args devtools.ConfigFileParams
 	switch pkgFlavor {
 	case OSSPackaging:
 		args = OSSConfigFileParams()
 	case XPackPackaging:
 		args = XPackConfigFileParams()
 	default:
-		panic(errors.Errorf("Invalid packaging flavor (either oss or xpack): %v", pkgFlavor))
+		panic(fmt.Errorf("Invalid packaging flavor (either oss or xpack): %v", pkgFlavor))
 	}
 
 	// PackageDir isn't exported but we can grab it's value this way.
 	packageDir := spec.MustExpand("{{.PackageDir}}")
 	args.ExtraVars["GOOS"] = spec.OS
 	args.ExtraVars["GOARCH"] = spec.MustExpand("{{.GOARCH}}")
-	return mage.Config(ct, args, packageDir)
+	return devtools.Config(ct, args, packageDir)
 }

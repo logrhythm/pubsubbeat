@@ -18,12 +18,9 @@
 package mage
 
 import (
-	"github.com/elastic/beats/dev-tools/mage"
-)
+	"github.com/magefile/mage/mg"
 
-const (
-	// configTemplateGlob matches Packetbeat protocol config file templates.
-	configTemplateGlob = "protos/*/_meta/config*.yml.tmpl"
+	devtools "github.com/elastic/beats/v7/dev-tools/mage"
 )
 
 var defaultDevice = map[string]string{
@@ -42,25 +39,36 @@ func device(goos string) string {
 
 // ConfigFileParams returns the default ConfigFileParams for generating
 // packetbeat*.yml files.
-func ConfigFileParams() mage.ConfigFileParams {
-	return mage.ConfigFileParams{
-		ShortParts: []string{
-			mage.OSSBeatDir("_meta/beat.yml"),
-			configTemplateGlob,
-			mage.LibbeatDir("_meta/config.yml"),
-		},
-		ReferenceParts: []string{
-			mage.OSSBeatDir("_meta/beat.reference.yml"),
-			configTemplateGlob,
-			mage.LibbeatDir("_meta/config.reference.yml"),
-		},
-		DockerParts: []string{
-			mage.OSSBeatDir("_meta/beat.docker.yml"),
-			configTemplateGlob,
-			mage.LibbeatDir("_meta/config.docker.yml"),
-		},
-		ExtraVars: map[string]interface{}{
-			"device": device,
-		},
+func ConfigFileParams() devtools.ConfigFileParams {
+	p := devtools.DefaultConfigFileParams()
+	p.Templates = append(p.Templates, devtools.OSSBeatDir("_meta/config/*.tmpl"))
+	p.ExtraVars = map[string]interface{}{
+		"device": device,
 	}
+	return p
+}
+
+// Fields generates fields.yml and fields.go files for the Beat.
+func Fields() {
+	mg.Deps(libbeatAndPacketbeatCommonFieldsGo, protosFieldsGo)
+	mg.Deps(FieldsYML)
+}
+
+// libbeatAndPacketbeatCommonFieldsGo generates a fields.go containing both
+// libbeat and packetbeat's common fields.
+func libbeatAndPacketbeatCommonFieldsGo() error {
+	if err := devtools.GenerateFieldsYAML(); err != nil {
+		return err
+	}
+	return devtools.GenerateAllInOneFieldsGo()
+}
+
+// protosFieldsGo generates a fields.go for each protocol.
+func protosFieldsGo() error {
+	return devtools.GenerateModuleFieldsGo(devtools.OSSBeatDir("protos"))
+}
+
+// FieldsYML generates the fields.yml file containing all fields.
+func FieldsYML() error {
+	return devtools.GenerateFieldsYAML(devtools.OSSBeatDir("protos"))
 }

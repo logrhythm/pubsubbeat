@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build darwin || freebsd || linux || windows
 // +build darwin freebsd linux windows
 
 package process_summary
@@ -25,21 +26,25 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/elastic/beats/libbeat/common"
-	mbtest "github.com/elastic/beats/metricbeat/mb/testing"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/metric/system/process"
+	mbtest "github.com/elastic/beats/v7/metricbeat/mb/testing"
+	_ "github.com/elastic/beats/v7/metricbeat/module/system"
 )
 
 func TestData(t *testing.T) {
-	f := mbtest.NewReportingMetricSetV2(t, getConfig())
-	err := mbtest.WriteEventsReporterV2(f, t, ".")
+	f := mbtest.NewReportingMetricSetV2Error(t, getConfig())
+	err := mbtest.WriteEventsReporterV2Error(f, t, ".")
 	if err != nil {
 		t.Fatal("write", err)
 	}
 }
 
 func TestFetch(t *testing.T) {
-	f := mbtest.NewReportingMetricSetV2(t, getConfig())
-	events, errs := mbtest.ReportingFetchV2(f)
+	logp.DevelopmentSetup()
+	f := mbtest.NewReportingMetricSetV2Error(t, getConfig())
+	events, errs := mbtest.ReportingFetchV2Error(f)
 
 	require.Empty(t, errs)
 	require.NotEmpty(t, events)
@@ -47,24 +52,49 @@ func TestFetch(t *testing.T) {
 	t.Logf("%s/%s event: %+v", f.Module().Name(), f.Name(),
 		event.StringToPrint())
 
+	_, err := event.GetValue("system.process.summary")
+	require.NoError(t, err)
+
+}
+
+func TestStateNames(t *testing.T) {
+	logp.DevelopmentSetup()
+	f := mbtest.NewReportingMetricSetV2Error(t, getConfig())
+	events, errs := mbtest.ReportingFetchV2Error(f)
+
+	require.Empty(t, errs)
+	require.NotEmpty(t, events)
+	event := events[0].BeatEvent("system", "process_summary").Fields
+
 	summary, err := event.GetValue("system.process.summary")
 	require.NoError(t, err)
 
 	event, ok := summary.(common.MapStr)
 	require.True(t, ok)
 
-	assert.Contains(t, event, "total")
-	assert.Contains(t, event, "sleeping")
-	assert.Contains(t, event, "running")
-	assert.Contains(t, event, "idle")
-	assert.Contains(t, event, "stopped")
-	assert.Contains(t, event, "zombie")
-	assert.Contains(t, event, "unknown")
+	// if there's nothing marked as sleeping or idle, something weird is happening
+	assert.NotZero(t, event["total"])
 
-	total := event["sleeping"].(int) + event["running"].(int) + event["idle"].(int) +
-		event["stopped"].(int) + event["zombie"].(int) + event["unknown"].(int)
+	var sum int
+	total := event["total"].(int)
+	for key, val := range event {
+		if key == "total" {
+			continue
+		}
+		// Check to make sure the values we got actually exist
+		exists := false
+		for _, proc := range process.PidStates {
+			if string(proc) == key {
+				exists = true
+				break
+			}
+		}
+		assert.True(t, exists, "could not find value %s in event #%v", key, event.StringToPrint())
 
-	assert.Equal(t, event["total"].(int), total)
+		sum = val.(int) + sum
+	}
+	assert.Equal(t, total, sum)
+
 }
 
 func getConfig() map[string]interface{} {

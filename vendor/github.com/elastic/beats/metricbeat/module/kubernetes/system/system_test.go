@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package system
@@ -26,7 +27,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common"
 )
 
 const testFile = "../_meta/test/stats_summary.json"
@@ -52,7 +53,7 @@ func TestEventMapping(t *testing.T) {
 		"memory.pagefaults":       100835242,
 		"memory.majorpagefaults":  0,
 
-		"cpu.usage.core.ns":   2357800908948,
+		"cpu.usage.core.ns":   int64(2357800908948),
 		"cpu.usage.nanocores": 11263994,
 	}
 

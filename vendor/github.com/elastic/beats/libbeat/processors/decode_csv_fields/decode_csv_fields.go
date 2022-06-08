@@ -25,10 +25,11 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/processors"
-	"github.com/elastic/beats/libbeat/processors/checks"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/processors"
+	"github.com/elastic/beats/v7/libbeat/processors/checks"
+	jsprocessor "github.com/elastic/beats/v7/libbeat/processors/script/javascript/module/processor"
 )
 
 type decodeCSVFields struct {
@@ -60,6 +61,8 @@ func init() {
 		checks.ConfigChecked(NewDecodeCSVField,
 			checks.RequireFields("fields"),
 			checks.AllowedFields("fields", "ignore_missing", "overwrite_keys", "separator", "trim_leading_space", "overwrite_keys", "fail_on_error", "when")))
+
+	jsprocessor.RegisterPlugin("DecodeCSVField", NewDecodeCSVField)
 }
 
 // NewDecodeCSVField construct a new decode_csv_field processor.
@@ -97,14 +100,13 @@ func NewDecodeCSVField(c *common.Config) (processors.Processor, error) {
 
 // Run applies the decode_csv_field processor to an event.
 func (f *decodeCSVFields) Run(event *beat.Event) (*beat.Event, error) {
-	saved := *event
+	var saved *beat.Event
 	if f.FailOnError {
-		saved.Fields = event.Fields.Clone()
-		saved.Meta = event.Meta.Clone()
+		saved = event.Clone()
 	}
 	for src, dest := range f.fields {
 		if err := f.decodeCSVField(src, dest, event); err != nil && f.FailOnError {
-			return &saved, err
+			return saved, err
 		}
 	}
 	return event, nil

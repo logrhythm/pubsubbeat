@@ -19,11 +19,12 @@ package add_kubernetes_metadata
 
 import (
 	"fmt"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common"
 )
 
 // A random container ID that we use for our tests
@@ -55,29 +56,55 @@ func TestLogsPathMatcher_InvalidSource3(t *testing.T) {
 
 func TestLogsPathMatcher_VarLibDockerContainers(t *testing.T) {
 	cfgLogsPath := "" // use the default matcher configuration
-	source := fmt.Sprintf("/var/lib/docker/containers/%s/%s-json.log", cid, cid)
+
+	path := "/var/lib/docker/containers/%s/%s-json.log"
+	if runtime.GOOS == "windows" {
+		path = "C:\\ProgramData\\Docker\\containers\\%s\\%s-json.log"
+	}
+
+	source := fmt.Sprintf(path, cid, cid)
+
 	expectedResult := cid
 	executeTest(t, cfgLogsPath, source, expectedResult)
 }
 
 func TestLogsPathMatcher_VarLogContainers(t *testing.T) {
 	cfgLogsPath := "/var/log/containers/"
-	source := fmt.Sprintf("/var/log/containers/kube-proxy-4d7nt_kube-system_kube-proxy-%s.log", cid)
+	sourcePath := "/var/log/containers/kube-proxy-4d7nt_kube-system_kube-proxy-%s.log"
+	if runtime.GOOS == "windows" {
+		cfgLogsPath = "C:\\var\\log\\containers\\"
+		sourcePath = "C:\\var\\log\\containers\\kube-proxy-4d7nt_kube-system_kube-proxy-%s.log"
+	}
+
+	source := fmt.Sprintf(sourcePath, cid)
 	expectedResult := cid
 	executeTest(t, cfgLogsPath, source, expectedResult)
 }
 
 func TestLogsPathMatcher_AnotherLogDir(t *testing.T) {
 	cfgLogsPath := "/var/log/other/"
-	source := fmt.Sprintf("/var/log/other/%s.log", cid)
+	sourcePath := "/var/log/other/%s.log"
+	if runtime.GOOS == "windows" {
+		cfgLogsPath = "C:\\var\\log\\othere\\"
+		sourcePath = "C:\\var\\log\\othere\\%s.log"
+	}
+
+	source := fmt.Sprintf(sourcePath, cid)
 	expectedResult := cid
 	executeTest(t, cfgLogsPath, source, expectedResult)
 }
 
 func TestLogsPathMatcher_VarLibKubeletPods(t *testing.T) {
 	cfgLogsPath := "/var/lib/kubelet/pods/"
+	sourcePath := "/var/lib/kubelet/pods/%s/volumes/kubernetes.io~empty-dir/applogs/server.log"
 	cfgResourceType := "pod"
-	source := fmt.Sprintf("/var/lib/kubelet/pods/%s/volumes/kubernetes.io~empty-dir/applogs/server.log", puid)
+
+	if runtime.GOOS == "windows" {
+		cfgLogsPath = "C:\\var\\lib\\kubelet\\pods\\"
+		sourcePath = "C:\\var\\lib\\kubelet\\pods\\%s\\volumes\\kubernetes.io~empty-dir\\applogs\\server.log"
+	}
+
+	source := fmt.Sprintf(sourcePath, puid)
 	expectedResult := puid
 	executeTestWithResourceType(t, cfgLogsPath, cfgResourceType, source, expectedResult)
 }
@@ -90,12 +117,64 @@ func TestLogsPathMatcher_InvalidSource4(t *testing.T) {
 	executeTestWithResourceType(t, cfgLogsPath, cfgResourceType, source, expectedResult)
 }
 
+func TestLogsPathMatcher_InvalidVarLogPodSource(t *testing.T) {
+	cfgLogsPath := "/var/log/pods/"
+	cfgResourceType := "pod"
+	source := fmt.Sprintf("/invalid/dir/namespace_pod-name_%s/container/0.log", puid)
+	expectedResult := ""
+	executeTestWithResourceType(t, cfgLogsPath, cfgResourceType, source, expectedResult)
+}
+
+func TestLogsPathMatcher_ValidVarLogPodSource(t *testing.T) {
+	cfgLogsPath := "/var/log/pods/"
+	cfgResourceType := "pod"
+	sourcePath := "/var/log/pods/namespace_pod-name_%s/container/0.log.20220221-210912"
+
+	if runtime.GOOS == "windows" {
+		cfgLogsPath = "C:\\var\\log\\pods\\"
+		sourcePath = "C:\\var\\log\\pods\\namespace_pod-name_%s\\container\\0.log.20220221-210912"
+	}
+	source := fmt.Sprintf(sourcePath, puid)
+	expectedResult := puid
+	executeTestWithResourceType(t, cfgLogsPath, cfgResourceType, source, expectedResult)
+}
+
+func TestLogsPathMatcher_InvalidVarLogPodSource2(t *testing.T) {
+	cfgLogsPath := "/var/log/pods/"
+	cfgResourceType := "pod"
+	source := fmt.Sprintf("/var/log/pods/namespace_pod-name_%s/container/0.log.20220221-210526.gz", puid)
+	expectedResult := ""
+	executeTestWithResourceType(t, cfgLogsPath, cfgResourceType, source, expectedResult)
+}
+
+func TestLogsPathMatcher_InvalidVarLogPodIDFormat(t *testing.T) {
+	cfgLogsPath := "/var/log/pods/"
+	cfgResourceType := "pod"
+	source := fmt.Sprintf("/var/log/pods/%s/container/0.log", puid)
+	expectedResult := ""
+	executeTestWithResourceType(t, cfgLogsPath, cfgResourceType, source, expectedResult)
+}
+
+func TestLogsPathMatcher_ValidVarLogPod(t *testing.T) {
+	cfgLogsPath := "/var/log/pods/"
+	cfgResourceType := "pod"
+	sourcePath := "/var/log/pods/namespace_pod-name_%s/container/0.log"
+
+	if runtime.GOOS == "windows" {
+		cfgLogsPath = "C:\\var\\log\\pods\\"
+		sourcePath = "C:\\var\\log\\pods\\namespace_pod-name_%s\\container\\0.log"
+	}
+	source := fmt.Sprintf(sourcePath, puid)
+	expectedResult := puid
+	executeTestWithResourceType(t, cfgLogsPath, cfgResourceType, source, expectedResult)
+}
+
 func executeTest(t *testing.T, cfgLogsPath string, source string, expectedResult string) {
 	executeTestWithResourceType(t, cfgLogsPath, "", source, expectedResult)
 }
 
 func executeTestWithResourceType(t *testing.T, cfgLogsPath string, cfgResourceType string, source string, expectedResult string) {
-	var testConfig = common.NewConfig()
+	testConfig := common.NewConfig()
 	if cfgLogsPath != "" {
 		testConfig.SetString("logs_path", -1, cfgLogsPath)
 	}
@@ -105,7 +184,7 @@ func executeTestWithResourceType(t *testing.T, cfgLogsPath string, cfgResourceTy
 	}
 
 	logMatcher, err := newLogsPathMatcher(*testConfig)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	input := common.MapStr{
 		"log": common.MapStr{

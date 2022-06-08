@@ -1,11 +1,9 @@
-from base import BaseTest
-from nose.plugins.attrib import attr
-from elasticsearch import Elasticsearch, TransportError
-
 import logging
 import os
 import shutil
 import unittest
+from base import BaseTest
+from elasticsearch import Elasticsearch, TransportError
 
 
 INTEGRATION_TESTS = os.environ.get('INTEGRATION_TESTS', False)
@@ -18,7 +16,7 @@ class TestCommands(BaseTest):
 
     def setUp(self):
         super(BaseTest, self).setUp()
-        shutil.copy(self.beat_path + "/_meta/config.yml",
+        shutil.copy(os.path.join(self.beat_path, "tests", "system", "input", "libbeat.yml"),
                     os.path.join(self.working_dir, "libbeat.yml"))
         self.fields_path = os.path.join(self.beat_path, "template/testdata/fields.yml")
 

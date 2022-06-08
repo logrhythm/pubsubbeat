@@ -1,10 +1,16 @@
 [
     {
         "@timestamp": "2016-12-09T14:37:59.000Z",
-        "ecs.version": "1.0.0",
+        "event.category": [
+            "database"
+        ],
         "event.dataset": "mysql.slowlog",
         "event.duration": 153000,
+        "event.kind": "event",
         "event.module": "mysql",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "slowlog",
         "input.type": "log",
         "log.flags": [
@@ -22,10 +28,16 @@
     },
     {
         "@timestamp": "2016-12-09T14:37:59.000Z",
-        "ecs.version": "1.0.0",
+        "event.category": [
+            "database"
+        ],
         "event.dataset": "mysql.slowlog",
         "event.duration": 2456000,
+        "event.kind": "event",
         "event.module": "mysql",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "slowlog",
         "input.type": "log",
         "log.flags": [
@@ -43,10 +55,16 @@
     },
     {
         "@timestamp": "2016-12-09T14:37:59.000Z",
-        "ecs.version": "1.0.0",
+        "event.category": [
+            "database"
+        ],
         "event.dataset": "mysql.slowlog",
         "event.duration": 6278000,
+        "event.kind": "event",
         "event.module": "mysql",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "slowlog",
         "input.type": "log",
         "log.flags": [
@@ -64,10 +82,16 @@
     },
     {
         "@timestamp": "2016-12-09T14:37:59.000Z",
-        "ecs.version": "1.0.0",
+        "event.category": [
+            "database"
+        ],
         "event.dataset": "mysql.slowlog",
         "event.duration": 262000,
+        "event.kind": "event",
         "event.module": "mysql",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "slowlog",
         "input.type": "log",
         "log.flags": [
@@ -85,10 +109,16 @@
     },
     {
         "@timestamp": "2016-12-09T14:37:59.000Z",
-        "ecs.version": "1.0.0",
+        "event.category": [
+            "database"
+        ],
         "event.dataset": "mysql.slowlog",
         "event.duration": 323000,
+        "event.kind": "event",
         "event.module": "mysql",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "slowlog",
         "input.type": "log",
         "log.flags": [
@@ -106,10 +136,16 @@
     },
     {
         "@timestamp": "2016-12-09T14:37:59.000Z",
-        "ecs.version": "1.0.0",
+        "event.category": [
+            "database"
+        ],
         "event.dataset": "mysql.slowlog",
         "event.duration": 7084000,
+        "event.kind": "event",
         "event.module": "mysql",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "slowlog",
         "input.type": "log",
         "log.flags": [
@@ -127,10 +163,16 @@
     },
     {
         "@timestamp": "2016-12-09T14:37:59.000Z",
-        "ecs.version": "1.0.0",
+        "event.category": [
+            "database"
+        ],
         "event.dataset": "mysql.slowlog",
         "event.duration": 277000,
+        "event.kind": "event",
         "event.module": "mysql",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "slowlog",
         "input.type": "log",
         "log.flags": [
@@ -148,10 +190,16 @@
     },
     {
         "@timestamp": "2016-12-09T14:37:59.000Z",
-        "ecs.version": "1.0.0",
+        "event.category": [
+            "database"
+        ],
         "event.dataset": "mysql.slowlog",
         "event.duration": 254000,
+        "event.kind": "event",
         "event.module": "mysql",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "slowlog",
         "input.type": "log",
         "log.flags": [
@@ -169,10 +217,16 @@
     },
     {
         "@timestamp": "2016-12-09T14:37:59.000Z",
-        "ecs.version": "1.0.0",
+        "event.category": [
+            "database"
+        ],
         "event.dataset": "mysql.slowlog",
         "event.duration": 297000,
+        "event.kind": "event",
         "event.module": "mysql",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "slowlog",
         "input.type": "log",
         "log.flags": [
@@ -190,10 +244,16 @@
     },
     {
         "@timestamp": "2016-12-09T14:37:59.000Z",
-        "ecs.version": "1.0.0",
+        "event.category": [
+            "database"
+        ],
         "event.dataset": "mysql.slowlog",
         "event.duration": 1676000,
+        "event.kind": "event",
         "event.module": "mysql",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "slowlog",
         "input.type": "log",
         "log.flags": [
@@ -211,10 +271,16 @@
     },
     {
         "@timestamp": "2016-12-09T14:37:59.000Z",
-        "ecs.version": "1.0.0",
+        "event.category": [
+            "database"
+        ],
         "event.dataset": "mysql.slowlog",
         "event.duration": 8782000,
+        "event.kind": "event",
         "event.module": "mysql",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "slowlog",
         "input.type": "log",
         "log.flags": [
@@ -232,10 +298,16 @@
     },
     {
         "@timestamp": "2016-12-09T14:39:02.000Z",
-        "ecs.version": "1.0.0",
+        "event.category": [
+            "database"
+        ],
         "event.dataset": "mysql.slowlog",
         "event.duration": 2000268000,
+        "event.kind": "event",
         "event.module": "mysql",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "slowlog",
         "input.type": "log",
         "log.flags": [
@@ -253,10 +325,16 @@
     },
     {
         "@timestamp": "2016-12-09T14:39:23.000Z",
-        "ecs.version": "1.0.0",
+        "event.category": [
+            "database"
+        ],
         "event.dataset": "mysql.slowlog",
         "event.duration": 138000,
+        "event.kind": "event",
         "event.module": "mysql",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "slowlog",
         "input.type": "log",
         "log.flags": [
@@ -275,10 +353,16 @@
     },
     {
         "@timestamp": "2016-12-09T14:39:40.000Z",
-        "ecs.version": "1.0.0",
+        "event.category": [
+            "database"
+        ],
         "event.dataset": "mysql.slowlog",
         "event.duration": 159000,
+        "event.kind": "event",
         "event.module": "mysql",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "slowlog",
         "input.type": "log",
         "log.flags": [

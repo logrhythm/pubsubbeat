@@ -15,7 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// +build darwin freebsd linux openbsd windows
+//go:build darwin || freebsd || linux || openbsd || windows || aix
+// +build darwin freebsd linux openbsd windows aix
 
 package core
 
@@ -25,12 +26,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	mbtest "github.com/elastic/beats/metricbeat/mb/testing"
+	mbtest "github.com/elastic/beats/v7/metricbeat/mb/testing"
+	"github.com/elastic/beats/v7/metricbeat/mb/testing/flags"
+	_ "github.com/elastic/beats/v7/metricbeat/module/system"
 )
 
 func TestFetch(t *testing.T) {
-	f := mbtest.NewReportingMetricSetV2(t, getConfig())
-	events, errs := mbtest.ReportingFetchV2(f)
+	f := mbtest.NewReportingMetricSetV2Error(t, getConfig())
+	events, errs := mbtest.ReportingFetchV2Error(f)
 
 	assert.Empty(t, errs)
 	if !assert.NotEmpty(t, events) {
@@ -41,12 +44,15 @@ func TestFetch(t *testing.T) {
 }
 
 func TestData(t *testing.T) {
-	f := mbtest.NewReportingMetricSetV2(t, getConfig())
+	if !*flags.DataFlag {
+		return
+	}
+	f := mbtest.NewReportingMetricSetV2Error(t, getConfig())
 
-	mbtest.ReportingFetchV2(f)
-	time.Sleep(500 * time.Millisecond)
+	mbtest.ReportingFetchV2Error(f)
+	time.Sleep(5 * time.Second)
 
-	err := mbtest.WriteEventsReporterV2(f, t, ".")
+	err := mbtest.WriteEventsReporterV2Error(f, t, ".")
 	if err != nil {
 		t.Fatal("write", err)
 	}

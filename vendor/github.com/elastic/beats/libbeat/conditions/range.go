@@ -22,8 +22,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/logp"
 )
 
 type rangeValue struct {
@@ -129,7 +128,7 @@ func (c Range) Check(event ValuesMap) bool {
 				return false
 			}
 
-		case float64, float32, common.Float:
+		case float64, float32:
 			floatValue := reflect.ValueOf(value).Float()
 
 			if !checkValue(floatValue, rangeValue) {

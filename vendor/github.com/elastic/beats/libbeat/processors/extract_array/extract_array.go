@@ -24,10 +24,11 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/processors"
-	"github.com/elastic/beats/libbeat/processors/checks"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/processors"
+	"github.com/elastic/beats/v7/libbeat/processors/checks"
+	jsprocessor "github.com/elastic/beats/v7/libbeat/processors/script/javascript/module/processor"
 )
 
 type config struct {
@@ -61,6 +62,8 @@ func init() {
 		checks.ConfigChecked(New,
 			checks.RequireFields("field", "mappings"),
 			checks.AllowedFields("field", "mappings", "ignore_missing", "overwrite_keys", "fail_on_error", "when", "omit_empty")))
+
+	jsprocessor.RegisterPlugin("ExtractArray", New)
 }
 
 // Unpack unpacks the processor's configuration.
@@ -126,10 +129,9 @@ func (f *extractArrayProcessor) Run(event *beat.Event) (*beat.Event, error) {
 		return event, errors.Wrapf(err, "unsupported type for field %s: got: %s needed: array", f.config.Field, t.String())
 	}
 
-	saved := *event
+	saved := event
 	if f.config.FailOnError {
-		saved.Fields = event.Fields.Clone()
-		saved.Meta = event.Meta.Clone()
+		saved = event.Clone()
 	}
 
 	n := array.Len()
@@ -138,7 +140,7 @@ func (f *extractArrayProcessor) Run(event *beat.Event) (*beat.Event, error) {
 			if !f.config.FailOnError {
 				continue
 			}
-			return &saved, errors.Errorf("index %d exceeds length of %d when processing mapping for field %s", mapping.from, n, mapping.to)
+			return saved, errors.Errorf("index %d exceeds length of %d when processing mapping for field %s", mapping.from, n, mapping.to)
 		}
 		cell := array.Index(mapping.from)
 		// checking for CanInterface() here is done to prevent .Interface() from
@@ -152,14 +154,14 @@ func (f *extractArrayProcessor) Run(event *beat.Event) (*beat.Event, error) {
 				if !f.config.FailOnError {
 					continue
 				}
-				return &saved, errors.Errorf("target field %s already has a value. Set the overwrite_keys flag or drop/rename the field first", mapping.to)
+				return saved, errors.Errorf("target field %s already has a value. Set the overwrite_keys flag or drop/rename the field first", mapping.to)
 			}
 		}
 		if _, err = event.PutValue(mapping.to, clone(cell.Interface())); err != nil {
 			if !f.config.FailOnError {
 				continue
 			}
-			return &saved, errors.Wrapf(err, "failed setting field %s", mapping.to)
+			return saved, errors.Wrapf(err, "failed setting field %s", mapping.to)
 		}
 	}
 	return event, nil

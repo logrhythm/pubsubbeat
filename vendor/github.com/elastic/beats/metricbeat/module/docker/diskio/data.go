@@ -18,40 +18,51 @@
 package diskio
 
 import (
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/metricbeat/mb"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/metricbeat/mb"
 )
 
 func eventsMapping(r mb.ReporterV2, blkioStatsList []BlkioStats) {
-	for _, blkioStats := range blkioStatsList {
-		eventMapping(r, &blkioStats)
+	for i := range blkioStatsList {
+		eventMapping(r, &blkioStatsList[i])
 	}
 }
 
 func eventMapping(r mb.ReporterV2, stats *BlkioStats) {
 	fields := common.MapStr{
-		"reads":  stats.reads,
-		"writes": stats.writes,
-		"total":  stats.totals,
 		"read": common.MapStr{
-			"ops":   stats.serviced.reads,
-			"bytes": stats.servicedBytes.reads,
-			"rate":  stats.reads,
+			"ops":          stats.serviced.reads,
+			"bytes":        stats.servicedBytes.reads,
+			"rate":         stats.reads,
+			"service_time": stats.servicedTime.reads,
+			"wait_time":    stats.waitTime.reads,
+			"queued":       stats.queued.reads,
 		},
 		"write": common.MapStr{
-			"ops":   stats.serviced.writes,
-			"bytes": stats.servicedBytes.writes,
-			"rate":  stats.writes,
+			"ops":          stats.serviced.writes,
+			"bytes":        stats.servicedBytes.writes,
+			"rate":         stats.writes,
+			"service_time": stats.servicedTime.writes,
+			"wait_time":    stats.waitTime.writes,
+			"queued":       stats.queued.writes,
 		},
 		"summary": common.MapStr{
-			"ops":   stats.serviced.totals,
-			"bytes": stats.servicedBytes.totals,
-			"rate":  stats.totals,
+			"ops":          stats.serviced.totals,
+			"bytes":        stats.servicedBytes.totals,
+			"rate":         stats.totals,
+			"service_time": stats.servicedTime.totals,
+			"wait_time":    stats.waitTime.totals,
+			"queued":       stats.queued.totals,
 		},
 	}
 
+	rootFields := stats.Container.ToMapStr()
+	// Add container ECS fields
+	_, _ = rootFields.Put("container.disk.read.bytes", stats.servicedBytes.reads)
+	_, _ = rootFields.Put("container.disk.write.bytes", stats.servicedBytes.writes)
+
 	r.Event(mb.Event{
-		RootFields:      stats.Container.ToMapStr(),
+		RootFields:      rootFields,
 		MetricSetFields: fields,
 	})
 }

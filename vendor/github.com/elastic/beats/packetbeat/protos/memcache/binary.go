@@ -24,11 +24,9 @@ package memcache
 // init function.
 
 import (
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/common/streambuf"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common/streambuf"
 )
-
-type memcacheMagic uint8
 
 const (
 	memcacheMagicRequest  = 0x80
@@ -56,10 +54,11 @@ var binStatsValue = argDef{
 	serialize: serializeStats,
 }
 
-var extraValue = makeValueExtra("value")
-var extraDelta = makeValueExtra("delta")
-var extraInitial = makeValue2Extra("initial")
-var extraVerbosity = make32ValueExtra("verbosity")
+var (
+	extraDelta     = makeValueExtra("delta")
+	extraInitial   = makeValue2Extra("initial")
+	extraVerbosity = make32ValueExtra("verbosity")
+)
 
 func init() {
 	// define all memcache opcode commands:

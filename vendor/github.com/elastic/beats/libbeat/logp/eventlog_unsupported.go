@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !windows
 // +build !windows
 
 package logp
@@ -24,6 +25,6 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-func newEventLog(beatname string, encoder zapcore.Encoder, enab zapcore.LevelEnabler) (zapcore.Core, error) {
+func newEventLog(_ string, _ zapcore.Encoder, _ zapcore.LevelEnabler) (zapcore.Core, error) {
 	return nil, errors.New("eventlog is only supported on Windows")
 }

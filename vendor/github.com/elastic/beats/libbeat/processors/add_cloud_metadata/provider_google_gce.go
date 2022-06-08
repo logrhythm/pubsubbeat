@@ -20,56 +20,115 @@ package add_cloud_metadata
 import (
 	"path"
 
-	"github.com/elastic/beats/libbeat/common"
-	s "github.com/elastic/beats/libbeat/common/schema"
-	c "github.com/elastic/beats/libbeat/common/schema/mapstriface"
+	"gopkg.in/yaml.v2"
+
+	"github.com/elastic/beats/v7/libbeat/common"
+	s "github.com/elastic/beats/v7/libbeat/common/schema"
+	c "github.com/elastic/beats/v7/libbeat/common/schema/mapstriface"
 )
 
+type KubeConfig struct {
+	Clusters []Cluster `yaml:"clusters"`
+}
+
+type Cluster struct {
+	Cluster Server `yaml:"cluster"`
+}
+
+type Server struct {
+	Server string `yaml:"server"`
+}
+
 // Google GCE Metadata Service
-func newGceMetadataFetcher(config *common.Config) (*metadataFetcher, error) {
-	gceMetadataURI := "/computeMetadata/v1/?recursive=true&alt=json"
-	gceHeaders := map[string]string{"Metadata-Flavor": "Google"}
-	gceSchema := func(m map[string]interface{}) common.MapStr {
-		out := common.MapStr{}
+var gceMetadataFetcher = provider{
+	Name: "google-gce",
 
-		trimLeadingPath := func(key string) {
-			v, err := out.GetValue(key)
-			if err != nil {
-				return
+	Local: true,
+
+	Create: func(provider string, config *common.Config) (metadataFetcher, error) {
+		gceMetadataURI := "/computeMetadata/v1/?recursive=true&alt=json"
+		gceHeaders := map[string]string{"Metadata-Flavor": "Google"}
+		gceSchema := func(m map[string]interface{}) common.MapStr {
+			cloud := common.MapStr{
+				"service": common.MapStr{
+					"name": "GCE",
+				},
 			}
-			p, ok := v.(string)
-			if !ok {
-				return
+			meta := common.MapStr{}
+
+			trimLeadingPath := func(key string) {
+				v, err := cloud.GetValue(key)
+				if err != nil {
+					return
+				}
+				p, ok := v.(string)
+				if !ok {
+					return
+				}
+				cloud.Put(key, path.Base(p))
 			}
-			out.Put(key, path.Base(p))
+
+			if instance, ok := m["instance"].(map[string]interface{}); ok {
+				s.Schema{
+					"instance": s.Object{
+						"id":   c.StrFromNum("id"),
+						"name": c.Str("name"),
+					},
+					"machine": s.Object{
+						"type": c.Str("machineType"),
+					},
+					"availability_zone": c.Str("zone"),
+				}.ApplyTo(cloud, instance)
+				trimLeadingPath("machine.type")
+				trimLeadingPath("availability_zone")
+				s.Schema{
+					"orchestrator": s.Object{
+						"cluster": c.Dict(
+							"attributes",
+							s.Schema{
+								"name":       c.Str("cluster-name"),
+								"kubeconfig": c.Str("kubeconfig"),
+							}),
+					},
+				}.ApplyTo(meta, instance)
+			}
+
+			if kubeconfig, err := meta.GetValue("orchestrator.cluster.kubeconfig"); err == nil {
+				kubeConfig, ok := kubeconfig.(string)
+				if !ok {
+					meta.Delete("orchestrator.cluster.kubeconfig")
+				}
+				cc := &KubeConfig{}
+				err := yaml.Unmarshal([]byte(kubeConfig), cc)
+				if err != nil {
+					meta.Delete("orchestrator.cluster.kubeconfig")
+				}
+				if len(cc.Clusters) > 0 {
+					if cc.Clusters[0].Cluster.Server != "" {
+						meta.Delete("orchestrator.cluster.kubeconfig")
+						meta.Put("orchestrator.cluster.url", cc.Clusters[0].Cluster.Server)
+					}
+				}
+			} else {
+				meta.Delete("orchestrator")
+			}
+
+			if project, ok := m["project"].(map[string]interface{}); ok {
+				s.Schema{
+					"project": s.Object{
+						"id": c.Str("projectId"),
+					},
+					"account": s.Object{
+						"id": c.Str("projectId"),
+					},
+				}.ApplyTo(cloud, project)
+			}
+
+			meta.DeepUpdate(common.MapStr{"cloud": cloud})
+			return meta
 		}
 
-		if instance, ok := m["instance"].(map[string]interface{}); ok {
-			s.Schema{
-				"instance": s.Object{
-					"id":   c.StrFromNum("id"),
-					"name": c.Str("name"),
-				},
-				"machine": s.Object{
-					"type": c.Str("machineType"),
-				},
-				"availability_zone": c.Str("zone"),
-			}.ApplyTo(out, instance)
-			trimLeadingPath("machine.type")
-			trimLeadingPath("availability_zone")
-		}
-
-		if project, ok := m["project"].(map[string]interface{}); ok {
-			s.Schema{
-				"project": s.Object{
-					"id": c.Str("projectId"),
-				},
-			}.ApplyTo(out, project)
-		}
-
-		return out
-	}
-
-	fetcher, err := newMetadataFetcher(config, "gcp", gceHeaders, metadataHost, gceSchema, gceMetadataURI)
-	return fetcher, err
+		fetcher, err := newMetadataFetcher(config, provider, gceHeaders, metadataHost, gceSchema, gceMetadataURI)
+		return fetcher, err
+	},
 }

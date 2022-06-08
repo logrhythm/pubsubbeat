@@ -18,13 +18,16 @@
 package node
 
 import (
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/common/kubernetes"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/metricbeat/helper"
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/mb/parse"
-	"github.com/elastic/beats/metricbeat/module/kubernetes/util"
+	"fmt"
+
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common/kubernetes"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/metricbeat/helper"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/parse"
+	k8smod "github.com/elastic/beats/v7/metricbeat/module/kubernetes"
+	"github.com/elastic/beats/v7/metricbeat/module/kubernetes/util"
 )
 
 const (
@@ -58,6 +61,7 @@ type MetricSet struct {
 	mb.BaseMetricSet
 	http     *helper.HTTP
 	enricher util.Enricher
+	mod      k8smod.Module
 }
 
 // New create a new instance of the MetricSet
@@ -68,11 +72,15 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	mod, ok := base.Module().(k8smod.Module)
+	if !ok {
+		return nil, fmt.Errorf("must be child of kubernetes module")
+	}
 	return &MetricSet{
 		BaseMetricSet: base,
 		http:          http,
 		enricher:      util.NewResourceMetadataEnricher(base, &kubernetes.Node{}, false),
+		mod:           mod,
 	}, nil
 }
 
@@ -82,23 +90,31 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 func (m *MetricSet) Fetch(reporter mb.ReporterV2) {
 	m.enricher.Start()
 
-	body, err := m.http.FetchContent()
+	body, err := m.mod.GetKubeletStats(m.http)
 	if err != nil {
-		logger.Error(err)
+		m.Logger().Error(err)
 		reporter.Error(err)
 		return
 	}
 
 	event, err := eventMapping(body)
 	if err != nil {
-		logger.Error(err)
+		m.Logger().Error(err)
 		reporter.Error(err)
 		return
 	}
 
 	m.enricher.Enrich([]common.MapStr{event})
 
-	reporter.Event(mb.Event{MetricSetFields: event})
+	e, err := util.CreateEvent(event, "kubernetes.node")
+	if err != nil {
+		m.Logger().Error(err)
+	}
+
+	if reported := reporter.Event(e); !reported {
+		m.Logger().Debug("error trying to emit event")
+		return
+	}
 
 	return
 }

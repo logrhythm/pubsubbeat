@@ -25,12 +25,12 @@ import (
 	"sort"
 	"time"
 
-	"github.com/elastic/beats/libbeat/autodiscover"
-	"github.com/elastic/beats/libbeat/cfgfile"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/common/cfgwarn"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/libbeat/paths"
+	"github.com/elastic/beats/v7/libbeat/autodiscover"
+	"github.com/elastic/beats/v7/libbeat/cfgfile"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common/cfgwarn"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/paths"
 )
 
 // Defaults for config variables which are not set
@@ -51,23 +51,23 @@ type Config struct {
 }
 
 type Registry struct {
-	Path         string        `config:"path"`
-	Permissions  os.FileMode   `config:"file_permissions"`
-	FlushTimeout time.Duration `config:"flush"`
-	MigrateFile  string        `config:"migrate_file"`
+	Path          string        `config:"path"`
+	Permissions   os.FileMode   `config:"file_permissions"`
+	FlushTimeout  time.Duration `config:"flush"`
+	CleanInterval time.Duration `config:"cleanup_interval"`
+	MigrateFile   string        `config:"migrate_file"`
 }
 
-var (
-	DefaultConfig = Config{
-		Registry: Registry{
-			Path:        "registry",
-			Permissions: 0600,
-			MigrateFile: "",
-		},
-		ShutdownTimeout:    0,
-		OverwritePipelines: false,
-	}
-)
+var DefaultConfig = Config{
+	Registry: Registry{
+		Path:          "registry",
+		Permissions:   0o600,
+		MigrateFile:   "",
+		CleanInterval: 5 * time.Minute,
+	},
+	ShutdownTimeout:    0,
+	OverwritePipelines: false,
+}
 
 // getConfigFiles returns list of config files.
 // In case path is a file, it will be directly returned.
@@ -84,7 +84,6 @@ func getConfigFiles(path string) (configFiles []string, err error) {
 
 	if stat.IsDir() {
 		files, err := filepath.Glob(path + "/*.yml")
-
 		if err != nil {
 			return nil, err
 		}
@@ -136,7 +135,6 @@ func (config *Config) FetchConfigs() error {
 	logp.Info("Additional config files are fetched from: %s", configDir)
 
 	configFiles, err := getConfigFiles(configDir)
-
 	if err != nil {
 		log.Fatal("Could not use config_dir of: ", configDir, err)
 		return err

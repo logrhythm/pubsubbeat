@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build ignore
 // +build ignore
 
 package main
@@ -26,8 +27,8 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/elastic/beats/libbeat/asset"
-	"github.com/elastic/beats/licenses"
+	"github.com/elastic/beats/v7/libbeat/asset"
+	"github.com/elastic/beats/v7/licenses"
 )
 
 var (

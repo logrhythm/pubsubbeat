@@ -19,17 +19,17 @@ package file_integrity
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
-	bolt "github.com/coreos/bbolt"
-	"github.com/pkg/errors"
+	bolt "go.etcd.io/bbolt"
 
-	"github.com/elastic/beats/auditbeat/datastore"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/mb/parse"
+	"github.com/elastic/beats/v7/auditbeat/datastore"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/parse"
 )
 
 const (
@@ -40,6 +40,8 @@ const (
 	// Use old namespace for data until we do some field renaming for GA.
 	namespace = "."
 )
+
+var underTest = false
 
 func init() {
 	mb.Registry.MustAddMetricSet(moduleName, metricsetName, New,
@@ -73,6 +75,9 @@ type MetricSet struct {
 	scanStart    time.Time
 	scanChan     <-chan Event
 	fsnotifyChan <-chan Event
+
+	// Used when a hash can't be calculated
+	nullHashes map[HashType]Digest
 }
 
 // New returns a new file.MetricSet.
@@ -84,7 +89,7 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 
 	r, err := NewEventReader(config)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to initialize file event reader")
+		return nil, fmt.Errorf("failed to initialize file event reader: %w", err)
 	}
 
 	ms := &MetricSet{
@@ -94,6 +99,13 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 		log:           logp.NewLogger(moduleName),
 	}
 
+	ms.nullHashes = make(map[HashType]Digest, len(config.HashTypes))
+	for _, hashType := range ms.config.HashTypes {
+		// One byte is enough so that the hashes are persisted to the datastore.
+		// The comparison function doesn't care if the lengths are not the expected
+		// for the given algorithms.
+		ms.nullHashes[hashType] = Digest{0x00}
+	}
 	ms.log.Debugf("Initialized the file event reader. Running as euid=%v", os.Geteuid())
 
 	return ms, nil
@@ -142,7 +154,7 @@ func (ms *MetricSet) Close() error {
 func (ms *MetricSet) init(reporter mb.PushReporterV2) bool {
 	bucket, err := datastore.OpenBucket(bucketName)
 	if err != nil {
-		err = errors.Wrap(err, "failed to open persistent datastore")
+		err = fmt.Errorf("failed to open persistent datastore: %w", err)
 		reporter.Error(err)
 		ms.log.Errorw("Failed to initialize", "error", err)
 		return false
@@ -151,7 +163,7 @@ func (ms *MetricSet) init(reporter mb.PushReporterV2) bool {
 
 	ms.fsnotifyChan, err = ms.reader.Start(reporter.Done())
 	if err != nil {
-		err = errors.Wrap(err, "failed to start fsnotify event producer")
+		err = fmt.Errorf("failed to start fsnotify event producer: %w", err)
 		reporter.Error(err)
 		ms.log.Errorw("Failed to initialize", "error", err)
 		return false
@@ -161,7 +173,7 @@ func (ms *MetricSet) init(reporter mb.PushReporterV2) bool {
 	if ms.config.ScanAtStart {
 		ms.scanner, err = NewFileSystemScanner(ms.config, ms.findNewPaths())
 		if err != nil {
-			err = errors.Wrap(err, "failed to initialize file scanner")
+			err = fmt.Errorf("failed to initialize file scanner: %w", err)
 			reporter.Error(err)
 			ms.log.Errorw("Failed to initialize", "error", err)
 			return false
@@ -169,7 +181,7 @@ func (ms *MetricSet) init(reporter mb.PushReporterV2) bool {
 
 		ms.scanChan, err = ms.scanner.Start(reporter.Done())
 		if err != nil {
-			err = errors.Wrap(err, "failed to start file scanner")
+			err = fmt.Errorf("failed to start file scanner: %w", err)
 			reporter.Error(err)
 			ms.log.Errorw("Failed to initialize", "error", err)
 			return false
@@ -228,6 +240,19 @@ func (ms *MetricSet) reportEvent(reporter mb.PushReporterV2, event *Event) bool 
 			ms.log.Errorw("Failed during DB delete", "error", err)
 		}
 	} else {
+		if event.hashFailed {
+			// If hashing failed, persist the previous hashes, so it can detect
+			// a future change to the file. Otherwise the next update event will
+			// be reported as a config change.
+			// Hashing usually fails while the file is being updated under Windows
+			// if open in exclusive mode, and succeeds once the file is closed
+			// and its mtime is updated.
+			if lastEvent != nil {
+				event.Hashes = lastEvent.Hashes
+			} else {
+				event.Hashes = ms.nullHashes
+			}
+		}
 		if err := store(ms.bucket, event); err != nil {
 			ms.log.Errorw("Failed during DB store", "error", err)
 		}
@@ -243,15 +268,30 @@ func (ms *MetricSet) hasFileChangedSinceLastEvent(event *Event) (changed bool, l
 		return true, lastEvent
 	}
 
-	action, changed := diffEvents(lastEvent, event)
-	if event.Action == 0 {
-		event.Action = action
+	// Received a deleted event but the file now exists on disk (already re-created).
+	if event.Action&Deleted != 0 && event.Info != nil {
+		event.Action &= ^Action(Deleted)
+		event.Action |= Updated
 	}
-
+	// We receive a creation event for a deletion that we didn't observe due to the above.
+	if event.Action&Created != 0 && lastEvent != nil && lastEvent.Info != nil {
+		event.Action &= ^Action(Created)
+		event.Action |= Updated
+	}
+	action, changed := diffEvents(lastEvent, event)
+	if uint8(event.Action)&^uint8(Updated) == 0 {
+		if event.hashFailed && !changed {
+			event.Action = Updated
+		} else {
+			event.Action = action
+		}
+		changed = event.Action != None
+	}
 	if changed {
 		ms.log.Debugw("File changed since it was last seen",
 			"file_path", event.Path, "took", event.rtt,
-			logp.Namespace("event"), "old", lastEvent, "new", event)
+			logp.Namespace("event"), "action", event.Action,
+			"old", lastEvent, "new", event)
 	}
 	return changed, lastEvent
 }
@@ -330,7 +370,7 @@ func store(b datastore.Bucket, e *Event) error {
 	data := fbEncodeEvent(builder, e)
 
 	if err := b.Store(e.Path, data); err != nil {
-		return errors.Wrapf(err, "failed to locally store event for %v", e.Path)
+		return fmt.Errorf("failed to locally store event for %v: %w", e.Path, err)
 	}
 	return nil
 }
@@ -345,7 +385,7 @@ func load(b datastore.Bucket, path string) (*Event, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to load locally persisted event for %v", path)
+		return nil, fmt.Errorf("failed to load locally persisted event for %v: %w", path, err)
 	}
 	return e, nil
 }

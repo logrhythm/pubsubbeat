@@ -20,12 +20,11 @@ package dns
 import (
 	"encoding/binary"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
 
-	"github.com/elastic/beats/packetbeat/procs"
-	"github.com/elastic/beats/packetbeat/protos"
-	"github.com/elastic/beats/packetbeat/protos/tcp"
+	"github.com/elastic/beats/v7/packetbeat/protos"
+	"github.com/elastic/beats/v7/packetbeat/protos/tcp"
 
 	mkdns "github.com/miekg/dns"
 )
@@ -108,7 +107,6 @@ func (dns *dnsPlugin) doParse(conn *dnsConnectionData, pkt *protos.Packet, tcpTu
 		}
 	}
 	decodedData, err := stream.handleTCPRawData()
-
 	if err != nil {
 
 		if err == incompleteMsg {
@@ -150,7 +148,7 @@ func (dns *dnsPlugin) handleDNS(conn *dnsConnectionData, tcpTuple *common.TCPTup
 	message := conn.data[dir].message
 	dnsTuple := dnsTupleFromIPPort(&message.tuple, transportTCP, decodedData.Id)
 
-	message.cmdlineTuple = procs.ProcWatcher.FindProcessesTupleTCP(tcpTuple.IPPort())
+	message.cmdlineTuple = dns.watcher.FindProcessesTupleTCP(tcpTuple.IPPort())
 	message.data = decodedData
 	message.length += decodeOffset
 
@@ -260,8 +258,8 @@ func (dns *dnsPlugin) publishResponseError(conn *dnsConnectionData, err error) {
 	trans.notes = append(trans.notes, errDNS.responseError())
 
 	// Should we publish the length (bytes_out) of the failed Response?
-	//streamReverse.message.Length = len(streamReverse.rawData)
-	//trans.Response = streamReverse.message
+	// streamReverse.message.Length = len(streamReverse.rawData)
+	// trans.Response = streamReverse.message
 
 	dns.publishTransaction(trans)
 	dns.deleteTransaction(hashDNSTupleOrigin)
@@ -297,7 +295,6 @@ func (stream *dnsStream) handleTCPRawData() (*mkdns.Msg, error) {
 	}
 
 	decodedData, err := decodeDNSData(transportTCP, rawData[:stream.parseOffset])
-
 	if err != nil {
 		return nil, err
 	}

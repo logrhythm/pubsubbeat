@@ -22,8 +22,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
 )
 
 func TestNewDefaults(t *testing.T) {
@@ -46,7 +46,9 @@ func TestRun(t *testing.T) {
 				"ip":   "66.35.250.204",
 				"port": 80,
 			},
-			"network": common.MapStr{"transport": "TCP"},
+			"network": common.MapStr{
+				"transport": "TCP",
+			},
 		}
 	}
 
@@ -70,6 +72,12 @@ func TestRun(t *testing.T) {
 		testProcessor(t, 0, e, nil)
 	})
 
+	t.Run("invalid source port1", func(t *testing.T) {
+		e := evt()
+		e.Put("source.port", 123456)
+		testProcessor(t, 0, e, nil)
+	})
+
 	t.Run("invalid destination IP", func(t *testing.T) {
 		e := evt()
 		e.Put("destination.ip", "308.111.1.2.3")
@@ -78,7 +86,13 @@ func TestRun(t *testing.T) {
 
 	t.Run("invalid destination port", func(t *testing.T) {
 		e := evt()
-		e.Put("source.port", nil)
+		e.Put("destination.port", 0)
+		testProcessor(t, 0, e, nil)
+	})
+
+	t.Run("invalid destination port1", func(t *testing.T) {
+		e := evt()
+		e.Put("destination.port", 123456)
 		testProcessor(t, 0, e, nil)
 	})
 
@@ -125,6 +139,33 @@ func TestRun(t *testing.T) {
 		e.Delete("destination.port")
 		e.Put("network.transport", 2)
 		testProcessor(t, 0, e, "1:D3t8Q1aFA6Ev0A/AO4i9PnU3AeI=")
+	})
+
+	t.Run("iana number", func(t *testing.T) {
+		e := evt()
+		e.Delete("network.transport")
+		e.Put("network.iana_number", tcpProtocol)
+		testProcessor(t, 0, e, "1:LQU9qZlK+B5F3KDmev6m5PMibrg=")
+	})
+
+	t.Run("supports metadata as a target", func(t *testing.T) {
+		event := &beat.Event{
+			Fields: evt(),
+			Meta:   common.MapStr{},
+		}
+		c := defaultConfig()
+		c.Target = "@metadata.community_id"
+		c.Seed = 0
+		p, err := newFromConfig(c)
+		assert.NoError(t, err)
+
+		out, err := p.Run(event)
+		assert.NoError(t, err)
+
+		id, err := out.Meta.GetValue("community_id")
+		assert.NoError(t, err)
+
+		assert.EqualValues(t, "1:LQU9qZlK+B5F3KDmev6m5PMibrg=", id)
 	})
 }
 

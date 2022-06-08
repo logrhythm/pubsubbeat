@@ -22,15 +22,17 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/libbeat/processors"
-	"github.com/elastic/beats/libbeat/processors/checks"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/processors"
+	"github.com/elastic/beats/v7/libbeat/processors/checks"
+	jsprocessor "github.com/elastic/beats/v7/libbeat/processors/script/javascript/module/processor"
 )
 
 type copyFields struct {
 	config copyFieldsConfig
+	logger *logp.Logger
 }
 
 type copyFieldsConfig struct {
@@ -45,6 +47,7 @@ func init() {
 			checks.RequireFields("fields"),
 		),
 	)
+	jsprocessor.RegisterPlugin("CopyFields", NewCopyFields)
 }
 
 // NewCopyFields returns a new copy_fields processor.
@@ -60,37 +63,40 @@ func NewCopyFields(c *common.Config) (processors.Processor, error) {
 
 	f := &copyFields{
 		config: config,
+		logger: logp.NewLogger("copy_fields"),
 	}
 	return f, nil
 }
 
 func (f *copyFields) Run(event *beat.Event) (*beat.Event, error) {
-	var backup common.MapStr
+	var backup *beat.Event
 	if f.config.FailOnError {
-		backup = event.Fields.Clone()
+		backup = event.Clone()
 	}
 
 	for _, field := range f.config.Fields {
-		err := f.copyField(field.From, field.To, event.Fields)
-		if err != nil && f.config.FailOnError {
+		err := f.copyField(field.From, field.To, event)
+		if err != nil {
 			errMsg := fmt.Errorf("Failed to copy fields in copy_fields processor: %s", err)
-			logp.Debug("copy_fields", errMsg.Error())
-			event.Fields = backup
-			event.PutValue("error.message", errMsg.Error())
-			return event, err
+			f.logger.Debug(errMsg.Error())
+			if f.config.FailOnError {
+				event = backup
+				event.PutValue("error.message", errMsg.Error())
+				return event, err
+			}
 		}
 	}
 
 	return event, nil
 }
 
-func (f *copyFields) copyField(from string, to string, fields common.MapStr) error {
-	exists, _ := fields.HasKey(to)
-	if exists {
+func (f *copyFields) copyField(from string, to string, event *beat.Event) error {
+	_, err := event.GetValue(to)
+	if err == nil {
 		return fmt.Errorf("target field %s already exists, drop or rename this field first", to)
 	}
 
-	value, err := fields.GetValue(from)
+	value, err := event.GetValue(from)
 	if err != nil {
 		if f.config.IgnoreMissing && errors.Cause(err) == common.ErrKeyNotFound {
 			return nil
@@ -98,7 +104,7 @@ func (f *copyFields) copyField(from string, to string, fields common.MapStr) err
 		return fmt.Errorf("could not fetch value for key: %s, Error: %s", from, err)
 	}
 
-	_, err = fields.Put(to, value)
+	_, err = event.PutValue(to, cloneValue(value))
 	if err != nil {
 		return fmt.Errorf("could not copy value to %s: %v, %+v", to, value, err)
 	}
@@ -107,4 +113,25 @@ func (f *copyFields) copyField(from string, to string, fields common.MapStr) err
 
 func (f *copyFields) String() string {
 	return "copy_fields=" + fmt.Sprintf("%+v", f.config.Fields)
+}
+
+// cloneValue returns a shallow copy of a map. All other types are passed
+// through in the return. This should be used when making straight copies of
+// maps without doing any type conversions.
+func cloneValue(value interface{}) interface{} {
+	switch v := value.(type) {
+	case common.MapStr:
+		return v.Clone()
+	case map[string]interface{}:
+		return common.MapStr(v).Clone()
+	case []interface{}:
+		len := len(v)
+		newArr := make([]interface{}, len)
+		for idx, val := range v {
+			newArr[idx] = cloneValue(val)
+		}
+		return newArr
+	default:
+		return value
+	}
 }

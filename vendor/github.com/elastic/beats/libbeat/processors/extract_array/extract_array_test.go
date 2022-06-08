@@ -22,8 +22,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
 )
 
 func TestExtractArrayProcessor_String(t *testing.T) {
@@ -267,4 +267,38 @@ func TestExtractArrayProcessor_Run(t *testing.T) {
 			t.Log(result)
 		})
 	}
+
+	t.Run("supports metadata as a target", func(t *testing.T) {
+
+		config := common.MapStr{
+			"field": "@metadata.array",
+			"mappings": common.MapStr{
+				"@metadata.first":  1,
+				"@metadata.second": 2,
+			},
+		}
+
+		event := &beat.Event{
+			Meta: common.MapStr{
+				"array": []interface{}{"zero", 1, common.MapStr{"two": 2}},
+			},
+		}
+
+		expMeta := common.MapStr{
+			"array":  []interface{}{"zero", 1, common.MapStr{"two": 2}},
+			"first":  1,
+			"second": common.MapStr{"two": 2},
+		}
+
+		cfg := common.MustNewConfigFrom(config)
+		processor, err := New(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := processor.Run(event)
+		assert.NoError(t, err)
+
+		assert.Equal(t, expMeta, result.Meta)
+		assert.Equal(t, event.Fields, result.Fields)
+	})
 }

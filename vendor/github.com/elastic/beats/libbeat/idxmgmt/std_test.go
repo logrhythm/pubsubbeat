@@ -18,22 +18,21 @@
 package idxmgmt
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/idxmgmt/ilm"
-	"github.com/elastic/beats/libbeat/mapping"
-	"github.com/elastic/beats/libbeat/template"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/idxmgmt/ilm"
+	"github.com/elastic/beats/v7/libbeat/mapping"
+	"github.com/elastic/beats/v7/libbeat/template"
 )
 
 type mockClientHandler struct {
-	alias, policy string
+	policy        string
 	expectsPolicy bool
 
 	tmplCfg   *template.TemplateConfig
@@ -47,7 +46,6 @@ type mockCreateOp uint8
 const (
 	mockCreatePolicy mockCreateOp = iota
 	mockCreateTemplate
-	mockCreateAlias
 )
 
 func TestDefaultSupport_Enabled(t *testing.T) {
@@ -59,7 +57,7 @@ func TestDefaultSupport_Enabled(t *testing.T) {
 		"templates and ilm disabled": {
 			enabled: false,
 			ilmCalls: []onCall{
-				onMode().Return(ilm.ModeDisabled),
+				onEnabled().Return(false),
 			},
 			cfg: map[string]interface{}{
 				"setup.template.enabled": false,
@@ -68,7 +66,7 @@ func TestDefaultSupport_Enabled(t *testing.T) {
 		"templates only": {
 			enabled: true,
 			ilmCalls: []onCall{
-				onMode().Return(ilm.ModeDisabled),
+				onEnabled().Return(false),
 			},
 			cfg: map[string]interface{}{
 				"setup.template.enabled": true,
@@ -77,16 +75,7 @@ func TestDefaultSupport_Enabled(t *testing.T) {
 		"ilm only": {
 			enabled: true,
 			ilmCalls: []onCall{
-				onMode().Return(ilm.ModeEnabled),
-			},
-			cfg: map[string]interface{}{
-				"setup.template.enabled": false,
-			},
-		},
-		"ilm tentatively": {
-			enabled: true,
-			ilmCalls: []onCall{
-				onMode().Return(ilm.ModeAuto),
+				onEnabled().Return(true),
 			},
 			cfg: map[string]interface{}{
 				"setup.template.enabled": false,
@@ -107,23 +96,16 @@ func TestDefaultSupport_Enabled(t *testing.T) {
 func TestDefaultSupport_BuildSelector(t *testing.T) {
 	type nameFunc func(time.Time) string
 
-	noILM := []onCall{onMode().Return(ilm.ModeDisabled)}
-	ilmTemplateSettings := func(alias, policy string) []onCall {
+	noILM := []onCall{onEnabled().Return(false)}
+	ilmTemplateSettings := func(policy string) []onCall {
 		return []onCall{
-			onMode().Return(ilm.ModeEnabled),
-			onAlias().Return(ilm.Alias{Name: alias}),
+			onEnabled().Return(true),
 			onPolicy().Return(ilm.Policy{Name: policy}),
 		}
 	}
 
 	stable := func(s string) nameFunc {
 		return func(_ time.Time) string { return s }
-	}
-	dateIdx := func(base string) nameFunc {
-		return func(ts time.Time) string {
-			ext := fmt.Sprintf("%d.%02d.%02d", ts.Year(), ts.Month(), ts.Day())
-			return fmt.Sprintf("%v-%v", base, ext)
-		}
 	}
 
 	cases := map[string]struct {
@@ -138,49 +120,61 @@ func TestDefaultSupport_BuildSelector(t *testing.T) {
 			cfg:      map[string]interface{}{"index": "test-%{[agent.version]}"},
 			want:     stable("test-9.9.9"),
 		},
-		"event alias without ilm": {
+		"without ilm must be lowercase": {
 			ilmCalls: noILM,
-			cfg:      map[string]interface{}{"index": "test-%{[agent.version]}"},
-			want:     stable("test"),
-			meta: common.MapStr{
-				"alias": "test",
-			},
+			cfg:      map[string]interface{}{"index": "TeSt-%{[agent.version]}"},
+			want:     stable("test-9.9.9"),
 		},
 		"event index without ilm": {
 			ilmCalls: noILM,
 			cfg:      map[string]interface{}{"index": "test-%{[agent.version]}"},
-			want:     dateIdx("test"),
+			want:     stable("test"),
 			meta: common.MapStr{
 				"index": "test",
 			},
 		},
-		"with ilm": {
-			ilmCalls: ilmTemplateSettings("test-9.9.9", "test-9.9.9"),
-			cfg:      map[string]interface{}{"index": "wrong-%{[agent.version]}"},
-			want:     stable("test-9.9.9"),
-		},
-		"event alias wit ilm": {
-			ilmCalls: ilmTemplateSettings("test-9.9.9", "test-9.9.9"),
+		"event index without ilm must be lowercase": {
+			ilmCalls: noILM,
 			cfg:      map[string]interface{}{"index": "test-%{[agent.version]}"},
-			want:     stable("event-alias"),
+			want:     stable("test"),
 			meta: common.MapStr{
-				"alias": "event-alias",
+				"index": "Test",
 			},
 		},
-		"event index with ilm": {
-			ilmCalls: ilmTemplateSettings("test-9.9.9", "test-9.9.9"),
+		"with ilm": {
+			ilmCalls: ilmTemplateSettings("test-9.9.9"),
 			cfg:      map[string]interface{}{"index": "test-%{[agent.version]}"},
-			want:     dateIdx("event-index"),
+			want:     stable("test-9.9.9"),
+		},
+		"with ilm must be lowercase": {
+			ilmCalls: ilmTemplateSettings("Test-9.9.9"),
+			cfg:      map[string]interface{}{"index": "test-%{[agent.version]}"},
+			want:     stable("test-9.9.9"),
+		},
+		"event index with ilm": {
+			ilmCalls: ilmTemplateSettings("test-9.9.9"),
+			cfg:      map[string]interface{}{"index": "test-%{[agent.version]}"},
+			want:     stable("event-index"),
 			meta: common.MapStr{
 				"index": "event-index",
 			},
 		},
 		"use indices": {
-			ilmCalls: ilmTemplateSettings("test-9.9.9", "test-9.9.9"),
+			ilmCalls: ilmTemplateSettings("test-9.9.9"),
 			cfg: map[string]interface{}{
 				"index": "test-%{[agent.version]}",
 				"indices": []map[string]interface{}{
 					{"index": "myindex"},
+				},
+			},
+			want: stable("myindex"),
+		},
+		"use indices settings must be lowercase": {
+			ilmCalls: ilmTemplateSettings("test-9.9.9"),
+			cfg: map[string]interface{}{
+				"index": "test-%{[agent.version]}",
+				"indices": []map[string]interface{}{
+					{"index": "MyIndex"},
 				},
 			},
 			want: stable("myindex"),
@@ -217,17 +211,17 @@ func TestDefaultSupport_BuildSelector(t *testing.T) {
 
 func TestIndexManager_VerifySetup(t *testing.T) {
 	for name, setup := range map[string]struct {
-		tmpl, ilm         bool
-		loadTmpl, loadILM LoadMode
-		ok                bool
-		warn              string
+		tmplEnabled, ilmEnabled, ilmOverwrite bool
+		loadTmpl, loadILM                     LoadMode
+		ok                                    bool
+		warn                                  string
 	}{
 		"load template with ilm without loading ilm": {
-			ilm: true, tmpl: true, loadILM: LoadModeDisabled,
-			warn: "whithout loading ILM policy and alias",
+			ilmEnabled: true, tmplEnabled: true, loadILM: LoadModeDisabled,
+			warn: "whithout loading ILM policy",
 		},
 		"load ilm without template": {
-			ilm: true, loadILM: LoadModeUnset,
+			ilmEnabled: true, loadILM: LoadModeUnset,
 			warn: "without loading template is not recommended",
 		},
 		"template disabled but loading enabled": {
@@ -235,26 +229,33 @@ func TestIndexManager_VerifySetup(t *testing.T) {
 			warn:     "loading not enabled",
 		},
 		"ilm disabled but loading enabled": {
-			loadILM: LoadModeEnabled, tmpl: true,
+			loadILM: LoadModeEnabled, tmplEnabled: true,
 			warn: "loading not enabled",
 		},
 		"ilm enabled but loading disabled": {
-			ilm: true, loadILM: LoadModeDisabled,
+			ilmEnabled: true, loadILM: LoadModeDisabled,
 			warn: "loading not enabled",
 		},
 		"template enabled but loading disabled": {
-			tmpl: true, loadTmpl: LoadModeDisabled,
+			tmplEnabled: true, loadTmpl: LoadModeDisabled,
 			warn: "loading not enabled",
 		},
+		"ilm enabled but overwrite disabled": {
+			tmplEnabled: true,
+			ilmEnabled:  true, ilmOverwrite: false, loadILM: LoadModeEnabled,
+			warn: "Overwriting ILM policy is disabled",
+		},
 		"everything enabled": {
-			tmpl: true, loadTmpl: LoadModeUnset, ilm: true, loadILM: LoadModeUnset,
+			tmplEnabled: true,
+			ilmEnabled:  true, ilmOverwrite: true,
 			ok: true,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			cfg, err := common.NewConfigFrom(common.MapStr{
-				"setup.ilm.enabled":      setup.ilm,
-				"setup.template.enabled": setup.tmpl,
+				"setup.ilm.enabled":      setup.ilmEnabled,
+				"setup.ilm.overwrite":    setup.ilmOverwrite,
+				"setup.template.enabled": setup.tmplEnabled,
 			})
 			require.NoError(t, err)
 			support, err := MakeDefaultSupport(ilm.StdSupport)(nil, beat.Info{}, cfg)
@@ -280,7 +281,7 @@ func TestIndexManager_Setup(t *testing.T) {
 		if c.Settings.Index != nil {
 			c.Settings.Index = (map[string]interface{})(common.MapStr(c.Settings.Index).Clone())
 		}
-		if c.Settings.Index != nil {
+		if c.Settings.Source != nil {
 			c.Settings.Source = (map[string]interface{})(common.MapStr(c.Settings.Source).Clone())
 		}
 		return c
@@ -294,43 +295,45 @@ func TestIndexManager_Setup(t *testing.T) {
 			if err != nil {
 				panic(err)
 			}
+			if s.Settings.Index != nil && len(s.Settings.Index) == 0 {
+				s.Settings.Index = nil
+			}
+			if s.Settings.Source != nil && len(s.Settings.Source) == 0 {
+				s.Settings.Source = nil
+			}
 		}
 		return &s
 	}
-	defaultCfg := template.DefaultConfig()
+	info := beat.Info{Beat: "test", Version: "9.9.9"}
+	defaultCfg := template.DefaultConfig(info)
 
 	cases := map[string]struct {
 		cfg                   common.MapStr
 		loadTemplate, loadILM LoadMode
 
-		err           bool
-		tmplCfg       *template.TemplateConfig
-		alias, policy string
+		err     bool
+		tmplCfg *template.TemplateConfig
+		policy  string
 	}{
 		"template default ilm default": {
-			tmplCfg: cfgWith(template.DefaultConfig(), map[string]interface{}{
+			tmplCfg: cfgWith(template.DefaultConfig(info), map[string]interface{}{
 				"overwrite":                     "true",
 				"name":                          "test-9.9.9",
-				"pattern":                       "test-9.9.9-*",
-				"settings.index.lifecycle.name": "test-9.9.9",
-				"settings.index.lifecycle.rollover_alias": "test-9.9.9",
+				"pattern":                       "test-9.9.9",
+				"settings.index.lifecycle.name": "test",
 			}),
-			alias:  "test-9.9.9",
-			policy: "test-9.9.9",
+			policy: "test",
 		},
-		"template default ilm default with alias and policy changed": {
+		"template default ilm default with policy changed": {
 			cfg: common.MapStr{
-				"setup.ilm.rollover_alias": "mocktest",
-				"setup.ilm.policy_name":    "policy-keep",
+				"setup.ilm.policy_name": "policy-keep",
 			},
-			tmplCfg: cfgWith(template.DefaultConfig(), map[string]interface{}{
+			tmplCfg: cfgWith(template.DefaultConfig(info), map[string]interface{}{
 				"overwrite":                     "true",
-				"name":                          "mocktest",
-				"pattern":                       "mocktest-*",
+				"name":                          "test-9.9.9",
+				"pattern":                       "test-9.9.9",
 				"settings.index.lifecycle.name": "policy-keep",
-				"settings.index.lifecycle.rollover_alias": "mocktest",
 			}),
-			alias:  "mocktest",
 			policy: "policy-keep",
 		},
 		"template default ilm disabled": {
@@ -345,16 +348,20 @@ func TestIndexManager_Setup(t *testing.T) {
 				"setup.ilm.enabled": false,
 			},
 			loadTemplate: LoadModeOverwrite,
-			tmplCfg: cfgWith(template.DefaultConfig(), map[string]interface{}{
+			tmplCfg: cfgWith(template.DefaultConfig(info), map[string]interface{}{
 				"overwrite": "true",
+				"name":      "test-9.9.9",
+				"pattern":   "test-9.9.9",
 			}),
 		},
 		"template default loadMode Force ilm disabled": {
 			cfg: common.MapStr{
 				"setup.ilm.enabled": false,
+				"name":              "test-9.9.9",
+				"pattern":           "test-9.9.9",
 			},
 			loadTemplate: LoadModeForce,
-			tmplCfg: cfgWith(template.DefaultConfig(), map[string]interface{}{
+			tmplCfg: cfgWith(template.DefaultConfig(info), map[string]interface{}{
 				"overwrite": "true",
 			}),
 		},
@@ -368,8 +375,7 @@ func TestIndexManager_Setup(t *testing.T) {
 			cfg: common.MapStr{
 				"setup.template.enabled": false,
 			},
-			alias:  "test-9.9.9",
-			policy: "test-9.9.9",
+			policy: "test",
 		},
 		"template disabled ilm disabled, loadMode Overwrite": {
 			cfg: common.MapStr{
@@ -384,22 +390,19 @@ func TestIndexManager_Setup(t *testing.T) {
 				"setup.ilm.enabled":      false,
 			},
 			loadILM: LoadModeForce,
-			alias:   "test-9.9.9",
-			policy:  "test-9.9.9",
+			policy:  "test",
 		},
 		"template loadmode disabled ilm loadMode enabled": {
 			loadTemplate: LoadModeDisabled,
 			loadILM:      LoadModeEnabled,
-			alias:        "test-9.9.9",
-			policy:       "test-9.9.9",
+			policy:       "test",
 		},
 		"template default ilm loadMode disabled": {
 			loadILM: LoadModeDisabled,
-			tmplCfg: cfgWith(template.DefaultConfig(), map[string]interface{}{
+			tmplCfg: cfgWith(template.DefaultConfig(info), map[string]interface{}{
 				"name":                          "test-9.9.9",
-				"pattern":                       "test-9.9.9-*",
-				"settings.index.lifecycle.name": "test-9.9.9",
-				"settings.index.lifecycle.rollover_alias": "test-9.9.9",
+				"pattern":                       "test-9.9.9",
+				"settings.index.lifecycle.name": "test",
 			}),
 		},
 		"template loadmode disabled ilm loadmode disabled": {
@@ -409,7 +412,6 @@ func TestIndexManager_Setup(t *testing.T) {
 	}
 	for name, test := range cases {
 		t.Run(name, func(t *testing.T) {
-			info := beat.Info{Beat: "test", Version: "9.9.9"}
 			factory := MakeDefaultSupport(ilm.StdSupport)
 			im, err := factory(nil, info, common.MustNewConfigFrom(test.cfg))
 			require.NoError(t, err)
@@ -428,7 +430,6 @@ func TestIndexManager_Setup(t *testing.T) {
 				} else {
 					assert.Equal(t, test.tmplCfg, clientHandler.tmplCfg)
 				}
-				assert.Equal(t, test.alias, clientHandler.alias)
 				assert.Equal(t, test.policy, clientHandler.policy)
 			}
 		})
@@ -436,7 +437,7 @@ func TestIndexManager_Setup(t *testing.T) {
 }
 
 func (op mockCreateOp) String() string {
-	names := []string{"create-policy", "create-template", "create-alias"}
+	names := []string{"create-policy", "create-template"}
 	if int(op) > len(names) {
 		return "unknown"
 	}
@@ -454,18 +455,8 @@ func (h *mockClientHandler) Load(config template.TemplateConfig, _ beat.Info, fi
 	return nil
 }
 
-func (h *mockClientHandler) CheckILMEnabled(m ilm.Mode) (bool, error) {
-	return m == ilm.ModeEnabled || m == ilm.ModeAuto, nil
-}
-
-func (h *mockClientHandler) HasAlias(name string) (bool, error) {
-	return h.alias == name, nil
-}
-
-func (h *mockClientHandler) CreateAlias(alias ilm.Alias) error {
-	h.recordOp(mockCreateAlias)
-	h.alias = alias.Name
-	return nil
+func (h *mockClientHandler) CheckILMEnabled(enabled bool) (bool, error) {
+	return enabled, nil
 }
 
 func (h *mockClientHandler) HasILMPolicy(name string) (bool, error) {

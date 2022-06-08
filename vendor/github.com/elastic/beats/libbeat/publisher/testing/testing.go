@@ -19,7 +19,7 @@ package testing
 
 // ChanClient implements Client interface, forwarding published events to some
 import (
-	"github.com/elastic/beats/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/beat"
 )
 
 type TestPublisher struct {
@@ -28,8 +28,9 @@ type TestPublisher struct {
 
 // given channel only.
 type ChanClient struct {
-	done    chan struct{}
-	Channel chan beat.Event
+	done            chan struct{}
+	Channel         chan beat.Event
+	publishCallback func(event beat.Event)
 }
 
 func PublisherWithClient(client beat.Client) beat.Pipeline {
@@ -44,8 +45,11 @@ func (pub *TestPublisher) ConnectWith(_ beat.ClientConfig) (beat.Client, error) 
 	return pub.client, nil
 }
 
-func (pub *TestPublisher) SetACKHandler(_ beat.PipelineACKHandler) error {
-	panic("Not supported")
+func NewChanClientWithCallback(bufSize int, callback func(event beat.Event)) *ChanClient {
+	chanClient := NewChanClientWith(make(chan beat.Event, bufSize))
+	chanClient.publishCallback = callback
+
+	return chanClient
 }
 
 func NewChanClient(bufSize int) *ChanClient {
@@ -74,6 +78,10 @@ func (c *ChanClient) Publish(event beat.Event) {
 	select {
 	case <-c.done:
 	case c.Channel <- event:
+		if c.publishCallback != nil {
+			c.publishCallback(event)
+			<-c.Channel
+		}
 	}
 }
 

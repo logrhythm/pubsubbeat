@@ -21,33 +21,75 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/pkg/errors"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/metricbeat/helper"
-	"github.com/elastic/beats/metricbeat/helper/elastic"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/metricbeat/helper"
+	"github.com/elastic/beats/v7/metricbeat/helper/elastic"
+	"github.com/elastic/beats/v7/metricbeat/mb"
 )
 
-// CCRStatsAPIAvailableVersion is the version of Elasticsearch since when the CCR stats API is available.
-var CCRStatsAPIAvailableVersion = common.MustNewVersion("6.5.0")
+func init() {
+	// Register the ModuleFactory function for this module.
+	if err := mb.Registry.AddModule(ModuleName, NewModule); err != nil {
+		panic(err)
+	}
+}
 
-// Global clusterIdCache. Assumption is that the same node id never can belong to a different cluster id.
-var clusterIDCache = map[string]string{}
+// NewModule creates a new module.
+func NewModule(base mb.BaseModule) (mb.Module, error) {
+	xpackEnabledMetricSets := []string{
+		"ccr",
+		"enrich",
+		"cluster_stats",
+		"index",
+		"index_recovery",
+		"index_summary",
+		"ml_job",
+		"node_stats",
+		"shard",
+	}
+	return elastic.NewModule(&base, xpackEnabledMetricSets, logp.NewLogger(ModuleName))
+}
+
+var (
+	// CCRStatsAPIAvailableVersion is the version of Elasticsearch since when the CCR stats API is available.
+	CCRStatsAPIAvailableVersion = common.MustNewVersion("6.5.0")
+
+	// EnrichStatsAPIAvailableVersion is the version of Elasticsearch since when the Enrich stats API is available.
+	EnrichStatsAPIAvailableVersion = common.MustNewVersion("7.5.0")
+
+	// BulkStatsAvailableVersion is the version since when bulk indexing stats are available
+	BulkStatsAvailableVersion = common.MustNewVersion("8.0.0")
+
+	//ExpandWildcardsHiddenAvailableVersion is the version since when the "expand_wildcards" query parameter to
+	// the Indices Stats API can accept "hidden" as a value.
+	ExpandWildcardsHiddenAvailableVersion = common.MustNewVersion("7.7.0")
+
+	// Global clusterIdCache. Assumption is that the same node id never can belong to a different cluster id.
+	clusterIDCache = map[string]string{}
+)
 
 // ModuleName is the name of this module.
 const ModuleName = "elasticsearch"
 
 // Info construct contains the data from the Elasticsearch / endpoint
 type Info struct {
-	ClusterName string `json:"cluster_name"`
-	ClusterID   string `json:"cluster_uuid"`
-	Version     struct {
-		Number *common.Version `json:"number"`
-	} `json:"version"`
+	ClusterName string  `json:"cluster_name"`
+	ClusterID   string  `json:"cluster_uuid"`
+	Version     Version `json:"version"`
+	Name        string  `json:"name"`
+}
+
+// Version contains the semver formatted version of ES
+type Version struct {
+	Number *common.Version `json:"number"`
 }
 
 // NodeInfo struct cotains data about the node.
@@ -68,7 +110,8 @@ type License struct {
 	IssueDateInMillis  int        `json:"issue_date_in_millis"`
 	ExpiryDate         *time.Time `json:"expiry_date,omitempty"`
 	ExpiryDateInMillis int        `json:"expiry_date_in_millis,omitempty"`
-	MaxNodes           int        `json:"max_nodes"`
+	MaxNodes           int        `json:"max_nodes,omitempty"`
+	MaxResourceUnits   int        `json:"max_resource_units,omitempty"`
 	IssuedTo           string     `json:"issued_to"`
 	Issuer             string     `json:"issuer"`
 	StartDateInMillis  int        `json:"start_date_in_millis"`
@@ -94,14 +137,14 @@ func GetClusterID(http *helper.HTTP, uri string, nodeID string) (string, error) 
 	return info.ClusterID, nil
 }
 
-// IsMaster checks if the given node host is a master node.
+// isMaster checks if the given node host is a master node.
 //
 // The detection of the master is done in two steps:
 // * Fetch node name from /_nodes/_local/name
 // * Fetch current master name from cluster state /_cluster/state/master_node
 //
 // The two names are compared
-func IsMaster(http *helper.HTTP, uri string) (bool, error) {
+func isMaster(http *helper.HTTP, uri string) (bool, error) {
 
 	node, err := getNodeName(http, uri)
 	if err != nil {
@@ -213,35 +256,28 @@ func GetLicense(http *helper.HTTP, resetURI string) (*License, error) {
 	// First, check the cache
 	license := licenseCache.get()
 
-	info, err := GetInfo(http, resetURI)
+	// License found in cache, return it
+	if license != nil {
+		return license, nil
+	}
+
+	// License not found in cache, fetch it from Elasticsearch
+	content, err := fetchPath(http, resetURI, "_license", "")
 	if err != nil {
 		return nil, err
 	}
-	var licensePath string
-	if info.Version.Number.Major < 7 {
-		licensePath = "_xpack/license"
-	} else {
-		licensePath = "_license"
+
+	var data licenseWrapper
+	err = json.Unmarshal(content, &data)
+	if err != nil {
+		return nil, err
 	}
 
-	// Not cached, fetch license from Elasticsearch
-	if license == nil {
-		content, err := fetchPath(http, resetURI, licensePath, "")
-		if err != nil {
-			return nil, err
-		}
+	// Cache license for a minute
+	license = &data.License
+	licenseCache.set(license, time.Minute)
 
-		var data licenseWrapper
-		err = json.Unmarshal(content, &data)
-		if err != nil {
-			return nil, err
-		}
-
-		// Cache license for a minute
-		licenseCache.set(&data.License, time.Minute)
-	}
-
-	return licenseCache.get(), nil
+	return license, nil
 }
 
 // GetClusterState returns cluster state information.
@@ -292,7 +328,7 @@ func GetClusterSettings(http *helper.HTTP, resetURI string, includeDefaults bool
 }
 
 // GetStackUsage returns stack usage information.
-func GetStackUsage(http *helper.HTTP, resetURI string) (common.MapStr, error) {
+func GetStackUsage(http *helper.HTTP, resetURI string) (map[string]interface{}, error) {
 	content, err := fetchPath(http, resetURI, "_xpack/usage", "")
 	if err != nil {
 		return nil, err
@@ -301,6 +337,125 @@ func GetStackUsage(http *helper.HTTP, resetURI string) (common.MapStr, error) {
 	var stackUsage map[string]interface{}
 	err = json.Unmarshal(content, &stackUsage)
 	return stackUsage, err
+}
+
+type XPack struct {
+	Features struct {
+		CCR struct {
+			Enabled bool `json:"enabled"`
+		} `json:"CCR"`
+	} `json:"features"`
+}
+
+// GetXPack returns information about xpack features.
+func GetXPack(http *helper.HTTP, resetURI string) (XPack, error) {
+	content, err := fetchPath(http, resetURI, "_xpack", "")
+
+	if err != nil {
+		return XPack{}, err
+	}
+
+	var xpack XPack
+	err = json.Unmarshal(content, &xpack)
+	return xpack, err
+}
+
+type boolStr bool
+
+func (b *boolStr) UnmarshalJSON(raw []byte) error {
+	var bs string
+	err := json.Unmarshal(raw, &bs)
+	if err != nil {
+		return err
+	}
+
+	bv, err := strconv.ParseBool(bs)
+	if err != nil {
+		return err
+	}
+
+	*b = boolStr(bv)
+	return nil
+}
+
+type IndexSettings struct {
+	Hidden bool
+}
+
+// GetIndicesSettings returns a map of index names to their settings.
+// Note that as of now it is optimized to fetch only the "hidden" index setting to keep the memory
+// footprint of this function call as low as possible.
+func GetIndicesSettings(http *helper.HTTP, resetURI string) (map[string]IndexSettings, error) {
+	content, err := fetchPath(http, resetURI, "*/_settings", "filter_path=*.settings.index.hidden&expand_wildcards=all")
+
+	if err != nil {
+		return nil, errors.Wrap(err, "could not fetch indices settings")
+	}
+
+	var resp map[string]struct {
+		Settings struct {
+			Index struct {
+				Hidden boolStr `json:"hidden"`
+			} `json:"index"`
+		} `json:"settings"`
+	}
+
+	err = json.Unmarshal(content, &resp)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not parse indices settings response")
+	}
+
+	ret := make(map[string]IndexSettings, len(resp))
+	for index, settings := range resp {
+		ret[index] = IndexSettings{
+			Hidden: bool(settings.Settings.Index.Hidden),
+		}
+	}
+
+	return ret, nil
+}
+
+// IsMLockAllEnabled returns if the given Elasticsearch node has mlockall enabled
+func IsMLockAllEnabled(http *helper.HTTP, resetURI, nodeID string) (bool, error) {
+	content, err := fetchPath(http, resetURI, "_nodes/"+nodeID, "filter_path=nodes.*.process.mlockall")
+	if err != nil {
+		return false, err
+	}
+
+	var response map[string]map[string]map[string]map[string]bool
+	err = json.Unmarshal(content, &response)
+	if err != nil {
+		return false, err
+	}
+
+	for _, nodeInfo := range response["nodes"] {
+		mlockall := nodeInfo["process"]["mlockall"]
+		return mlockall, nil
+	}
+
+	return false, fmt.Errorf("could not determine if mlockall is enabled on node ID = %v", nodeID)
+}
+
+// GetMasterNodeID returns the ID of the Elasticsearch cluster's master node
+func GetMasterNodeID(http *helper.HTTP, resetURI string) (string, error) {
+	content, err := fetchPath(http, resetURI, "_nodes/_master", "filter_path=nodes.*.name")
+	if err != nil {
+		return "", err
+	}
+
+	var response struct {
+		Nodes map[string]interface{} `json:"nodes"`
+	}
+
+	if err := json.Unmarshal(content, &response); err != nil {
+		return "", err
+	}
+
+	for nodeID, _ := range response.Nodes {
+		return nodeID, nil
+	}
+
+	return "", errors.New("could not determine master node ID")
 }
 
 // PassThruField copies the field at the given path from the given source data object into
@@ -356,8 +511,13 @@ func MergeClusterSettings(clusterSettings common.MapStr) (common.MapStr, error) 
 	return settings, nil
 }
 
-// Global cache for license information. Assumption is that license information changes infrequently.
-var licenseCache = &_licenseCache{}
+var (
+	// Global cache for license information. Assumption is that license information changes infrequently.
+	licenseCache = &_licenseCache{}
+
+	// LicenseCacheEnabled controls whether license caching is enabled or not. Intended for test use.
+	LicenseCacheEnabled = true
+)
 
 type _licenseCache struct {
 	sync.RWMutex
@@ -379,6 +539,10 @@ func (c *_licenseCache) get() *License {
 }
 
 func (c *_licenseCache) set(license *License, ttl time.Duration) {
+	if !LicenseCacheEnabled {
+		return
+	}
+
 	c.Lock()
 	defer c.Unlock()
 
@@ -398,6 +562,42 @@ func (l *License) IsOneOf(candidateLicenses ...string) bool {
 	}
 
 	return false
+}
+
+// ToMapStr converts the license to a common.MapStr. This is necessary
+// for proper marshaling of the data before it's sent over the wire. In
+// particular it ensures that ms-since-epoch values are marshaled as longs
+// and not floats in scientific notation as Elasticsearch does not like that.
+func (l *License) ToMapStr() common.MapStr {
+	m := common.MapStr{
+		"status":               l.Status,
+		"uid":                  l.ID,
+		"type":                 l.Type,
+		"issue_date":           l.IssueDate,
+		"issue_date_in_millis": l.IssueDateInMillis,
+		"expiry_date":          l.ExpiryDate,
+		"issued_to":            l.IssuedTo,
+		"issuer":               l.Issuer,
+		"start_date_in_millis": l.StartDateInMillis,
+	}
+
+	if l.ExpiryDateInMillis != 0 {
+		// We don't want to record a 0 expiry date as this means the license has expired
+		// in the Stack Monitoring UI
+		m["expiry_date_in_millis"] = l.ExpiryDateInMillis
+	}
+
+	// Enterprise licenses have max_resource_units. All other licenses have
+	// max_nodes.
+	if l.MaxNodes != 0 {
+		m["max_nodes"] = l.MaxNodes
+	}
+
+	if l.MaxResourceUnits != 0 {
+		m["max_resource_units"] = l.MaxResourceUnits
+	}
+
+	return m
 }
 
 func getSettingGroup(allSettings common.MapStr, groupKey string) (common.MapStr, error) {

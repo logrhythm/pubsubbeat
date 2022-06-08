@@ -20,9 +20,11 @@ package node
 import (
 	"encoding/json"
 
-	s "github.com/elastic/beats/libbeat/common/schema"
-	c "github.com/elastic/beats/libbeat/common/schema/mapstriface"
-	"github.com/elastic/beats/metricbeat/mb"
+	"github.com/pkg/errors"
+
+	s "github.com/elastic/beats/v7/libbeat/common/schema"
+	c "github.com/elastic/beats/v7/libbeat/common/schema/mapstriface"
+	"github.com/elastic/beats/v7/metricbeat/mb"
 )
 
 var (
@@ -145,26 +147,24 @@ var (
 	}
 )
 
-func eventsMapping(r mb.ReporterV2, content []byte) {
+func eventsMapping(r mb.ReporterV2, content []byte) error {
 	var nodes []map[string]interface{}
 	err := json.Unmarshal(content, &nodes)
 	if err != nil {
-		r.Error(err)
-		return
+		return errors.Wrap(err, "error in Unmarshal")
 	}
 
 	for _, node := range nodes {
-		eventMapping(r, node)
+		evt := eventMapping(node)
+		r.Event(evt)
 	}
+	return nil
 }
 
-func eventMapping(r mb.ReporterV2, node map[string]interface{}) {
-	event, err := schema.Apply(node)
-	if err != nil {
-		r.Error(err)
-		return
-	}
-	r.Event(mb.Event{
+func eventMapping(node map[string]interface{}) mb.Event {
+	event, _ := schema.Apply(node)
+	return mb.Event{
 		MetricSetFields: event,
-	})
+	}
+
 }

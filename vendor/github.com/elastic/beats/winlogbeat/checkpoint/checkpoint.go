@@ -31,7 +31,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/logp"
 )
 
 // Checkpoint persists event log state information to disk.
@@ -42,7 +42,6 @@ type Checkpoint struct {
 	file          string         // File where the state is persisted.
 	fileLock      sync.RWMutex   // Lock that protects concurrent reads/writes to file.
 	numUpdates    int            // Number of updates received since last persisting to disk.
-	maxUpdates    int            // Maximum number of updates to buffer before persisting to disk.
 	flushInterval time.Duration  // Maximum time interval that can pass before persisting to disk.
 	sort          []string       // Slice used for sorting states map (store to save on mallocs).
 
@@ -72,24 +71,16 @@ type EventLogState struct {
 // guarantee any in-memory state information is flushed to disk.
 //
 // file is the name of the file where event log state is persisted as YAML.
-// maxUpdates is the maximum number of updates checkpoint will accept before
-// triggering a flush to disk. interval is maximum amount of time that can
-// pass since the last flush before triggering a flush to disk (minimum value
-// is 1s).
-func NewCheckpoint(file string, maxUpdates int, interval time.Duration) (*Checkpoint, error) {
+// interval is maximum amount of time that can pass since the last flush
+// before triggering a flush to disk (minimum value is 1s).
+func NewCheckpoint(file string, interval time.Duration) (*Checkpoint, error) {
 	c := &Checkpoint{
 		done:          make(chan struct{}),
 		file:          file,
-		maxUpdates:    maxUpdates,
 		flushInterval: interval,
 		sort:          make([]string, 0, 10),
 		states:        make(map[string]EventLogState),
 		save:          make(chan EventLogState, 1),
-	}
-
-	// Minimum batch size.
-	if c.maxUpdates < 1 {
-		c.maxUpdates = 1
 	}
 
 	// Minimum flush interval.
@@ -127,8 +118,18 @@ func (c *Checkpoint) run() {
 	defer c.wg.Done()
 	defer c.persist()
 
+	// Create a timer and stop it immediately. We only want to
+	// start it once there is data to persist.
 	flushTimer := time.NewTimer(c.flushInterval)
+	if !flushTimer.Stop() {
+		// Drain the timer channel in the unlikely case that it was
+		// signaled already.
+		<-flushTimer.C
+	}
+	// The channel doesn't need draining in the termination case.
+	// Doing so can introduce a deadlock.
 	defer flushTimer.Stop()
+
 loop:
 	for {
 		select {
@@ -138,15 +139,16 @@ loop:
 			c.lock.Lock()
 			c.states[s.Name] = s
 			c.lock.Unlock()
-			c.numUpdates++
-			if c.numUpdates < c.maxUpdates {
-				continue
+			if c.numUpdates == 0 {
+				flushTimer.Reset(c.flushInterval)
 			}
+			c.numUpdates++
 		case <-flushTimer.C:
+			if !c.persist() {
+				// Error during persist: Retry after interval.
+				flushTimer.Reset(c.flushInterval)
+			}
 		}
-
-		c.persist()
-		flushTimer.Reset(c.flushInterval)
 	}
 }
 
@@ -192,7 +194,7 @@ func (c *Checkpoint) PersistState(st EventLogState) {
 // persist writes the current state to disk if the in-memory state is dirty.
 func (c *Checkpoint) persist() bool {
 	if c.numUpdates == 0 {
-		return false
+		return true
 	}
 
 	err := c.flush()
@@ -222,7 +224,7 @@ func (c *Checkpoint) flush() error {
 	}
 
 	if err != nil {
-		return fmt.Errorf("Failed to flush state to disk. %v", err)
+		return fmt.Errorf("failed to flush state to disk. %w", err)
 	}
 
 	// Sort persisted eventLogs by name.
@@ -243,15 +245,15 @@ func (c *Checkpoint) flush() error {
 	data, err := yaml.Marshal(ps)
 	if err != nil {
 		file.Close()
-		return fmt.Errorf("Failed to flush state to disk. Could not marshal "+
-			"data to YAML. %v", err)
+		return fmt.Errorf("failed to flush state to disk. Could not marshal "+
+			"data to YAML. %w", err)
 	}
 
 	_, err = file.Write(data)
 	if err != nil {
 		file.Close()
-		return fmt.Errorf("Failed to flush state to disk. Could not write to "+
-			"%s. %v", tempFile, err)
+		return fmt.Errorf("failed to flush state to disk. Could not write to "+
+			"%s. %w", tempFile, err)
 	}
 
 	file.Close()
@@ -276,7 +278,7 @@ func (c *Checkpoint) read() (*PersistedState, error) {
 	ps := &PersistedState{}
 	err = yaml.Unmarshal(contents, ps)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read persisted state: %w", err)
 	}
 
 	return ps, nil
@@ -287,5 +289,5 @@ func (c *Checkpoint) read() (*PersistedState, error) {
 func (c *Checkpoint) createDir() error {
 	dir := filepath.Dir(c.file)
 	logp.Info("Creating %s if it does not exist.", dir)
-	return os.MkdirAll(dir, os.FileMode(0750))
+	return os.MkdirAll(dir, os.FileMode(0o750))
 }

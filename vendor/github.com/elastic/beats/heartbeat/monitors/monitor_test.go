@@ -21,25 +21,53 @@ import (
 	"testing"
 	"time"
 
-	"github.com/elastic/beats/libbeat/common/mapval"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/elastic/beats/heartbeat/scheduler"
+	"github.com/elastic/beats/v7/heartbeat/scheduler"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/monitoring"
+	"github.com/elastic/go-lookslike"
+	"github.com/elastic/go-lookslike/isdef"
+	"github.com/elastic/go-lookslike/testslike"
+	"github.com/elastic/go-lookslike/validator"
 )
 
-func TestMonitor(t *testing.T) {
-	serverMonConf := mockPluginConf(t, "", "@every 1ms", "http://example.net")
-	reg := mockPluginsReg()
+// TestMonitorBasic tests a basic config
+func TestMonitorBasic(t *testing.T) {
+	testMonitorConfig(
+		t,
+		mockPluginConf(t, "myId", "myName", "@every 1ms", "http://example.net"),
+		mockEventMonitorValidator("myId", "myName"),
+	)
+}
+
+// TestMonitorBasic tests a config that errors out at plugin creation, but still has stdfields defined.
+// This should cause the monitor to run, but only produce error documents
+func TestMonitorCfgError(t *testing.T) {
+	testMonitorConfig(
+		t,
+		mockInvalidPluginConfWithStdFields(t, "invalidTestId", "invalidTestName", "@every 10s"),
+		lookslike.Compose(
+			baseMockEventMonitorValidator("invalidTestId", "invalidTestName", "down"),
+			lookslike.MustCompile(common.MapStr{
+				"error": common.MapStr{
+					"message": isdef.IsStringContaining("missing required field"),
+					"type":    "io",
+				},
+			}),
+		),
+	)
+}
+
+func testMonitorConfig(t *testing.T, conf *common.Config, eventValidator validator.Validator) {
+	reg, built, closed := mockPluginsReg()
 	pipelineConnector := &MockPipelineConnector{}
 
-	sched := scheduler.New(1)
-	err := sched.Start()
-	require.NoError(t, err)
+	sched := scheduler.Create(1, monitoring.NewRegistry(), time.Local, nil, false)
 	defer sched.Stop()
 
-	mon, err := newMonitor(serverMonConf, reg, pipelineConnector, sched, false, nil)
+	mon, err := newMonitor(conf, reg, pipelineConnector, sched.Add, nil, false)
 	require.NoError(t, err)
 
 	mon.Start()
@@ -55,11 +83,10 @@ func TestMonitor(t *testing.T) {
 		if count >= 1 {
 			success = true
 
-			mon.Stop()
 			pcClient.Close()
 
 			for _, event := range pcClient.Publishes() {
-				mapval.Test(t, mockEventMonitorValidator(""), event.Fields)
+				testslike.Test(t, eventValidator, event.Fields)
 			}
 		} else {
 			// Let's yield this goroutine so we don't spin
@@ -72,53 +99,29 @@ func TestMonitor(t *testing.T) {
 		t.Fatalf("No publishes detected!")
 	}
 
+	assert.Equal(t, 1, built.Load())
 	mon.Stop()
+
+	assert.Equal(t, 1, closed.Load())
 	assert.Equal(t, true, pcClient.closed)
-}
-
-func TestDuplicateMonitorIDs(t *testing.T) {
-	serverMonConf := mockPluginConf(t, "custom", "@every 1ms", "http://example.net")
-	badConf := mockBadPluginConf(t, "custom", "@every 1ms")
-	reg := mockPluginsReg()
-	pipelineConnector := &MockPipelineConnector{}
-
-	sched := scheduler.New(1)
-	err := sched.Start()
-	require.NoError(t, err)
-	defer sched.Stop()
-
-	makeTestMon := func() (*Monitor, error) {
-		return newMonitor(serverMonConf, reg, pipelineConnector, sched, false, nil)
-	}
-
-	// Ensure that an error is returned on a bad config
-	_, m0Err := newMonitor(badConf, reg, pipelineConnector, sched, false, nil)
-	require.Error(t, m0Err)
-
-	// Would fail if the previous newMonitor didn't free the monitor.id
-	m1, m1Err := makeTestMon()
-	require.NoError(t, m1Err)
-	_, m2Err := makeTestMon()
-	require.Error(t, m2Err)
-
-	m1.Stop()
-	_, m3Err := makeTestMon()
-	require.NoError(t, m3Err)
 }
 
 func TestCheckInvalidConfig(t *testing.T) {
 	serverMonConf := mockInvalidPluginConf(t)
-	reg := mockPluginsReg()
+	reg, built, closed := mockPluginsReg()
 	pipelineConnector := &MockPipelineConnector{}
 
-	sched := scheduler.New(1)
-	err := sched.Start()
-	require.NoError(t, err)
+	sched := scheduler.Create(1, monitoring.NewRegistry(), time.Local, nil, false)
 	defer sched.Stop()
 
-	m, err := newMonitor(serverMonConf, reg, pipelineConnector, sched, false, nil)
+	m, err := newMonitor(serverMonConf, reg, pipelineConnector, sched.Add, nil, false)
+	require.Error(t, err)
 	// This could change if we decide the contract for newMonitor should always return a monitor
 	require.Nil(t, m, "For this test to work we need a nil value for the monitor.")
 
-	require.Error(t, checkMonitorConfig(serverMonConf, reg, false))
+	// These counters are both zero since this fails at config parse time
+	require.Equal(t, 0, built.Load())
+	require.Equal(t, 0, closed.Load())
+
+	require.Error(t, checkMonitorConfig(serverMonConf, reg))
 }

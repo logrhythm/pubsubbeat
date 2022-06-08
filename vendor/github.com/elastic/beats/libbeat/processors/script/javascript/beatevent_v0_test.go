@@ -19,16 +19,17 @@ package javascript
 
 import (
 	"fmt"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/monitoring"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/beat/events"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/monitoring"
+	"github.com/elastic/beats/v7/libbeat/tests/resources"
 )
 
 const (
@@ -128,7 +129,7 @@ var eventV0Tests = []testCase{
 		name:   "Delete @metadata",
 		source: `evt.Delete("@metadata.pipeline");`,
 		assert: func(t testing.TB, evt *beat.Event, err error) {
-			assert.Nil(t, evt.Meta["pipeline"])
+			assert.Nil(t, evt.Meta[events.FieldMetaPipeline])
 		},
 	},
 	{
@@ -206,15 +207,8 @@ func TestBeatEventV0(t *testing.T) {
 }
 
 func BenchmarkBeatEventV0(b *testing.B) {
-	goroutinesAtStart := runtime.NumGoroutine()
-	defer func() {
-		// Sanity check that timers are not leaking goroutines.
-		goroutinesAtEnd := runtime.NumGoroutine()
-		if goroutinesAtEnd != goroutinesAtStart {
-			b.Errorf("Suspected goroutine leak: atStart=%d, atEnd=%d",
-				goroutinesAtStart, goroutinesAtEnd)
-		}
-	}()
+	goroutines := resources.NewGoroutinesChecker()
+	defer goroutines.Check(b)
 
 	benchTest := func(tc testCase, timeout time.Duration) func(b *testing.B) {
 		return func(b *testing.B) {

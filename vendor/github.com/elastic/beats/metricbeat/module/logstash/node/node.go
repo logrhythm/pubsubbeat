@@ -18,10 +18,9 @@
 package node
 
 import (
-	"github.com/elastic/beats/metricbeat/helper"
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/mb/parse"
-	"github.com/elastic/beats/metricbeat/module/logstash"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/parse"
+	"github.com/elastic/beats/v7/metricbeat/module/logstash"
 )
 
 // init registers the MetricSet with the central registry.
@@ -48,7 +47,6 @@ var (
 // MetricSet type defines all fields of the MetricSet
 type MetricSet struct {
 	*logstash.MetricSet
-	*helper.HTTP
 }
 
 // New create a new instance of the MetricSet
@@ -58,14 +56,8 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 		return nil, err
 	}
 
-	http, err := helper.NewHTTP(base)
-	if err != nil {
-		return nil, err
-	}
-
 	return &MetricSet{
 		ms,
-		http,
 	}, nil
 }
 
@@ -73,24 +65,22 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 // It returns the event which is then forward to the output. In case of an error, a
 // descriptive error must be returned.
 func (m *MetricSet) Fetch(r mb.ReporterV2) error {
-	if !m.MetricSet.XPack {
-		content, err := m.HTTP.FetchContent()
-		if err != nil {
-			return err
-		}
-
-		return eventMapping(r, content)
+	if err := m.CheckPipelineGraphAPIsAvailable(); err != nil {
+		return err
 	}
 
-	pipelinesContent, err := logstash.GetPipelines(m.HTTP, m.HostData().SanitizedURI+nodePath)
+	content, err := m.HTTP.FetchContent()
 	if err != nil {
-		m.Logger().Error(err)
-		return nil
+		return err
 	}
 
-	err = eventMappingXPack(r, m, pipelinesContent)
+	pipelinesContent, overrideClusterUUID, err := logstash.GetPipelines(m.MetricSet)
 	if err != nil {
-		m.Logger().Error(err)
+		return err
+	}
+
+	if err = eventMapping(r, content, pipelinesContent, overrideClusterUUID, m.XPackEnabled); err != nil {
+		return err
 	}
 
 	return nil

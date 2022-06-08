@@ -15,19 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build linux || freebsd || openbsd || netbsd || windows
 // +build linux freebsd openbsd netbsd windows
 
 package file_integrity
 
 import (
+	"fmt"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/pkg/errors"
 
-	"github.com/elastic/beats/auditbeat/module/file_integrity/monitor"
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/v7/auditbeat/module/file_integrity/monitor"
+	"github.com/elastic/beats/v7/libbeat/logp"
 )
 
 type reader struct {
@@ -39,21 +41,23 @@ type reader struct {
 
 // NewEventReader creates a new EventProducer backed by fsnotify.
 func NewEventReader(c Config) (EventProducer, error) {
-	watcher, err := monitor.New(c.Recursive)
-	if err != nil {
-		return nil, err
-	}
-
 	return &reader{
-		watcher: watcher,
-		config:  c,
-		log:     logp.NewLogger(moduleName),
+		config: c,
+		log:    logp.NewLogger(moduleName),
 	}, nil
 }
 
 func (r *reader) Start(done <-chan struct{}) (<-chan Event, error) {
+	watcher, err := monitor.New(r.config.Recursive, r.config.IsExcludedPath)
+	if err != nil {
+		return nil, err
+	}
+
+	r.watcher = watcher
 	if err := r.watcher.Start(); err != nil {
-		return nil, errors.Wrap(err, "unable to start watcher")
+		// Ensure that watcher is closed so that we don't leak watchers
+		r.watcher.Close()
+		return nil, fmt.Errorf("unable to start watcher: %w", err)
 	}
 
 	queueDone := make(chan struct{})
@@ -136,6 +140,17 @@ func (r *reader) nextEvent(done <-chan struct{}) *Event {
 			r.log.Debugw("Received fsnotify event",
 				"file_path", event.Name,
 				"event_flags", event.Op)
+
+			abs, err := filepath.Abs(event.Name)
+			if err != nil {
+				r.log.Errorw("Failed to obtain absolute path",
+					"file_path", event.Name,
+					"error", err,
+				)
+				event.Name = filepath.Clean(event.Name)
+			} else {
+				event.Name = abs
+			}
 
 			start := time.Now()
 			e := NewEvent(event.Name, opToAction(event.Op), SourceFSNotify,

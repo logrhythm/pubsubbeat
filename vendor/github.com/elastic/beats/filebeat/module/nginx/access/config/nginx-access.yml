@@ -5,7 +5,9 @@ paths:
 {{ end }}
 exclude_files: [".gz$"]
 
-{{ if .convert_timezone }}
 processors:
-- add_locale: ~
-{{ end }}
+  - add_locale: ~
+  - add_fields:
+      target: ''
+      fields:
+        ecs.version: 1.12.0

@@ -24,11 +24,11 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/mb/parse"
-	"github.com/elastic/beats/metricbeat/module/kafka"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/parse"
+	"github.com/elastic/beats/v7/metricbeat/module/kafka"
 )
 
 // init registers the partition MetricSet with the central registry.
@@ -86,6 +86,10 @@ func (m *MetricSet) Fetch(r mb.ReporterV2) error {
 	if err != nil {
 		return errors.Wrap(err, "error getting topic metadata")
 	}
+	if len(topics) == 0 {
+		debugf("no topic could be read, check ACLs")
+		return nil
+	}
 
 	evtBroker := common.MapStr{
 		"id":      broker.ID(),
@@ -124,13 +128,12 @@ func (m *MetricSet) Fetch(r mb.ReporterV2) error {
 
 					msg := fmt.Errorf("Failed to query kafka partition (%v:%v) offsets: %v",
 						topic.Name, partition.ID, err)
-					m.Logger().Error(msg)
+					m.Logger().Warn(msg)
 					r.Error(msg)
 					continue
 				}
 
 				partitionEvent := common.MapStr{
-					"id":             partition.ID,
 					"leader":         partition.Leader,
 					"replica":        id,
 					"is_leader":      partition.Leader == id,
@@ -154,8 +157,6 @@ func (m *MetricSet) Fetch(r mb.ReporterV2) error {
 					"topic_id":        partitionTopicID,
 					"topic_broker_id": partitionTopicBrokerID,
 
-					"topic":     evtTopic,
-					"broker":    evtBroker,
 					"partition": partitionEvent,
 					"offset": common.MapStr{
 						"newest": offNewest,
@@ -163,7 +164,6 @@ func (m *MetricSet) Fetch(r mb.ReporterV2) error {
 					},
 				}
 
-				// TODO (deprecation): Remove fields from MetricSetFields moved to ModuleFields
 				sent := r.Event(mb.Event{
 					ModuleFields: common.MapStr{
 						"broker": evtBroker,
@@ -190,12 +190,12 @@ func queryOffsetRange(
 ) (int64, int64, bool, error) {
 	oldest, err := b.PartitionOffset(replicaID, topic, partition, sarama.OffsetOldest)
 	if err != nil {
-		return -1, -1, false, err
+		return -1, -1, false, errors.Wrap(err, "failed to get oldest offset")
 	}
 
 	newest, err := b.PartitionOffset(replicaID, topic, partition, sarama.OffsetNewest)
 	if err != nil {
-		return -1, -1, false, err
+		return -1, -1, false, errors.Wrap(err, "failed to get newest offset")
 	}
 
 	okOld := oldest != -1

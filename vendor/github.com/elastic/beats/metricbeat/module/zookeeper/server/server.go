@@ -42,11 +42,11 @@ package server
 import (
 	"github.com/pkg/errors"
 
-	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common"
 
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/mb/parse"
-	"github.com/elastic/beats/metricbeat/module/zookeeper"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/parse"
+	"github.com/elastic/beats/v7/metricbeat/module/zookeeper"
 )
 
 func init() {
@@ -82,10 +82,18 @@ func (m *MetricSet) Fetch(reporter mb.ReporterV2) error {
 		return errors.Wrap(err, "error parsing srvr output")
 	}
 
+	serverID, err := zookeeper.ServerID(m.Host(), m.Module().Config().Timeout)
+	if err != nil {
+		return errors.Wrap(err, "error obtaining server id")
+	}
+
 	event := mb.Event{
 		MetricSetFields: metricsetFields,
 		RootFields: common.MapStr{
 			"service": common.MapStr{
+				"node": common.MapStr{
+					"name": serverID,
+				},
 				"version": version,
 			},
 		},

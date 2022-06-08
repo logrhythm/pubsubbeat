@@ -22,12 +22,7 @@ package memcache
 import (
 	"time"
 
-	"github.com/elastic/beats/libbeat/common/streambuf"
-)
-
-const (
-	codeSpace byte = ' '
-	codeTab        = '\t'
+	"github.com/elastic/beats/v7/libbeat/common/streambuf"
 )
 
 type parserConfig struct {

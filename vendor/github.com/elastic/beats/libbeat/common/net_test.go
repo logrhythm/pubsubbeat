@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package common
@@ -28,13 +29,13 @@ import (
 func TestIsLoopback(t *testing.T) {
 	check, err := IsLoopback("127.0.0.1")
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.True(t, check)
 }
 
 func TestIsLoopback_false(t *testing.T) {
 	check, err := IsLoopback("192.168.1.1")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.False(t, check)
 }
 

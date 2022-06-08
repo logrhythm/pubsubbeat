@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package streambuf
@@ -30,7 +31,7 @@ func Test_UntilCRLFOK(t *testing.T) {
 	b.Advance(2)
 	d, err := b.UntilCRLF()
 	b.checkInvariants(t)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.False(t, b.Failed())
 	assert.Equal(t, d, []byte("test"))
 	assert.Equal(t, 0, b.Len())
@@ -51,13 +52,13 @@ func Test_UntilCRLFCont(t *testing.T) {
 	assert.Equal(t, ErrNoMoreBytes, err)
 
 	err = b.Append([]byte("\r\nabc"))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.False(t, b.Failed())
 	assert.Equal(t, 4, b.LeftBehind())
 
 	d, err := b.UntilCRLF()
 	b.checkInvariants(t)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.False(t, b.Failed())
 	assert.Equal(t, d, []byte("test"))
 	assert.Equal(t, 3, b.Len())
@@ -67,7 +68,7 @@ func Test_UntilCRLFOnlyCRThenCRLF(t *testing.T) {
 	b := New([]byte("test\rtest\r\nabc"))
 	d, err := b.UntilCRLF()
 	b.checkInvariants(t)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.False(t, b.Failed())
 	assert.Equal(t, d, []byte("test\rtest"))
 	assert.Equal(t, 3, b.Len())
@@ -80,13 +81,13 @@ func Test_UntilCRLFOnlyCRThenCRLFWithCont(t *testing.T) {
 	assert.Equal(t, ErrNoMoreBytes, err)
 
 	err = b.Append([]byte("\nabc"))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.False(t, b.Failed())
 	assert.Equal(t, 9, b.LeftBehind())
 
 	d, err := b.UntilCRLF()
 	b.checkInvariants(t)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.False(t, b.Failed())
 	assert.Equal(t, d, []byte("test\rtest"))
 	assert.Equal(t, 3, b.Len())
@@ -96,7 +97,7 @@ func Test_IgnoreSymbolOK(t *testing.T) {
 	b := New([]byte("  test"))
 	err := b.IgnoreSymbol(' ')
 	b.checkInvariants(t)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.False(t, b.Failed())
 	assert.Equal(t, 4, b.Len())
 }
@@ -118,7 +119,7 @@ func Test_IgnoreSymbolCont(t *testing.T) {
 	b.Append([]byte("  test"))
 	err = b.IgnoreSymbol(' ')
 	b.checkInvariants(t)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.False(t, b.Failed())
 	assert.Equal(t, 4, b.Len())
 }
@@ -127,7 +128,7 @@ func Test_UntilSymbolOK(t *testing.T) {
 	b := New([]byte("test "))
 	d, err := b.UntilSymbol(' ', true)
 	b.checkInvariants(t)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []byte("test"), d)
 }
 
@@ -148,7 +149,7 @@ func Test_UntilSymbolCont(t *testing.T) {
 	b.Append([]byte("t "))
 	d, err := b.UntilSymbol(' ', true)
 	b.checkInvariants(t)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []byte("test"), d)
 }
 
@@ -156,7 +157,7 @@ func Test_UntilSymbolOrEnd(t *testing.T) {
 	b := New([]byte("test"))
 	d, err := b.UntilSymbol(' ', false)
 	b.checkInvariants(t)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []byte("test"), d)
 }
 
@@ -164,7 +165,7 @@ func Test_AsciiUintOK(t *testing.T) {
 	b := New([]byte("123 "))
 	v, err := b.UintASCII(false)
 	b.checkInvariants(t)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, uint64(123), v)
 }
 
@@ -195,7 +196,7 @@ func Test_AsciiUintCont(t *testing.T) {
 	b.Append([]byte("34 "))
 	v, err := b.UintASCII(true)
 	b.checkInvariants(t)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, uint64(1234), v)
 }
 
@@ -203,7 +204,7 @@ func Test_AsciiUintOrEndOK(t *testing.T) {
 	b := New([]byte("12"))
 	v, err := b.UintASCII(false)
 	b.checkInvariants(t)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, uint64(12), v)
 }
 
@@ -211,7 +212,7 @@ func Test_AsciiIntOK(t *testing.T) {
 	b := New([]byte("123 "))
 	v, err := b.IntASCII(false)
 	b.checkInvariants(t)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, int64(123), v)
 }
 
@@ -219,7 +220,7 @@ func Test_AsciiIntPosOK(t *testing.T) {
 	b := New([]byte("+123 "))
 	v, err := b.IntASCII(false)
 	b.checkInvariants(t)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, int64(123), v)
 }
 
@@ -227,7 +228,7 @@ func Test_AsciiIntNegOK(t *testing.T) {
 	b := New([]byte("-123 "))
 	v, err := b.IntASCII(false)
 	b.checkInvariants(t)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, int64(-123), v)
 }
 
@@ -258,7 +259,7 @@ func Test_AsciiIntCont(t *testing.T) {
 	b.Append([]byte("34 "))
 	v, err := b.IntASCII(true)
 	b.checkInvariants(t)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, int64(1234), v)
 }
 
@@ -266,7 +267,7 @@ func Test_AsciiIntOrEndOK(t *testing.T) {
 	b := New([]byte("12"))
 	v, err := b.IntASCII(false)
 	b.checkInvariants(t)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, int64(12), v)
 }
 
@@ -274,7 +275,7 @@ func Test_AsciiMatchOK(t *testing.T) {
 	b := New([]byte("match test"))
 	r, err := b.MatchASCII([]byte("match"))
 	b.checkInvariants(t)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.True(t, r)
 	assert.Equal(t, 10, b.Len()) // check no bytes consumed
 }
@@ -283,7 +284,7 @@ func Test_AsciiMatchNo(t *testing.T) {
 	b := New([]byte("match test"))
 	r, err := b.MatchASCII([]byte("batch"))
 	b.checkInvariants(t)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.False(t, r)
 	assert.Equal(t, 10, b.Len()) // check no bytes consumed
 }
@@ -297,7 +298,7 @@ func Test_AsciiMatchCont(t *testing.T) {
 	b.Append([]byte("ch test"))
 	r, err := b.MatchASCII([]byte("match"))
 	b.checkInvariants(t)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.True(t, r)
 	assert.Equal(t, 10, b.Len()) // check no bytes consumed
 }

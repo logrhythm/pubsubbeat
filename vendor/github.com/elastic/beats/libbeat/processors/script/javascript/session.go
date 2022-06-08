@@ -23,10 +23,11 @@ import (
 
 	"github.com/dop251/goja"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
 )
 
 const (
@@ -80,39 +81,36 @@ type session struct {
 	tagOnException string
 }
 
-func newSession(
-	name string,
-	src []byte,
-	conf Config,
-) (*session, error) {
-	// Validate processor source code.
-	p, err := goja.Compile(name, string(src), true)
-	if err != nil {
-		return nil, err
+func newSession(p *goja.Program, conf Config, test bool) (*session, error) {
+	// Create a logger
+	logger := logp.NewLogger(logName)
+	if conf.Tag != "" {
+		logger = logger.With("instance_id", conf.Tag)
 	}
-
+	// Measure load times
+	start := time.Now()
+	defer func() {
+		took := time.Now().Sub(start)
+		logger.Debugf("Load of javascript pipeline took %v", took)
+	}()
 	// Setup JS runtime.
 	s := &session{
 		vm:             goja.New(),
-		log:            logp.NewLogger(logName),
+		log:            logger,
 		makeEvent:      newBeatEventV0,
 		timeout:        conf.Timeout,
 		tagOnException: conf.TagOnException,
 	}
-	if conf.Tag != "" {
-		s.log = s.log.With("instance_id", conf.Tag)
-	}
 
 	// Register modules.
-	for name, registerModule := range sessionHooks {
-		s.log.Debugf("Registering module %v with the Javascript runtime.", name)
+	for _, registerModule := range sessionHooks {
 		registerModule(s)
 	}
 
 	// Register constructor for 'new Event' to enable test() to create events.
 	s.vm.Set("Event", newBeatEventV0Constructor(s))
 
-	_, err = s.vm.RunProgram(p)
+	_, err := s.vm.RunProgram(p)
 	if err != nil {
 		return nil, err
 	}
@@ -127,8 +125,10 @@ func newSession(
 		}
 	}
 
-	if err = s.executeTestFunction(); err != nil {
-		return nil, err
+	if test {
+		if err = s.executeTestFunction(); err != nil {
+			return nil, err
+		}
 	}
 
 	return s, nil
@@ -204,8 +204,25 @@ func (s *session) setEvent(b *beat.Event) error {
 }
 
 // runProcessFunc executes process() from the JS script.
-func (s *session) runProcessFunc(b *beat.Event) (*beat.Event, error) {
-	var err error
+func (s *session) runProcessFunc(b *beat.Event) (out *beat.Event, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.log.Errorw("The javascript processor caused an unexpected panic "+
+				"while processing an event. Recovering, but please report this.",
+				"event", common.MapStr{"original": b.Fields.String()},
+				"panic", r,
+				zap.Stack("stack"))
+			if !s.evt.IsCancelled() {
+				out = b
+			}
+			err = errors.Errorf("unexpected panic in javascript processor: %v", r)
+			if s.tagOnException != "" {
+				common.AddTags(b.Fields, []string{s.tagOnException})
+			}
+			appendString(b.Fields, "error.message", err.Error(), false)
+		}
+	}()
+
 	if err = s.setEvent(b); err != nil {
 		// Always return the event even if there was an error.
 		return b, err
@@ -253,4 +270,45 @@ func init() {
 			},
 		)
 	})
+}
+
+type sessionPool struct {
+	New func() *session
+	C   chan *session
+}
+
+func newSessionPool(p *goja.Program, c Config) (*sessionPool, error) {
+	s, err := newSession(p, c, true)
+	if err != nil {
+		return nil, err
+	}
+
+	pool := sessionPool{
+		New: func() *session {
+			s, _ := newSession(p, c, false)
+			return s
+		},
+		C: make(chan *session, c.MaxCachedSessions),
+	}
+	pool.Put(s)
+
+	return &pool, nil
+}
+
+func (p *sessionPool) Get() *session {
+	select {
+	case s := <-p.C:
+		return s
+	default:
+		return p.New()
+	}
+}
+
+func (p *sessionPool) Put(s *session) {
+	if s != nil {
+		select {
+		case p.C <- s:
+		default:
+		}
+	}
 }

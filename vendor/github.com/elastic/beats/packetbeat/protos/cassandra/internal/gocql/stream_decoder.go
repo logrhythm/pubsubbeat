@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/elastic/beats/libbeat/common/streambuf"
+	"github.com/elastic/beats/v7/libbeat/common/streambuf"
 )
 
 type StreamDecoder struct {
@@ -149,7 +149,7 @@ func (f StreamDecoder) ReadInet() (net.IP, int) {
 		panic(err)
 	}
 
-	if !(size == 4 || size == 16) {
+	if size != 4 && size != 16 {
 		panic(fmt.Errorf("invalid IP size: %d", size))
 	}
 

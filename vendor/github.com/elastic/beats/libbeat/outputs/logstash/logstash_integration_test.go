@@ -15,11 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build integration
 // +build integration
 
 package logstash
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -29,14 +31,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/common/fmtstr"
-	"github.com/elastic/beats/libbeat/idxmgmt"
-	"github.com/elastic/beats/libbeat/outputs"
-	"github.com/elastic/beats/libbeat/outputs/elasticsearch"
-	"github.com/elastic/beats/libbeat/outputs/outest"
-	"github.com/elastic/beats/libbeat/outputs/outil"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common/fmtstr"
+	"github.com/elastic/beats/v7/libbeat/common/transport/httpcommon"
+	"github.com/elastic/beats/v7/libbeat/esleg/eslegclient"
+	"github.com/elastic/beats/v7/libbeat/idxmgmt"
+	"github.com/elastic/beats/v7/libbeat/outputs"
+	_ "github.com/elastic/beats/v7/libbeat/outputs/elasticsearch"
+	"github.com/elastic/beats/v7/libbeat/outputs/outest"
+	"github.com/elastic/beats/v7/libbeat/outputs/outil"
 )
 
 const (
@@ -49,7 +53,7 @@ const (
 )
 
 type esConnection struct {
-	*elasticsearch.Client
+	*eslegclient.Connection
 	t     *testing.T
 	index string
 }
@@ -92,20 +96,22 @@ func esConnect(t *testing.T, index string) *esConnection {
 
 	host := getElasticsearchHost()
 	indexFmt := fmtstr.MustCompileEvent(fmt.Sprintf("%s-%%{+yyyy.MM.dd}", index))
-	indexSel := outil.MakeSelector(outil.FmtSelectorExpr(indexFmt, ""))
+	indexFmtExpr, _ := outil.FmtSelectorExpr(indexFmt, "", outil.SelectorLowerCase)
+	indexSel := outil.MakeSelector(indexFmtExpr)
 	index, _ = indexSel.Select(&beat.Event{
 		Timestamp: ts,
 	})
 
 	username := os.Getenv("ES_USER")
 	password := os.Getenv("ES_PASS")
-	client, err := elasticsearch.NewClient(elasticsearch.ClientSettings{
-		URL:      host,
-		Index:    indexSel,
-		Username: username,
-		Password: password,
-		Timeout:  60 * time.Second,
-	}, nil)
+	transport := httpcommon.DefaultHTTPTransportSettings()
+	transport.Timeout = 60 * time.Second
+	client, err := eslegclient.NewConnection(eslegclient.ConnectionSettings{
+		URL:       host,
+		Username:  username,
+		Password:  password,
+		Transport: transport,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +131,7 @@ func esConnect(t *testing.T, index string) *esConnection {
 
 	es := &esConnection{}
 	es.t = t
-	es.Client = client
+	es.Connection = client
 	es.index = index
 	return es
 }
@@ -194,6 +200,8 @@ func newTestElasticsearchOutput(t *testing.T, test string) *testOutputer {
 	es := &testOutputer{}
 	es.NetworkClient = grp.Clients[0].(outputs.NetworkClient)
 	es.esConnection = connection
+	es.Connect()
+
 	return es
 }
 
@@ -298,7 +306,7 @@ func testSendMessageViaLogstash(t *testing.T, name string, tls bool) {
 			},
 		},
 	)
-	ls.Publish(batch)
+	ls.Publish(context.Background(), batch)
 
 	// wait for logstash event flush + elasticsearch
 	waitUntilTrue(5*time.Second, checkIndex(ls, 1))
@@ -543,7 +551,7 @@ func checkEvent(t *testing.T, ls, es map[string]interface{}) {
 }
 
 func (t *testOutputer) PublishEvent(event beat.Event) {
-	t.Publish(outest.NewBatch(event))
+	t.Publish(context.Background(), outest.NewBatch(event))
 }
 
 func (t *testOutputer) BulkPublish(events []beat.Event) bool {
@@ -557,7 +565,7 @@ func (t *testOutputer) BulkPublish(events []beat.Event) bool {
 		wg.Done()
 	}
 
-	t.Publish(batch)
+	t.Publish(context.Background(), batch)
 	wg.Wait()
 	return ok
 }

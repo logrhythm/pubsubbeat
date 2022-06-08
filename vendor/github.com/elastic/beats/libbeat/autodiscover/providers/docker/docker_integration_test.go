@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build integration
 // +build integration
 
 package docker
@@ -26,13 +27,18 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/common/bus"
-	dk "github.com/elastic/beats/libbeat/tests/docker"
+	"github.com/elastic/beats/v7/libbeat/autodiscover/template"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common/bus"
+	"github.com/elastic/beats/v7/libbeat/keystore"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	dk "github.com/elastic/beats/v7/libbeat/tests/docker"
 )
 
 // Test docker start emits an autodiscover event
 func TestDockerStart(t *testing.T) {
+	log := logp.NewLogger("docker")
+
 	d, err := dk.NewClient()
 	if err != nil {
 		t.Fatal(err)
@@ -42,10 +48,14 @@ func TestDockerStart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bus := bus.New("test")
+	bus := bus.New(log, "test")
 	config := defaultConfig()
 	config.CleanupTimeout = 0
-	provider, err := AutodiscoverBuilder(bus, UUID, common.MustNewConfigFrom(config))
+
+	s := &template.MapperSettings{nil, nil}
+	config.Templates = *s
+	k, _ := keystore.NewFileKeystore("test")
+	provider, err := AutodiscoverBuilder("mockBeat", bus, UUID, common.MustNewConfigFrom(config), k)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,15 +69,17 @@ func TestDockerStart(t *testing.T) {
 	// Start
 	cmd := []string{"echo", "Hi!"}
 	labels := map[string]string{"label": "foo", "label.child": "bar"}
-	ID, err := d.ContainerStart("busybox", cmd, labels)
+	ID, err := d.ContainerStart("busybox:latest", cmd, labels)
 	if err != nil {
 		t.Fatal(err)
 	}
-	checkEvent(t, listener, true)
+	defer d.ContainerRemove(ID)
+
+	checkEvent(t, listener, ID, true)
 
 	// Kill
 	d.ContainerKill(ID)
-	checkEvent(t, listener, false)
+	checkEvent(t, listener, ID, false)
 }
 
 func getValue(e bus.Event, key string) interface{} {
@@ -78,12 +90,13 @@ func getValue(e bus.Event, key string) interface{} {
 	return val
 }
 
-func checkEvent(t *testing.T, listener bus.Listener, start bool) {
+func checkEvent(t *testing.T, listener bus.Listener, id string, start bool) {
+	timeout := time.After(60 * time.Second)
 	for {
 		select {
 		case e := <-listener.Events():
 			// Ignore any other container
-			if getValue(e, "docker.container.image") != "busybox" {
+			if getValue(e, "container.id") != id {
 				continue
 			}
 			if start {
@@ -93,7 +106,7 @@ func checkEvent(t *testing.T, listener bus.Listener, start bool) {
 				assert.Equal(t, getValue(e, "stop"), true)
 				assert.Nil(t, getValue(e, "start"))
 			}
-			assert.Equal(t, getValue(e, "container.image.name"), "busybox")
+			assert.Equal(t, getValue(e, "container.image.name"), "busybox:latest")
 			// labels.dedot=true by default
 			assert.Equal(t,
 				common.MapStr{
@@ -111,8 +124,7 @@ func checkEvent(t *testing.T, listener bus.Listener, start bool) {
 			assert.Equal(t, getValue(e, "docker.container.name"), getValue(e, "meta.container.name"))
 			assert.Equal(t, getValue(e, "docker.container.image"), getValue(e, "meta.container.image.name"))
 			return
-
-		case <-time.After(10 * time.Second):
+		case <-timeout:
 			t.Fatal("Timeout waiting for provider events")
 			return
 		}

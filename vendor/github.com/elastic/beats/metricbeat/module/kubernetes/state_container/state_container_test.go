@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package state_container
@@ -22,20 +23,31 @@ package state_container
 import (
 	"testing"
 
-	"github.com/elastic/beats/metricbeat/helper/prometheus/ptest"
+	"github.com/elastic/beats/v7/metricbeat/helper/prometheus/ptest"
+
+	mbtest "github.com/elastic/beats/v7/metricbeat/mb/testing"
+	_ "github.com/elastic/beats/v7/metricbeat/module/kubernetes"
 )
 
 func TestEventMapping(t *testing.T) {
 	ptest.TestMetricSet(t, "kubernetes", "state_container",
 		ptest.TestCases{
 			{
-				MetricsFile:  "../_meta/test/kube-state-metrics",
-				ExpectedFile: "./_meta/test/kube-state-metrics.expected",
+				MetricsFile:  "../_meta/test/ksm.v1.3.0",
+				ExpectedFile: "./_meta/test/ksm.v1.3.0.expected",
 			},
 			{
-				MetricsFile:  "../_meta/test/kube-state-metrics.v1.3.0",
-				ExpectedFile: "./_meta/test/kube-state-metrics.v1.3.0.expected",
+				MetricsFile:  "../_meta/test/ksm.v1.8.0",
+				ExpectedFile: "./_meta/test/ksm.v1.8.0.expected",
+			},
+			{
+				MetricsFile:  "../_meta/test/ksm.v2.0.0",
+				ExpectedFile: "./_meta/test/ksm.v2.0.0.expected",
 			},
 		},
 	)
+}
+
+func TestData(t *testing.T) {
+	mbtest.TestDataFiles(t, "kubernetes", "state_container")
 }

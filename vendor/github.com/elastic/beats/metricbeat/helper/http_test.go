@@ -18,17 +18,22 @@
 package helper
 
 import (
+	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/elastic/beats/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/helper/dialer"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/parse"
 )
 
 func TestGetAuthHeaderFromToken(t *testing.T) {
@@ -87,13 +92,13 @@ func TestTimeout(t *testing.T) {
 	defer ts.Close()
 
 	cfg := defaultConfig()
-	cfg.Timeout = 1 * time.Millisecond
+	cfg.Transport.Timeout = 1 * time.Millisecond
 	hostData := mb.HostData{
 		URI:          ts.URL,
 		SanitizedURI: ts.URL,
 	}
 
-	h, err := newHTTPFromConfig(cfg, "test", hostData)
+	h, err := NewHTTPFromConfig(cfg, hostData)
 	require.NoError(t, err)
 
 	checkTimeout(t, h)
@@ -110,7 +115,7 @@ func TestConnectTimeout(t *testing.T) {
 		SanitizedURI: uri,
 	}
 
-	h, err := newHTTPFromConfig(cfg, "test", hostData)
+	h, err := NewHTTPFromConfig(cfg, hostData)
 	require.NoError(t, err)
 
 	checkTimeout(t, h)
@@ -134,7 +139,7 @@ func TestAuthentication(t *testing.T) {
 		URI:          ts.URL,
 		SanitizedURI: ts.URL,
 	}
-	h, err := newHTTPFromConfig(cfg, "test", hostData)
+	h, err := NewHTTPFromConfig(cfg, hostData)
 	require.NoError(t, err)
 
 	response, err := h.FetchResponse()
@@ -149,13 +154,144 @@ func TestAuthentication(t *testing.T) {
 		User:         expectedUser,
 		Password:     expectedPassword,
 	}
-	h, err = newHTTPFromConfig(cfg, "test", hostData)
+	h, err = NewHTTPFromConfig(cfg, hostData)
 	require.NoError(t, err)
 
 	response, err = h.FetchResponse()
 	response.Body.Close()
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, response.StatusCode, "response status code")
+}
+
+func TestSetHeader(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Headers = map[string]string{
+		"Override": "default",
+	}
+
+	h, err := NewHTTPFromConfig(cfg, mb.HostData{})
+	require.NoError(t, err)
+
+	h.SetHeader("Override", "overridden")
+	v := h.headers.Get("override")
+	assert.Equal(t, "overridden", v)
+}
+
+func TestSetHeaderDefault(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Headers = map[string]string{
+		"Override": "default",
+	}
+
+	h, err := NewHTTPFromConfig(cfg, mb.HostData{})
+	require.NoError(t, err)
+
+	h.SetHeaderDefault("Override", "overridden")
+	v := h.headers.Get("override")
+	assert.Equal(t, "default", v)
+}
+
+func TestOverUnixSocket(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skipf("unix domain socket aren't supported under Windows")
+		return
+	}
+
+	cases := map[string]struct {
+		hostDataBuilder func(sockFile string) (mb.HostData, error)
+	}{
+		"at root": {
+			hostDataBuilder: func(sockFile string) (mb.HostData, error) {
+				return mb.HostData{
+					Transport:    dialer.NewUnixDialerBuilder(sockFile),
+					URI:          "http://unix/",
+					SanitizedURI: "http://unix",
+				}, nil
+			},
+		},
+		"at specific path": {
+			hostDataBuilder: func(sockFile string) (mb.HostData, error) {
+				uri := "http://unix/ok"
+				return mb.HostData{
+					Transport:    dialer.NewUnixDialerBuilder(sockFile),
+					URI:          uri,
+					SanitizedURI: uri,
+				}, nil
+			},
+		},
+		"with parser builder": {
+			hostDataBuilder: func(sockFile string) (mb.HostData, error) {
+				parser := parse.URLHostParserBuilder{}.Build()
+				return parser(&dummyModule{}, "http+unix://"+sockFile)
+			},
+		},
+	}
+
+	serveOnUnixSocket := func(t *testing.T, path string) net.Listener {
+		l, err := net.Listen("unix", path)
+		require.NoError(t, err)
+
+		mux := http.NewServeMux()
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintf(w, "ehlo!")
+		})
+
+		go http.Serve(l, mux)
+
+		return l
+	}
+
+	for title, c := range cases {
+		t.Run(title, func(t *testing.T) {
+			tmpDir, err := ioutil.TempDir("", "testsocket")
+			require.NoError(t, err)
+			defer os.RemoveAll(tmpDir)
+
+			sockFile := tmpDir + "/test.sock"
+			l := serveOnUnixSocket(t, sockFile)
+			defer l.Close()
+
+			cfg := defaultConfig()
+
+			hostData, err := c.hostDataBuilder(sockFile)
+			require.NoError(t, err)
+
+			h, err := NewHTTPFromConfig(cfg, hostData)
+			require.NoError(t, err)
+
+			r, err := h.FetchResponse()
+			require.NoError(t, err)
+			defer r.Body.Close()
+			content, err := ioutil.ReadAll(r.Body)
+			require.NoError(t, err)
+			assert.Equal(t, []byte("ehlo!"), content)
+		})
+	}
+}
+
+func TestUserAgentCheck(t *testing.T) {
+	ua := ""
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ua = r.Header.Get("User-Agent")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	cfg := defaultConfig()
+	hostData := mb.HostData{
+		URI:          ts.URL,
+		SanitizedURI: ts.URL,
+	}
+
+	h, err := NewHTTPFromConfig(cfg, hostData)
+	require.NoError(t, err)
+
+	res, err := h.FetchResponse()
+	require.NoError(t, err)
+	res.Body.Close()
+
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Contains(t, ua, "Metricbeat")
 }
 
 func checkTimeout(t *testing.T, h *HTTP) {
@@ -176,4 +312,18 @@ func checkTimeout(t *testing.T, h *HTTP) {
 	case <-time.After(1 * time.Second):
 		t.Fatal("timeout should have happened time ago")
 	}
+}
+
+type dummyModule struct{}
+
+func (*dummyModule) Name() string {
+	return "dummy"
+}
+
+func (*dummyModule) Config() mb.ModuleConfig {
+	return mb.ModuleConfig{}
+}
+
+func (*dummyModule) UnpackConfig(interface{}) error {
+	return nil
 }

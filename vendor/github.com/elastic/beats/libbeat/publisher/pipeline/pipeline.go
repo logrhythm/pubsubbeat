@@ -21,19 +21,20 @@
 package pipeline
 
 import (
-	"errors"
+	"reflect"
 	"sync"
 	"time"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/common/atomic"
-	"github.com/elastic/beats/libbeat/common/reload"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/libbeat/outputs"
-	"github.com/elastic/beats/libbeat/publisher"
-	"github.com/elastic/beats/libbeat/publisher/processing"
-	"github.com/elastic/beats/libbeat/publisher/queue"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common/acker"
+	"github.com/elastic/beats/v7/libbeat/common/atomic"
+	"github.com/elastic/beats/v7/libbeat/common/reload"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/outputs"
+	"github.com/elastic/beats/v7/libbeat/publisher"
+	"github.com/elastic/beats/v7/libbeat/publisher/processing"
+	"github.com/elastic/beats/v7/libbeat/publisher/queue"
 )
 
 // Pipeline implementation providint all beats publisher functionality.
@@ -49,6 +50,9 @@ import (
 // the output clients using a shared work queue for the active outputs.Group.
 // Processors in the pipeline are executed in the clients go-routine, before
 // entering the queue. No filtering/processing will occur on the output side.
+//
+// For client connecting to this pipeline, the default PublishMode is
+// OutputChooses.
 type Pipeline struct {
 	beatInfo beat.Info
 
@@ -66,12 +70,9 @@ type Pipeline struct {
 	waitCloseTimeout time.Duration
 	waitCloser       *waitCloser
 
-	// pipeline ack
-	ackMode    pipelineACKMode
-	ackActive  atomic.Bool
-	ackDone    chan struct{}
-	ackBuilder ackBuilder
-	eventSema  *sema
+	// closeRef signal propagation support
+	guardStartSigPropagation sync.Once
+	sigNewClient             chan *client
 
 	processors processing.Supporter
 }
@@ -85,6 +86,8 @@ type Settings struct {
 	WaitCloseMode WaitCloseMode
 
 	Processors processing.Supporter
+
+	InputQueueSize int
 }
 
 // WaitCloseMode enumerates the possible behaviors of WaitClose in a pipeline.
@@ -120,7 +123,6 @@ type pipelineEventer struct {
 
 	observer  queueObserver
 	waitClose *waitCloser
-	cb        *pipelineEventCB
 }
 
 type waitCloser struct {
@@ -128,7 +130,7 @@ type waitCloser struct {
 	events sync.WaitGroup
 }
 
-type queueFactory func(queue.Eventer) (queue.Queue, error)
+type queueFactory func(queue.ACKListener) (queue.Queue, error)
 
 // New create a new Pipeline instance from a queue instance and a set of outputs.
 // The new pipeline will take ownership of queue and outputs. On Close, the
@@ -154,8 +156,6 @@ func New(
 		waitCloseTimeout: settings.WaitClose,
 		processors:       settings.Processors,
 	}
-	p.ackBuilder = &pipelineEmptyACK{p}
-	p.ackActive = atomic.MakeBool(true)
 
 	if monitors.Metrics != nil {
 		p.observer = newMetricsObserver(monitors.Metrics)
@@ -175,61 +175,18 @@ func New(
 		return nil, err
 	}
 
-	if count := p.queue.BufferConfig().Events; count > 0 {
-		p.eventSema = newSema(count)
-	}
-
-	maxEvents := p.queue.BufferConfig().Events
+	maxEvents := p.queue.BufferConfig().MaxEvents
 	if maxEvents <= 0 {
 		// Maximum number of events until acker starts blocking.
 		// Only active if pipeline can drop events.
 		maxEvents = 64000
 	}
-	p.eventSema = newSema(maxEvents)
+	p.observer.queueMaxEvents(maxEvents)
 
 	p.output = newOutputController(beat, monitors, p.observer, p.queue)
 	p.output.Set(out)
 
 	return p, nil
-}
-
-// SetACKHandler sets a global ACK handler on all events published to the pipeline.
-// SetACKHandler must be called before any connection is made.
-func (p *Pipeline) SetACKHandler(handler beat.PipelineACKHandler) error {
-	p.eventer.mutex.Lock()
-	defer p.eventer.mutex.Unlock()
-
-	if !p.eventer.modifyable {
-		return errors.New("can not set ack handler on already active pipeline")
-	}
-
-	// TODO: check only one type being configured
-
-	cb, err := newPipelineEventCB(handler)
-	if err != nil {
-		return err
-	}
-
-	if cb == nil {
-		p.ackBuilder = &pipelineEmptyACK{p}
-		p.eventer.cb = nil
-		return nil
-	}
-
-	p.eventer.cb = cb
-	if cb.mode == countACKMode {
-		p.ackBuilder = &pipelineCountACK{
-			pipeline: p,
-			cb:       cb.onCounts,
-		}
-	} else {
-		p.ackBuilder = &pipelineEventsACK{
-			pipeline: p,
-			cb:       cb.onEvents,
-		}
-	}
-
-	return nil
 }
 
 // Close stops the pipeline, outputs and queue.
@@ -270,10 +227,14 @@ func (p *Pipeline) Close() error {
 	}
 
 	p.observer.cleanup()
+	if p.sigNewClient != nil {
+		close(p.sigNewClient)
+	}
+
 	return nil
 }
 
-// Connect creates a new client with default settings
+// Connect creates a new client with default settings.
 func (p *Pipeline) Connect() (beat.Client, error) {
 	return p.ConnectWith(beat.ClientConfig{})
 }
@@ -281,11 +242,11 @@ func (p *Pipeline) Connect() (beat.Client, error) {
 // ConnectWith create a new Client for publishing events to the pipeline.
 // The client behavior on close and ACK handling can be configured by setting
 // the appropriate fields in the passed ClientConfig.
+// If not set otherwise the defaut publish mode is OutputChooses.
 func (p *Pipeline) ConnectWith(cfg beat.ClientConfig) (beat.Client, error) {
 	var (
-		canDrop      bool
-		dropOnCancel bool
-		eventFlags   publisher.EventFlags
+		canDrop    bool
+		eventFlags publisher.EventFlags
 	)
 
 	err := validateClientConfig(&cfg)
@@ -300,7 +261,6 @@ func (p *Pipeline) ConnectWith(cfg beat.ClientConfig) (beat.Client, error) {
 	switch cfg.PublishMode {
 	case beat.GuaranteedSend:
 		eventFlags = publisher.GuaranteedSend
-		dropOnCancel = true
 	case beat.DropIfFull:
 		canDrop = true
 	}
@@ -321,12 +281,22 @@ func (p *Pipeline) ConnectWith(cfg beat.ClientConfig) (beat.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	acker := p.makeACKer(processors != nil, &cfg, waitClose)
-	producerCfg := queue.ProducerConfig{
-		// Cancel events from queue if acker is configured
-		// and no pipeline-wide ACK handler is registered.
-		DropOnCancel: dropOnCancel && acker != nil && p.eventer.cb == nil,
+
+	client := &client{
+		pipeline:     p,
+		closeRef:     cfg.CloseRef,
+		done:         make(chan struct{}),
+		isOpen:       atomic.MakeBool(true),
+		eventer:      cfg.Events,
+		processors:   processors,
+		eventFlags:   eventFlags,
+		canDrop:      canDrop,
+		reportEvents: reportEvents,
 	}
+
+	ackHandler := cfg.ACKHandler
+
+	producerCfg := queue.ProducerConfig{}
 
 	if reportEvents || cfg.Events != nil {
 		producerCfg.OnDrop = func(event beat.Event) {
@@ -339,27 +309,114 @@ func (p *Pipeline) ConnectWith(cfg beat.ClientConfig) (beat.Client, error) {
 		}
 	}
 
-	if acker != nil {
-		producerCfg.ACK = acker.ackEvents
-	} else {
-		acker = nilACKer
+	var waiter *clientCloseWaiter
+	if waitClose > 0 {
+		waiter = newClientCloseWaiter(waitClose)
 	}
 
-	producer := p.queue.Producer(producerCfg)
-	client := &client{
-		pipeline:     p,
-		isOpen:       atomic.MakeBool(true),
-		eventer:      cfg.Events,
-		processors:   processors,
-		producer:     producer,
-		acker:        acker,
-		eventFlags:   eventFlags,
-		canDrop:      canDrop,
-		reportEvents: reportEvents,
+	if waiter != nil {
+		if ackHandler == nil {
+			ackHandler = waiter
+		} else {
+			ackHandler = acker.Combine(waiter, ackHandler)
+		}
 	}
+
+	if ackHandler != nil {
+		producerCfg.ACK = ackHandler.ACKEvents
+	} else {
+		ackHandler = acker.Nil()
+	}
+
+	client.acker = ackHandler
+	client.waiter = waiter
+	client.producer = p.queue.Producer(producerCfg)
 
 	p.observer.clientConnected()
+
+	if client.closeRef != nil {
+		p.registerSignalPropagation(client)
+	}
+
 	return client, nil
+}
+
+func (p *Pipeline) registerSignalPropagation(c *client) {
+	p.guardStartSigPropagation.Do(func() {
+		p.sigNewClient = make(chan *client, 1)
+		go p.runSignalPropagation()
+	})
+	p.sigNewClient <- c
+}
+
+func (p *Pipeline) runSignalPropagation() {
+	var channels []reflect.SelectCase
+	var clients []*client
+
+	channels = append(channels, reflect.SelectCase{
+		Dir:  reflect.SelectRecv,
+		Chan: reflect.ValueOf(p.sigNewClient),
+	})
+
+	for {
+		chosen, recv, recvOK := reflect.Select(channels)
+		if chosen == 0 {
+			if !recvOK {
+				// sigNewClient was closed
+				return
+			}
+
+			// new client -> register client for signal propagation.
+			client := recv.Interface().(*client)
+			channels = append(channels,
+				reflect.SelectCase{
+					Dir:  reflect.SelectRecv,
+					Chan: reflect.ValueOf(client.closeRef.Done()),
+				},
+				reflect.SelectCase{
+					Dir:  reflect.SelectRecv,
+					Chan: reflect.ValueOf(client.done),
+				},
+			)
+			clients = append(clients, client)
+			continue
+		}
+
+		// find client we received a signal for. If client.done was closed, then
+		// we have to remove the client only. But if closeRef did trigger the signal, then
+		// we have to propagate the async close to the client.
+		// In either case, the client will be removed
+
+		i := (chosen - 1) / 2
+		isSig := (chosen & 1) == 1
+		if isSig {
+			client := clients[i]
+			client.Close()
+		}
+
+		// remove:
+		last := len(clients) - 1
+		ch1 := i*2 + 1
+		ch2 := ch1 + 1
+		lastCh1 := last*2 + 1
+		lastCh2 := lastCh1 + 1
+
+		clients[i], clients[last] = clients[last], nil
+		channels[ch1], channels[lastCh1] = channels[lastCh1], reflect.SelectCase{}
+		channels[ch2], channels[lastCh2] = channels[lastCh2], reflect.SelectCase{}
+
+		clients = clients[:last]
+		channels = channels[:lastCh1]
+		if cap(clients) > 10 && len(clients) <= cap(clients)/2 {
+			clientsTmp := make([]*client, len(clients))
+			copy(clientsTmp, clients)
+			clients = clientsTmp
+
+			channelsTmp := make([]reflect.SelectCase, len(channels))
+			copy(channelsTmp, channels)
+			channels = channelsTmp
+		}
+	}
 }
 
 func (p *Pipeline) createEventProcessing(cfg beat.ProcessingConfig, noPublish bool) (beat.Processor, error) {
@@ -374,9 +431,6 @@ func (e *pipelineEventer) OnACK(n int) {
 
 	if wc := e.waitClose; wc != nil {
 		wc.dec(n)
-	}
-	if e.cb != nil {
-		e.cb.reportQueueACK(n)
 	}
 }
 

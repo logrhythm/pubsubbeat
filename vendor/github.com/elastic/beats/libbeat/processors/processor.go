@@ -20,11 +20,12 @@ package processors
 import (
 	"strings"
 
+	"github.com/joeshaw/multierror"
 	"github.com/pkg/errors"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
 )
 
 const logName = "processors"
@@ -35,15 +36,41 @@ type Processors struct {
 	log  *logp.Logger
 }
 
+// Processor is the interface that all processors must implement
 type Processor interface {
 	Run(event *beat.Event) (*beat.Event, error)
 	String() string
 }
 
-func New(config PluginConfig) (*Processors, error) {
-	procs := &Processors{
-		log: logp.NewLogger(logName),
+// Closer defines the interface for processors that should be closed after using
+// them.
+// Close() is not part of the Processor interface because implementing this method
+// is also a way to indicate that the processor keeps some resource that needs to
+// be released or orderly closed.
+type Closer interface {
+	Close() error
+}
+
+// Close closes a processor if it implements the Closer interface
+func Close(p Processor) error {
+	if closer, ok := p.(Closer); ok {
+		return closer.Close()
 	}
+	return nil
+}
+
+// NewList creates a new empty processor list.
+// Additional processors can be added to the List field.
+func NewList(log *logp.Logger) *Processors {
+	if log == nil {
+		log = logp.NewLogger(logName)
+	}
+	return &Processors{log: log}
+}
+
+// New creates a list of processors from a list of free user configurations.
+func New(config PluginConfig) (*Processors, error) {
+	procs := NewList(nil)
 
 	for _, procConfig := range config {
 		// Handle if/then/else processor which has multiple top-level keys.
@@ -52,7 +79,7 @@ func New(config PluginConfig) (*Processors, error) {
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to make if/then/else processor")
 			}
-			procs.add(p)
+			procs.AddProcessor(p)
 			continue
 		}
 
@@ -86,7 +113,7 @@ func New(config PluginConfig) (*Processors, error) {
 			return nil, err
 		}
 
-		procs.add(plugin)
+		procs.AddProcessor(plugin)
 	}
 
 	if len(procs.List) > 0 {
@@ -95,8 +122,25 @@ func New(config PluginConfig) (*Processors, error) {
 	return procs, nil
 }
 
-func (procs *Processors) add(p Processor) {
+// AddProcessor adds a single Processor to Processors
+func (procs *Processors) AddProcessor(p Processor) {
 	procs.List = append(procs.List, p)
+}
+
+// AddProcessors adds more Processors to Processors
+func (procs *Processors) AddProcessors(p Processors) {
+	// Subtlety: it is important here that we append the individual elements of
+	// p, rather than p itself, even though
+	// p implements the processors.Processor interface. This is
+	// because the contents of what we return are later pulled out into a
+	// processing.group rather than a processors.Processors, and the two have
+	// different error semantics: processors.Processors aborts processing on
+	// any error, whereas processing.group only aborts on fatal errors. The
+	// latter is the most common behavior, and the one we are preserving here for
+	// backwards compatibility.
+	// We are unhappy about this and have plans to fix this inconsistency at a
+	// higher level, but for now we need to respect the existing semantics.
+	procs.List = append(procs.List, p.List...)
 }
 
 // RunBC (run backwards-compatible) applies the processors, by providing the
@@ -126,6 +170,17 @@ func (procs *Processors) All() []beat.Processor {
 		ret[i] = p
 	}
 	return ret
+}
+
+func (procs *Processors) Close() error {
+	var errs multierror.Errors
+	for _, p := range procs.List {
+		err := Close(p)
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errs.Err()
 }
 
 // Run executes the all processors serially and returns the event and possibly

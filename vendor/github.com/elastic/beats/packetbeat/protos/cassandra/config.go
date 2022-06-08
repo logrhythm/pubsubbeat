@@ -20,10 +20,10 @@ package cassandra
 import (
 	"fmt"
 
-	"github.com/elastic/beats/packetbeat/config"
-	"github.com/elastic/beats/packetbeat/protos"
+	"github.com/elastic/beats/v7/packetbeat/config"
+	"github.com/elastic/beats/v7/packetbeat/protos"
 
-	gocql "github.com/elastic/beats/packetbeat/protos/cassandra/internal/gocql"
+	gocql "github.com/elastic/beats/v7/packetbeat/protos/cassandra/internal/gocql"
 )
 
 type cassandraConfig struct {
@@ -34,20 +34,18 @@ type cassandraConfig struct {
 	OPsIgnored            []gocql.FrameOp `config:"ignored_ops"`
 }
 
-var (
-	defaultConfig = cassandraConfig{
-		ProtocolCommon: config.ProtocolCommon{
-			TransactionTimeout: protos.DefaultTransactionExpiration,
-			SendRequest:        true,
-			SendResponse:       true,
-		},
-		SendRequestHeader:  true,
-		SendResponseHeader: true,
-	}
-)
+var defaultConfig = cassandraConfig{
+	ProtocolCommon: config.ProtocolCommon{
+		TransactionTimeout: protos.DefaultTransactionExpiration,
+		SendRequest:        true,
+		SendResponse:       true,
+	},
+	SendRequestHeader:  true,
+	SendResponseHeader: true,
+}
 
 func (c *cassandraConfig) Validate() error {
-	if !(c.Compressor == "" || c.Compressor == "snappy") {
+	if c.Compressor != "" && c.Compressor != "snappy" {
 		return fmt.Errorf("invalid compressor config: %s, only snappy supported", c.Compressor)
 	}
 	return nil

@@ -20,10 +20,18 @@ package readjson
 // Config holds the options a JSON reader.
 type Config struct {
 	MessageKey          string `config:"message_key"`
+	DocumentID          string `config:"document_id"`
 	KeysUnderRoot       bool   `config:"keys_under_root"`
 	OverwriteKeys       bool   `config:"overwrite_keys"`
 	AddErrorKey         bool   `config:"add_error_key"`
 	IgnoreDecodingError bool   `config:"ignore_decoding_error"`
+	ExpandKeys          bool   `config:"expand_keys"`
+}
+
+type ParserConfig struct {
+	Config `config:",inline"`
+	Field  string `config:"field"`
+	Target string `config:"target"`
 }
 
 // Validate validates the Config option for JSON reader.

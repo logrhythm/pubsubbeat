@@ -24,9 +24,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/filebeat/inputsource"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/v7/filebeat/input/inputtest"
+	"github.com/elastic/beats/v7/filebeat/inputsource"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
 )
 
 func TestWhenPriorityIsSet(t *testing.T) {
@@ -110,11 +111,8 @@ func TestPid(t *testing.T) {
 		m := dummyMetadata()
 		event := createEvent(e, m, time.Local, logp.NewLogger("syslog"))
 
-		v, err := event.GetValue("process")
-		if !assert.NoError(t, err) {
-			return
-		}
-		assert.Equal(t, common.MapStr{}, v)
+		_, err := event.GetValue("process")
+		assert.Equal(t, common.ErrKeyNotFound, err)
 	})
 }
 
@@ -165,12 +163,8 @@ func TestProgram(t *testing.T) {
 		m := dummyMetadata()
 		event := createEvent(e, m, time.Local, logp.NewLogger("syslog"))
 
-		v, err := event.GetValue("process")
-		if !assert.NoError(t, err) {
-			return
-		}
-
-		assert.Equal(t, common.MapStr{}, v)
+		_, err := event.GetValue("process")
+		assert.Equal(t, common.ErrKeyNotFound, err)
 	})
 }
 
@@ -200,9 +194,157 @@ func TestSequence(t *testing.T) {
 	})
 }
 
+func TestParseAndCreateEvent3164(t *testing.T) {
+	cases := map[string]struct {
+		data     []byte
+		expected common.MapStr
+	}{
+		"valid data": {
+			data: []byte("<34>Oct 11 22:14:15 mymachine su[230]: 'su root' failed for lonvick on /dev/pts/8"),
+			expected: common.MapStr{
+				"event":    common.MapStr{"severity": 2},
+				"hostname": "mymachine",
+				"log": common.MapStr{
+					"source": common.MapStr{
+						"address": "127.0.0.1",
+					},
+				},
+				"message": "'su root' failed for lonvick on /dev/pts/8",
+				"process": common.MapStr{"pid": 230, "program": "su"},
+				"syslog": common.MapStr{
+					"facility":       4,
+					"facility_label": "security/authorization",
+					"priority":       34,
+					"severity_label": "Critical",
+				},
+			},
+		},
+
+		"invalid data": {
+			data: []byte("invalid"),
+			expected: common.MapStr{
+				"log": common.MapStr{
+					"source": common.MapStr{
+						"address": "127.0.0.1",
+					},
+				},
+				"message": "invalid",
+			},
+		},
+	}
+
+	tz := time.Local
+	log := logp.NewLogger("syslog")
+	metadata := dummyMetadata()
+
+	for title, c := range cases {
+		t.Run(title, func(t *testing.T) {
+			event := parseAndCreateEvent3164(c.data, metadata, tz, log)
+			assert.Equal(t, c.expected, event.Fields)
+			assert.Equal(t, metadata.Truncated, event.Meta["truncated"])
+		})
+	}
+}
+
+func TestNewInputDone(t *testing.T) {
+	config := common.MapStr{
+		"protocol.tcp.host": "localhost:9000",
+	}
+	inputtest.AssertNotStartedInputCanBeDone(t, NewInput, &config)
+}
+
 func dummyMetadata() inputsource.NetworkMetadata {
 	ip := "127.0.0.1"
 	parsedIP := net.ParseIP(ip)
 	addr := &net.IPAddr{IP: parsedIP, Zone: ""}
 	return inputsource.NetworkMetadata{RemoteAddr: addr}
+}
+
+func TestParseAndCreateEvent5424(t *testing.T) {
+	cases := map[string]struct {
+		data     []byte
+		expected common.MapStr
+	}{
+		"valid data": {
+			data: []byte(RfcDoc65Example1),
+			expected: common.MapStr{
+				"event":    common.MapStr{"severity": 2},
+				"hostname": "mymachine.example.com",
+				"log": common.MapStr{
+					"source": common.MapStr{
+						"address": "127.0.0.1",
+					},
+				},
+				"process": common.MapStr{
+					"name":      "su",
+					"entity_id": "-",
+				},
+				"message": "'su root' failed for lonvick on /dev/pts/8",
+				"syslog": common.MapStr{
+					"facility":       4,
+					"facility_label": "security/authorization",
+					"priority":       34,
+					"severity_label": "Critical",
+					"msgid":          "ID47",
+					"version":        1,
+				},
+			},
+		},
+		"valid data2": {
+			data: []byte(RfcDoc65Example3),
+			expected: common.MapStr{
+				"event":    common.MapStr{"severity": 5},
+				"hostname": "mymachine.example.com",
+				"log": common.MapStr{
+					"source": common.MapStr{
+						"address": "127.0.0.1",
+					},
+				},
+				"process": common.MapStr{
+					"name":      "evntslog",
+					"entity_id": "-",
+				},
+				"message": "An application event log entry...",
+				"syslog": common.MapStr{
+					"facility":       20,
+					"facility_label": "local4",
+					"priority":       165,
+					"severity_label": "Notice",
+					"msgid":          "ID47",
+					"version":        1,
+					"data": EventData{
+						"exampleSDID@32473": {
+							"eventID":     "1011",
+							"eventSource": "Application",
+							"iut":         "3",
+						},
+					},
+				},
+			},
+		},
+
+		"invalid data": {
+			data: []byte("<34>Oct 11 22:14:15 mymachine su[230]: 'su root' failed for lonvick on /dev/pts/8"),
+			expected: common.MapStr{
+				"log": common.MapStr{
+					"source": common.MapStr{
+						"address": "127.0.0.1",
+					},
+				},
+				"message": "<34>Oct 11 22:14:15 mymachine su[230]: 'su root' failed for lonvick on /dev/pts/8",
+			},
+		},
+	}
+
+	tz := time.Local
+	log := logp.NewLogger("syslog")
+	metadata := dummyMetadata()
+
+	for title, c := range cases {
+		t.Run(title, func(t *testing.T) {
+			event := parseAndCreateEvent5424(c.data, metadata, tz, log)
+			assert.Equal(t, c.expected, event.Fields)
+			assert.Equal(t, metadata.Truncated, event.Meta["truncated"])
+		})
+	}
 }

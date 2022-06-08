@@ -20,8 +20,8 @@ package kafka
 import (
 	"crypto/tls"
 
-	"github.com/elastic/beats/libbeat/common/transport/tlscommon"
-	"github.com/elastic/beats/metricbeat/mb"
+	"github.com/elastic/beats/v7/libbeat/common/transport/tlscommon"
+	"github.com/elastic/beats/v7/metricbeat/mb"
 )
 
 // MetricSet is the base metricset for all Kafka metricsets
@@ -49,7 +49,7 @@ func NewMetricSet(base mb.BaseMetricSet, options MetricSetOptions) (*MetricSet, 
 
 	var tls *tls.Config
 	if tlsCfg != nil {
-		tls = tlsCfg.BuildModuleConfig("")
+		tls = tlsCfg.BuildModuleClientConfig("")
 	}
 
 	timeout := base.Module().Config().Timeout
@@ -64,6 +64,7 @@ func NewMetricSet(base mb.BaseMetricSet, options MetricSetOptions) (*MetricSet, 
 		Username:    config.Username,
 		Password:    config.Password,
 		Version:     Version(options.Version),
+		Sasl:        config.Sasl,
 	}
 
 	return &MetricSet{

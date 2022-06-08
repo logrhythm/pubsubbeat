@@ -20,11 +20,11 @@ package udp
 import (
 	"fmt"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
 
-	"github.com/elastic/beats/packetbeat/flows"
-	"github.com/elastic/beats/packetbeat/protos"
+	"github.com/elastic/beats/v7/packetbeat/flows"
+	"github.com/elastic/beats/v7/packetbeat/protos"
 )
 
 type UDP struct {
@@ -81,7 +81,7 @@ func (udp *UDP) Process(id *flows.FlowID, pkt *protos.Packet) {
 // any two UdpProtocolPlugins operate on the same port number then an error
 // will be returned.
 func buildPortsMap(plugins map[protos.Protocol]protos.UDPPlugin) (map[uint16]protos.Protocol, error) {
-	var res = map[uint16]protos.Protocol{}
+	res := map[uint16]protos.Protocol{}
 
 	for proto, protoPlugin := range plugins {
 		for _, port := range protoPlugin.GetPorts() {
@@ -100,7 +100,7 @@ func buildPortsMap(plugins map[protos.Protocol]protos.UDPPlugin) (map[uint16]pro
 	return res, nil
 }
 
-// NewUdp creates and returns a new Udp.
+// NewUDP creates and returns a new UDP.
 func NewUDP(p protos.Protocols) (*UDP, error) {
 	portMap, err := buildPortsMap(p.GetAllUDP())
 	if err != nil {

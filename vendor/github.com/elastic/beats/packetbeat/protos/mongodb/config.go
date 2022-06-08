@@ -18,8 +18,8 @@
 package mongodb
 
 import (
-	"github.com/elastic/beats/packetbeat/config"
-	"github.com/elastic/beats/packetbeat/protos"
+	"github.com/elastic/beats/v7/packetbeat/config"
+	"github.com/elastic/beats/v7/packetbeat/protos"
 )
 
 type mongodbConfig struct {
@@ -28,12 +28,10 @@ type mongodbConfig struct {
 	MaxDocs               int `config:"max_docs"`
 }
 
-var (
-	defaultConfig = mongodbConfig{
-		ProtocolCommon: config.ProtocolCommon{
-			TransactionTimeout: protos.DefaultTransactionExpiration,
-		},
-		MaxDocLength: 5000,
-		MaxDocs:      10,
-	}
-)
+var defaultConfig = mongodbConfig{
+	ProtocolCommon: config.ProtocolCommon{
+		TransactionTimeout: protos.DefaultTransactionExpiration,
+	},
+	MaxDocLength: 5000,
+	MaxDocs:      10,
+}

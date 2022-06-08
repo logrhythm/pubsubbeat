@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build mage
 // +build mage
 
 package main
@@ -23,50 +24,49 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"regexp"
 	"strconv"
 	"time"
 
 	"github.com/magefile/mage/mg"
-	"github.com/magefile/mage/sh"
-	"github.com/pkg/errors"
 
-	"github.com/elastic/beats/dev-tools/mage"
+	devtools "github.com/elastic/beats/v7/dev-tools/mage"
+	metricbeat "github.com/elastic/beats/v7/metricbeat/scripts/mage"
+
+	// register kubernetes runner
+	_ "github.com/elastic/beats/v7/dev-tools/mage/kubernetes"
+
+	// mage:import
+	"github.com/elastic/beats/v7/dev-tools/mage/target/build"
+	// mage:import
+	"github.com/elastic/beats/v7/dev-tools/mage/target/common"
+	// mage:import
+	_ "github.com/elastic/beats/v7/dev-tools/mage/target/dashboards"
+	// mage:import
+	_ "github.com/elastic/beats/v7/dev-tools/mage/target/docs"
+	// mage:import
+	_ "github.com/elastic/beats/v7/dev-tools/mage/target/pkg"
+	// mage:import
+	"github.com/elastic/beats/v7/dev-tools/mage/target/test"
+	// mage:import
+	"github.com/elastic/beats/v7/dev-tools/mage/target/unittest"
+	// mage:import
+	_ "github.com/elastic/beats/v7/dev-tools/mage/target/compose"
+	// mage:import
+	_ "github.com/elastic/beats/v7/metricbeat/scripts/mage/target/metricset"
 )
 
 func init() {
-	mage.BeatDescription = "Metricbeat is a lightweight shipper for metrics."
+	common.RegisterCheckDeps(Update)
+	test.RegisterDeps(IntegTest)
+	unittest.RegisterGoTestDeps(Fields)
+	unittest.RegisterPythonTestDeps(Fields)
+
+	devtools.BeatDescription = "Metricbeat is a lightweight shipper for metrics."
 }
 
-// Build builds the Beat binary.
-func Build() error {
-	return mage.Build(mage.DefaultBuildArgs())
-}
-
-// GolangCrossBuild build the Beat binary inside of the golang-builder.
-// Do not use directly, use crossBuild instead.
-func GolangCrossBuild() error {
-	return mage.GolangCrossBuild(mage.DefaultGolangCrossBuildArgs())
-}
-
-// BuildGoDaemon builds the go-daemon binary (use crossBuildGoDaemon).
-func BuildGoDaemon() error {
-	return mage.BuildGoDaemon()
-}
-
-// CrossBuild cross-builds the beat for all target platforms.
-func CrossBuild() error {
-	return mage.CrossBuild()
-}
-
-// CrossBuildGoDaemon cross-builds the go-daemon binary using Docker.
-func CrossBuildGoDaemon() error {
-	return mage.CrossBuildGoDaemon()
-}
-
-// Clean cleans all generated files and build artifacts.
-func Clean() error {
-	return mage.Clean()
+// CollectAll generates the docs and the fields.
+func CollectAll() {
+	mg.Deps(CollectDocs, FieldsDocs)
 }
 
 // Package packages the Beat for distribution.
@@ -77,153 +77,152 @@ func Package() {
 	start := time.Now()
 	defer func() { fmt.Println("package ran for", time.Since(start)) }()
 
-	mage.UseElasticBeatOSSPackaging()
-	customizePackaging()
+	devtools.UseElasticBeatOSSPackaging()
+	metricbeat.CustomizePackaging()
+	devtools.PackageKibanaDashboardsFromBuildDir()
 
 	mg.Deps(Update)
-	mg.Deps(CrossBuild, CrossBuildGoDaemon)
-	mg.SerialDeps(mage.Package, TestPackages)
+	mg.Deps(build.CrossBuild, build.CrossBuildGoDaemon)
+	mg.SerialDeps(devtools.Package, TestPackages)
 }
 
 // TestPackages tests the generated packages (i.e. file modes, owners, groups).
 func TestPackages() error {
-	return mage.TestPackages(mage.WithModulesD())
+	return devtools.TestPackages(
+		devtools.WithModulesD(),
+		devtools.WithModules(),
+
+		// To be increased or removed when more light modules are added
+		devtools.MinModules(1),
+	)
 }
 
-// Update updates the generated files (aka make update).
-func Update() error {
-	return sh.Run("make", "update")
+// Dashboards collects all the dashboards and generates index patterns.
+func Dashboards() error {
+	return devtools.KibanaDashboards("module")
+}
+
+// Config generates both the short and reference configs.
+func Config() {
+	mg.Deps(configYML, metricbeat.GenerateDirModulesD)
+}
+
+func configYML() error {
+	return devtools.Config(devtools.AllConfigTypes, metricbeat.OSSConfigFileParams(), ".")
 }
 
 // MockedTests runs the HTTP tests using the mocked data inside each {module}/{metricset}/testdata folder.
 // Use MODULE={module_name} to run only mocked tests with a single module.
 // Use GENERATE=true or GENERATE=1 to regenerate JSON files.
 func MockedTests(ctx context.Context) error {
-	params := mage.DefaultGoTestUnitArgs()
+	params := devtools.DefaultGoTestUnitArgs()
 
-	params.ExtraFlags = []string{"github.com/elastic/beats/metricbeat/mb/testing/data/."}
+	params.ExtraFlags = []string{"github.com/elastic/beats/v7/metricbeat/mb/testing/data/."}
 
 	if module := os.Getenv("MODULE"); module != "" {
 		params.ExtraFlags = append(params.ExtraFlags, "-module="+module)
 	}
 
 	if generate, _ := strconv.ParseBool(os.Getenv("GENERATE")); generate {
-		params.ExtraFlags = append(params.ExtraFlags, "-generate")
+		params.ExtraFlags = append(params.ExtraFlags, "-data")
 	}
 
 	params.Packages = nil
 
-	return mage.GoTest(ctx, params)
+	return devtools.GoTest(ctx, params)
 }
 
-// Fields generates a fields.yml for the Beat.
-func Fields() error {
-	return mage.GenerateFieldsYAML("module")
+// Fields generates a fields.yml and fields.go for each module.
+func Fields() {
+	mg.Deps(libbeatAndMetricbeatCommonFieldsGo, moduleFieldsGo)
+	mg.Deps(fieldsYML)
 }
 
-// GoTestUnit executes the Go unit tests.
-// Use TEST_COVERAGE=true to enable code coverage profiling.
-// Use RACE_DETECTOR=true to enable the race detector.
-func GoTestUnit(ctx context.Context) error {
-	return mage.GoTest(ctx, mage.DefaultGoTestUnitArgs())
+// libbeatAndMetricbeatCommonFieldsGo generates a fields.go containing both
+// libbeat and metricbeat's common fields.
+func libbeatAndMetricbeatCommonFieldsGo() error {
+	if err := devtools.GenerateFieldsYAML(); err != nil {
+		return err
+	}
+	return devtools.GenerateMetricbeatAllInOneFieldsGo()
 }
 
-// GoTestIntegration executes the Go integration tests.
-// Use TEST_COVERAGE=true to enable code coverage profiling.
-// Use RACE_DETECTOR=true to enable the race detector.
-func GoTestIntegration(ctx context.Context) error {
-	return mage.GoTest(ctx, mage.DefaultGoTestIntegrationArgs())
+func fieldsYML() error {
+	return devtools.GenerateFieldsYAML("module")
 }
 
-// ExportDashboard exports a dashboard and writes it into the correct directory
-//
-// Required ENV variables:
-// * MODULE: Name of the module
-// * ID: Dashboard id
-func ExportDashboard() error {
-	return mage.ExportDashboard()
+func moduleFieldsGo() error {
+	return devtools.GenerateModuleFieldsGo("module")
+}
+
+// Update is an alias for running fields, dashboards, config.
+func Update() {
+	mg.SerialDeps(
+		Fields, Dashboards, Config, CollectAll,
+		metricbeat.PrepareModulePackagingOSS,
+		metricbeat.GenerateOSSMetricbeatModuleIncludeListGo)
 }
 
 // FieldsDocs generates docs/fields.asciidoc containing all fields
 // (including x-pack).
 func FieldsDocs() error {
 	inputs := []string{
-		mage.OSSBeatDir("module"),
-		mage.XPackBeatDir("module"),
+		devtools.OSSBeatDir("module"),
+		devtools.XPackBeatDir("module"),
 	}
-	output := mage.CreateDir("build/fields/fields.all.yml")
-	if err := mage.GenerateFieldsYAMLTo(output, inputs...); err != nil {
+	output := devtools.CreateDir("build/fields/fields.all.yml")
+	if err := devtools.GenerateFieldsYAMLTo(output, inputs...); err != nil {
 		return err
 	}
-	return mage.Docs.FieldDocs(output)
+	return devtools.Docs.FieldDocs(output)
 }
 
-// -----------------------------------------------------------------------------
-// Customizations specific to Metricbeat.
-// - Include modules.d directory in packages.
-// - Disable system/load metricset for Windows.
+// CollectDocs creates the documentation under docs/
+func CollectDocs() error {
+	return metricbeat.CollectDocs()
+}
 
-// customizePackaging modifies the package specs to add the modules.d directory.
-// And for Windows it comments out the system/load metricset because it's
-// not supported.
-func customizePackaging() {
-	var (
-		archiveModulesDir = "modules.d"
-		unixModulesDir    = "/etc/{{.BeatName}}/modules.d"
+// ExportDashboard exports a dashboard and writes it into the correct directory.
+//
+// Required environment variables:
+// - MODULE: Name of the module
+// - ID:     Dashboard id
+func ExportDashboard() error {
+	return devtools.ExportDashboard()
+}
 
-		modulesDir = mage.PackageFile{
-			Mode:    0644,
-			Source:  "modules.d",
-			Config:  true,
-			Modules: true,
-		}
-		windowsModulesDir = mage.PackageFile{
-			Mode:    0644,
-			Source:  "{{.PackageDir}}/modules.d",
-			Config:  true,
-			Modules: true,
-			Dep: func(spec mage.PackageSpec) error {
-				if err := mage.Copy("modules.d", spec.MustExpand("{{.PackageDir}}/modules.d")); err != nil {
-					return errors.Wrap(err, "failed to copy modules.d dir")
-				}
+// IntegTest executes integration tests (it uses Docker to run the tests).
+func IntegTest() {
+	mg.SerialDeps(GoIntegTest, PythonIntegTest)
+}
 
-				return mage.FindReplace(
-					spec.MustExpand("{{.PackageDir}}/modules.d/system.yml"),
-					regexp.MustCompile(`- load`), `#- load`)
-			},
-		}
-		windowsReferenceConfig = mage.PackageFile{
-			Mode:   0644,
-			Source: "{{.PackageDir}}/metricbeat.reference.yml",
-			Dep: func(spec mage.PackageSpec) error {
-				err := mage.Copy("metricbeat.reference.yml",
-					spec.MustExpand("{{.PackageDir}}/metricbeat.reference.yml"))
-				if err != nil {
-					return errors.Wrap(err, "failed to copy reference config")
-				}
-
-				return mage.FindReplace(
-					spec.MustExpand("{{.PackageDir}}/metricbeat.reference.yml"),
-					regexp.MustCompile(`- load`), `#- load`)
-			},
-		}
-	)
-
-	for _, args := range mage.Packages {
-		switch args.OS {
-		case "windows":
-			args.Spec.Files[archiveModulesDir] = windowsModulesDir
-			args.Spec.ReplaceFile("{{.BeatName}}.reference.yml", windowsReferenceConfig)
-		default:
-			pkgType := args.Types[0]
-			switch pkgType {
-			case mage.TarGz, mage.Zip, mage.Docker:
-				args.Spec.Files[archiveModulesDir] = modulesDir
-			case mage.Deb, mage.RPM, mage.DMG:
-				args.Spec.Files[unixModulesDir] = modulesDir
-			default:
-				panic(errors.Errorf("unhandled package type: %v", pkgType))
-			}
-		}
+// GoIntegTest executes the Go integration tests.
+// Use TEST_COVERAGE=true to enable code coverage profiling.
+// Use RACE_DETECTOR=true to enable the race detector.
+// Use TEST_TAGS=tag1,tag2 to add additional build tags.
+// Use MODULE=module to run only tests for `module`.
+func GoIntegTest(ctx context.Context) error {
+	if !devtools.IsInIntegTestEnv() {
+		mg.SerialDeps(Fields, Dashboards)
 	}
+	return devtools.GoTestIntegrationForModule(ctx)
+}
+
+// PythonIntegTest executes the python system tests in the integration
+// environment (Docker).
+// Use MODULE=module to run only tests for `module`.
+// Use PYTEST_ADDOPTS="-k pattern" to only run tests matching the specified pattern.
+// Use any other PYTEST_* environment variable to influence the behavior of pytest.
+func PythonIntegTest(ctx context.Context) error {
+	if !devtools.IsInIntegTestEnv() {
+		mg.SerialDeps(Fields, Dashboards)
+	}
+	runner, err := devtools.NewDockerIntegrationRunner(devtools.ListMatchingEnvVars("PYTEST_")...)
+	if err != nil {
+		return err
+	}
+	return runner.Test("pythonIntegTest", func() error {
+		mg.Deps(devtools.BuildSystemTestBinary)
+		return devtools.PythonTestForModule(devtools.DefaultPythonTestIntegrationArgs())
+	})
 }

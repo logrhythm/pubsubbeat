@@ -18,8 +18,11 @@
 package beat
 
 import (
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/management"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common/reload"
+	"github.com/elastic/beats/v7/libbeat/instrumentation"
+	"github.com/elastic/beats/v7/libbeat/keystore"
+	"github.com/elastic/beats/v7/libbeat/management"
 )
 
 // Creator initializes and configures a new Beater instance used to execute
@@ -53,8 +56,7 @@ type Beat struct {
 	Info      Info     // beat metadata.
 	Publisher Pipeline // Publisher pipeline
 
-	SetupMLCallback SetupMLCallback // setup callback for ML job configs
-	InSetupCmd      bool            // this is set to true when the `setup` command is called
+	InSetupCmd bool // this is set to true when the `setup` command is called
 
 	OverwritePipelinesCallback OverwritePipelinesCallback // ingest pipeline loader callback
 	// XXX: remove Config from public interface.
@@ -62,11 +64,21 @@ type Beat struct {
 	//      pipeline and ML jobs.
 	Config *BeatConfig // Common Beat configuration data.
 
+	// OutputConfigReloader may be set by a Creator to watch for output config changes.
+	//
+	// This reloader is called in addition to libbeat's internal output reloader, which
+	// is responsible for reconfiguring Publisher.
+	OutputConfigReloader reload.Reloadable
+
 	BeatConfig *common.Config // The beat's own configuration section
 
 	Fields []byte // Data from fields.yml
 
-	ConfigManager management.ConfigManager // config manager
+	Manager management.Manager // manager
+
+	Keystore keystore.Keystore
+
+	Instrumentation instrumentation.Instrumentation // instrumentation holds an APM agent for capturing and reporting traces
 }
 
 // BeatConfig struct contains the basic configuration of every beat
@@ -74,10 +86,6 @@ type BeatConfig struct {
 	// output/publishing related configurations
 	Output common.ConfigNamespace `config:"output"`
 }
-
-// SetupMLCallback can be used by the Beat to register MachineLearning configurations
-// for the enabled modules.
-type SetupMLCallback func(*Beat, *common.Config) error
 
 // OverwritePipelinesCallback can be used by the Beat to register Ingest pipeline loader
 // for the enabled modules.

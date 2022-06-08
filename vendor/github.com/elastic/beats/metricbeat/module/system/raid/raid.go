@@ -18,16 +18,13 @@
 package raid
 
 import (
-	"path/filepath"
-
 	"github.com/pkg/errors"
-	"github.com/prometheus/procfs"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/mb/parse"
-	"github.com/elastic/beats/metricbeat/module/system"
-	"github.com/elastic/beats/metricbeat/module/system/raid/blockinfo"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/metric/system/resolve"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/parse"
+	"github.com/elastic/beats/v7/metricbeat/module/system/raid/blockinfo"
 )
 
 func init() {
@@ -39,42 +36,17 @@ func init() {
 // MetricSet contains proc fs data.
 type MetricSet struct {
 	mb.BaseMetricSet
-	fs       procfs.FS
-	sysblock string
+	mod resolve.Resolver
 }
 
 // New creates a new instance of the raid metricset.
 func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
-	systemModule, ok := base.Module().(*system.Module)
-	if !ok {
-		return nil, errors.New("unexpected module type")
-	}
 
-	// Additional configuration options
-	config := struct {
-		MountPoint string `config:"raid.mount_point"`
-	}{}
-
-	if err := base.Module().UnpackConfig(&config); err != nil {
-		return nil, err
-	}
-
-	if config.MountPoint == "" {
-		config.MountPoint = systemModule.HostFS
-	}
-
-	mountPoint := filepath.Join(config.MountPoint, procfs.DefaultMountPoint)
-	fs, err := procfs.NewFS(mountPoint)
-	if err != nil {
-		return nil, err
-	}
-
-	sysMountPoint := filepath.Join(config.MountPoint, "/sys/block")
-
+	sys := base.Module().(resolve.Resolver)
 	return &MetricSet{
 		BaseMetricSet: base,
-		fs:            fs,
-		sysblock:      sysMountPoint,
+
+		mod: sys,
 	}, nil
 }
 
@@ -87,11 +59,10 @@ func blockto1024(b int64) int64 {
 }
 
 // Fetch fetches one event for each device
-func (m *MetricSet) Fetch(r mb.ReporterV2) {
-	devices, err := blockinfo.ListAll(m.sysblock)
+func (m *MetricSet) Fetch(r mb.ReporterV2) error {
+	devices, err := blockinfo.ListAll(m.mod.ResolveHostFS("/sys/block"))
 	if err != nil {
-		r.Error(errors.Wrap(err, "failed to parse sysfs"))
-		return
+		return errors.Wrap(err, "failed to parse sysfs")
 	}
 
 	for _, blockDev := range devices {
@@ -125,8 +96,13 @@ func (m *MetricSet) Fetch(r mb.ReporterV2) {
 			event["sync_action"] = blockDev.SyncAction
 		}
 
-		r.Event(mb.Event{
+		isOpen := r.Event(mb.Event{
 			MetricSetFields: event,
 		})
+		if !isOpen {
+			return nil
+		}
 	}
+
+	return nil
 }

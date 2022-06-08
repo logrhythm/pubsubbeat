@@ -44,9 +44,9 @@ ZooKeeper mntr Command Output
 package mntr
 
 import (
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/mb/parse"
-	"github.com/elastic/beats/metricbeat/module/zookeeper"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/parse"
+	"github.com/elastic/beats/v7/metricbeat/module/zookeeper"
 
 	"github.com/pkg/errors"
 )
@@ -77,6 +77,12 @@ func (m *MetricSet) Fetch(r mb.ReporterV2) error {
 	if err != nil {
 		return errors.Wrap(err, "mntr command failed")
 	}
-	eventMapping(outputReader, r, m.Logger())
+
+	serverID, err := zookeeper.ServerID(m.Host(), m.Module().Config().Timeout)
+	if err != nil {
+		return errors.Wrap(err, "error obtaining server id")
+	}
+
+	eventMapping(serverID, outputReader, r, m.Logger())
 	return nil
 }

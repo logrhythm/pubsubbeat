@@ -1,6 +1,8 @@
 ////
-This file is generated! See scripts/docs_collector.py
+This file is generated! See scripts/mage/docs_collector.go
 ////
+
+:modulename: couchbase
 
 [[metricbeat-module-couchbase]]
 == Couchbase module
@@ -11,7 +13,15 @@ servers. The default metricsets are `bucket`, `cluster`, `node`.
 [float]
 === Compatibility
 
-The Couchbase module is tested with Couchbase 4.5.1.
+The Couchbase module is tested with Couchbase 6.5.1.
+
+
+[float]
+=== Dashboard
+
+The Couchbase module comes with a predefined dashboard for Couchbase cluster, node, bucket specific stats. For example:
+
+image::./images/metricbeat-couchbase-overview.png[]
 
 
 [float]

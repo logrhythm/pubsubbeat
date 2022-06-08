@@ -24,29 +24,31 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/common/fmtstr"
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common/fmtstr"
+	"github.com/elastic/beats/v7/libbeat/logp"
 )
 
 // SupportFactory is used to define a policy type to be used.
 type SupportFactory func(*logp.Logger, beat.Info, *common.Config) (Supporter, error)
 
-// Supporter implements ILM support. For loading the policies and creating
-// write alias a manager instance must be generated.
+// Supporter implements ILM support. For loading the policies
+// a manager instance must be generated.
 type Supporter interface {
-	Mode() Mode
-	Alias() Alias
+	// Query settings
+	Enabled() bool
 	Policy() Policy
+	Overwrite() bool
+
+	// Manager creates a new Manager instance for checking and installing
+	// resources.
 	Manager(h ClientHandler) Manager
 }
 
 // Manager uses a ClientHandler to install a policy.
 type Manager interface {
-	Enabled() (bool, error)
-
-	EnsureAlias() error
+	CheckEnabled() (bool, error)
 
 	// EnsurePolicy installs a policy if it does not exist. The policy is always
 	// written if overwrite is set.
@@ -62,12 +64,6 @@ type Policy struct {
 	Body common.MapStr
 }
 
-// Alias describes the alias to be created in Elasticsearch.
-type Alias struct {
-	Name    string
-	Pattern string
-}
-
 // DefaultSupport configures a new default ILM support implementation.
 func DefaultSupport(log *logp.Logger, info beat.Info, config *common.Config) (Supporter, error) {
 	cfg := defaultConfig(info)
@@ -77,7 +73,7 @@ func DefaultSupport(log *logp.Logger, info beat.Info, config *common.Config) (Su
 		}
 	}
 
-	if cfg.Mode == ModeDisabled {
+	if !cfg.Enabled {
 		return NewNoopSupport(info, config)
 	}
 
@@ -104,11 +100,6 @@ func StdSupport(log *logp.Logger, info beat.Info, config *common.Config) (Suppor
 		return nil, errors.Wrap(err, "failed to read ilm policy name")
 	}
 
-	alias := Alias{
-		Name:    cfg.RolloverAlias,
-		Pattern: cfg.Pattern,
-	}
-
 	policy := Policy{
 		Name: name,
 		Body: DefaultPolicy,
@@ -127,7 +118,7 @@ func StdSupport(log *logp.Logger, info beat.Info, config *common.Config) (Suppor
 		policy.Body = body
 	}
 
-	return NewStdSupport(log, cfg.Mode, alias, policy, cfg.Overwrite, cfg.CheckExists), nil
+	return NewStdSupport(log, cfg.Enabled, policy, cfg.Overwrite, cfg.CheckExists), nil
 }
 
 // NoopSupport configures a new noop ILM support implementation,
@@ -137,23 +128,9 @@ func NoopSupport(_ *logp.Logger, info beat.Info, config *common.Config) (Support
 }
 
 func applyStaticFmtstr(info beat.Info, fmt *fmtstr.EventFormatString) (string, error) {
-	return fmt.Run(&beat.Event{
-		Fields: common.MapStr{
-			// beat object was left in for backward compatibility reason for older configs.
-			"beat": common.MapStr{
-				"name":    info.Beat,
-				"version": info.Version,
-			},
-			"agent": common.MapStr{
-				"name":    info.Beat,
-				"version": info.Version,
-			},
-			// For the Beats that have an observer role
-			"observer": common.MapStr{
-				"name":    info.Beat,
-				"version": info.Version,
-			},
-		},
-		Timestamp: time.Now(),
-	})
+	return fmt.Run(
+		&beat.Event{
+			Fields:    fmtstr.FieldsForBeat(info.Beat, info.Version),
+			Timestamp: time.Now(),
+		})
 }

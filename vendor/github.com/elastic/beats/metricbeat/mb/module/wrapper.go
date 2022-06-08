@@ -18,17 +18,18 @@
 package module
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"sync"
 	"time"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/libbeat/monitoring"
-	"github.com/elastic/beats/libbeat/testing"
-	"github.com/elastic/beats/metricbeat/mb"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/monitoring"
+	"github.com/elastic/beats/v7/libbeat/testing"
+	"github.com/elastic/beats/v7/metricbeat/mb"
 )
 
 // Expvar metric names.
@@ -64,6 +65,8 @@ type metricSetWrapper struct {
 	mb.MetricSet
 	module *Wrapper // Parent Module.
 	stats  *stats   // stats for this MetricSet.
+
+	periodic bool // Set to true if this metricset is a periodic fetcher
 }
 
 // stats bundles common metricset stats.
@@ -75,30 +78,37 @@ type stats struct {
 	events   *monitoring.Int // Total events published.
 }
 
-// NewWrapper create a new Module and its associated MetricSets based
-// on the given configuration.
+// NewWrapper creates a new module and its associated metricsets based on the given configuration.
 func NewWrapper(config *common.Config, r *mb.Register, options ...Option) (*Wrapper, error) {
-	module, metricsets, err := mb.NewModule(config, r)
+	module, metricSets, err := mb.NewModule(config, r)
 	if err != nil {
 		return nil, err
 	}
+	return createWrapper(module, metricSets, options...)
+}
 
+// NewWrapperForMetricSet creates a wrapper for the selected module and metricset.
+func NewWrapperForMetricSet(module mb.Module, metricSet mb.MetricSet, options ...Option) (*Wrapper, error) {
+	return createWrapper(module, []mb.MetricSet{metricSet}, options...)
+}
+
+func createWrapper(module mb.Module, metricSets []mb.MetricSet, options ...Option) (*Wrapper, error) {
 	wrapper := &Wrapper{
 		Module:     module,
-		metricSets: make([]*metricSetWrapper, len(metricsets)),
+		metricSets: make([]*metricSetWrapper, len(metricSets)),
 	}
+
 	for _, applyOption := range options {
 		applyOption(wrapper)
 	}
 
-	for i, ms := range metricsets {
+	for i, metricSet := range metricSets {
 		wrapper.metricSets[i] = &metricSetWrapper{
-			MetricSet: ms,
+			MetricSet: metricSet,
 			module:    wrapper,
-			stats:     getMetricSetStats(wrapper.Name(), ms.Name()),
+			stats:     getMetricSetStats(wrapper.Name(), metricSet.Name()),
 		}
 	}
-
 	return wrapper, nil
 }
 
@@ -132,7 +142,7 @@ func (mw *Wrapper) Start(done <-chan struct{}) <-chan beat.Event {
 			defer msw.close()
 
 			registry.Add(metricsPath, msw.Metrics(), monitoring.Full)
-			monitoring.NewString(msw.Metrics(), "starttime").Set(common.Time{}.String())
+			monitoring.NewString(msw.Metrics(), "starttime").Set(common.Time(time.Now()).String())
 
 			msw.run(done, out)
 		}(msw)
@@ -191,9 +201,10 @@ func (msw *metricSetWrapper) run(done <-chan struct{}, out chan<- beat.Event) {
 		ms.Run(reporter.V1())
 	case mb.PushMetricSetV2:
 		ms.Run(reporter.V2())
-	case mb.EventFetcher, mb.EventsFetcher,
-		mb.ReportingMetricSet, mb.ReportingMetricSetV2, mb.ReportingMetricSetV2Error:
-		msw.startPeriodicFetching(reporter)
+	case mb.PushMetricSetV2WithContext:
+		ms.Run(&channelContext{done}, reporter.V2())
+	case mb.ReportingMetricSet, mb.ReportingMetricSetV2, mb.ReportingMetricSetV2Error, mb.ReportingMetricSetV2WithContext:
+		msw.startPeriodicFetching(&channelContext{done}, reporter)
 	default:
 		// Earlier startup stages prevent this from happening.
 		logp.Err("MetricSet '%s/%s' does not implement an event producing interface",
@@ -204,9 +215,12 @@ func (msw *metricSetWrapper) run(done <-chan struct{}, out chan<- beat.Event) {
 // startPeriodicFetching performs an immediate fetch for the MetricSet then it
 // begins a continuous timer scheduled loop to fetch data. To stop the loop the
 // done channel should be closed.
-func (msw *metricSetWrapper) startPeriodicFetching(reporter reporter) {
+func (msw *metricSetWrapper) startPeriodicFetching(ctx context.Context, reporter reporter) {
+	// Indicate that it has been started as periodic fetcher
+	msw.periodic = true
+
 	// Fetch immediately.
-	msw.fetch(reporter)
+	msw.fetch(ctx, reporter)
 
 	// Start timer for future fetches.
 	t := time.NewTicker(msw.Module().Config().Period)
@@ -216,7 +230,7 @@ func (msw *metricSetWrapper) startPeriodicFetching(reporter reporter) {
 		case <-reporter.V2().Done():
 			return
 		case <-t.C:
-			msw.fetch(reporter)
+			msw.fetch(ctx, reporter)
 		}
 	}
 }
@@ -224,12 +238,8 @@ func (msw *metricSetWrapper) startPeriodicFetching(reporter reporter) {
 // fetch invokes the appropriate Fetch method for the MetricSet and publishes
 // the result using the publisher client. This method will recover from panics
 // and log a stack track if one occurs.
-func (msw *metricSetWrapper) fetch(reporter reporter) {
+func (msw *metricSetWrapper) fetch(ctx context.Context, reporter reporter) {
 	switch fetcher := msw.MetricSet.(type) {
-	case mb.EventFetcher:
-		msw.singleEventFetch(fetcher, reporter)
-	case mb.EventsFetcher:
-		msw.multiEventFetch(fetcher, reporter)
 	case mb.ReportingMetricSet:
 		reporter.StartFetchTimer()
 		fetcher.Fetch(reporter.V1())
@@ -241,28 +251,17 @@ func (msw *metricSetWrapper) fetch(reporter reporter) {
 		err := fetcher.Fetch(reporter.V2())
 		if err != nil {
 			reporter.V2().Error(err)
-			logp.Info("Error fetching data for metricset %s.%s: %s", msw.module.Name(), msw.Name(), err)
+			logp.Err("Error fetching data for metricset %s.%s: %s", msw.module.Name(), msw.Name(), err)
+		}
+	case mb.ReportingMetricSetV2WithContext:
+		reporter.StartFetchTimer()
+		err := fetcher.Fetch(ctx, reporter.V2())
+		if err != nil {
+			reporter.V2().Error(err)
+			logp.Err("Error fetching data for metricset %s.%s: %s", msw.module.Name(), msw.Name(), err)
 		}
 	default:
 		panic(fmt.Sprintf("unexpected fetcher type for %v", msw))
-	}
-}
-
-func (msw *metricSetWrapper) singleEventFetch(fetcher mb.EventFetcher, reporter reporter) {
-	reporter.StartFetchTimer()
-	event, err := fetcher.Fetch()
-	reporter.V1().ErrorWith(err, event)
-}
-
-func (msw *metricSetWrapper) multiEventFetch(fetcher mb.EventsFetcher, reporter reporter) {
-	reporter.StartFetchTimer()
-	events, err := fetcher.Fetch()
-	if len(events) == 0 {
-		reporter.V1().ErrorWith(err, nil)
-	} else {
-		for _, event := range events {
-			reporter.V1().ErrorWith(err, event)
-		}
 	}
 }
 
@@ -313,6 +312,23 @@ func (r *eventReporter) V1() mb.PushReporter {
 }
 func (r *eventReporter) V2() mb.PushReporterV2 { return reporterV2{r} }
 
+// channelContext implements context.Context by wrapping a channel
+type channelContext struct {
+	done <-chan struct{}
+}
+
+func (r *channelContext) Deadline() (time.Time, bool) { return time.Time{}, false }
+func (r *channelContext) Done() <-chan struct{}       { return r.done }
+func (r *channelContext) Err() error {
+	select {
+	case <-r.done:
+		return context.Canceled
+	default:
+		return nil
+	}
+}
+func (r *channelContext) Value(key interface{}) interface{} { return nil }
+
 // reporterV1 wraps V2 to provide a v1 interface.
 type reporterV1 struct {
 	v2     mb.PushReporterV2
@@ -340,6 +356,9 @@ func (r reporterV2) Event(event mb.Event) bool {
 	if event.Took == 0 && !r.start.IsZero() {
 		event.Took = time.Since(r.start)
 	}
+	if r.msw.periodic {
+		event.Period = r.msw.Module().Config().Period
+	}
 
 	if event.Timestamp.IsZero() {
 		if !r.start.IsZero() {
@@ -350,7 +369,7 @@ func (r reporterV2) Event(event mb.Event) bool {
 	}
 
 	if event.Host == "" {
-		event.Host = r.msw.Host()
+		event.Host = r.msw.HostData().SanitizedURI
 	}
 
 	if event.Error == nil {

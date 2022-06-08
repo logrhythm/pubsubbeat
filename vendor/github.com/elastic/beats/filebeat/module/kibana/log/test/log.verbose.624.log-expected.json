@@ -1,16 +1,16 @@
 [
     {
         "@timestamp": "2018-05-09T10:58:59.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.path": "/Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/node_modules/x-pack",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugin",
-            "debug"
+            "debug",
+            "plugin"
         ],
         "log.offset": 0,
         "message": "Found plugin at /Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/node_modules/x-pack",
@@ -22,8 +22,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:58:59.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -31,9 +31,9 @@
         "kibana.log.meta.load.sockets.http.total": 0,
         "kibana.log.meta.load.sockets.https.total": 0,
         "kibana.log.meta.os.load": [
+            4.4111328125,
             4.75537109375,
-            5.1513671875,
-            4.4111328125
+            5.1513671875
         ],
         "kibana.log.meta.os.mem.free": 101990400,
         "kibana.log.meta.os.mem.total": 17179869184,
@@ -56,16 +56,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:58:59.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.path": "/Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/console",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugin",
-            "debug"
+            "debug",
+            "plugin"
         ],
         "log.offset": 799,
         "message": "Found plugin at /Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/console",
@@ -77,16 +77,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:58:59.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.path": "/Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/elasticsearch",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugin",
-            "debug"
+            "debug",
+            "plugin"
         ],
         "log.offset": 1085,
         "message": "Found plugin at /Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/elasticsearch",
@@ -98,16 +98,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:58:59.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.path": "/Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/input_control_vis",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugin",
-            "debug"
+            "debug",
+            "plugin"
         ],
         "log.offset": 1383,
         "message": "Found plugin at /Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/input_control_vis",
@@ -119,16 +119,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:58:59.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.path": "/Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/kbn_doc_views",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugin",
-            "debug"
+            "debug",
+            "plugin"
         ],
         "log.offset": 1689,
         "message": "Found plugin at /Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/kbn_doc_views",
@@ -140,16 +140,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:58:59.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.path": "/Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/kbn_vislib_vis_types",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugin",
-            "debug"
+            "debug",
+            "plugin"
         ],
         "log.offset": 1987,
         "message": "Found plugin at /Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/kbn_vislib_vis_types",
@@ -161,16 +161,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:58:59.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.path": "/Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/kibana",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugin",
-            "debug"
+            "debug",
+            "plugin"
         ],
         "log.offset": 2299,
         "message": "Found plugin at /Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/kibana",
@@ -182,16 +182,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:58:59.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.path": "/Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/markdown_vis",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugin",
-            "debug"
+            "debug",
+            "plugin"
         ],
         "log.offset": 2583,
         "message": "Found plugin at /Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/markdown_vis",
@@ -203,16 +203,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:58:59.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.path": "/Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/metric_vis",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugin",
-            "debug"
+            "debug",
+            "plugin"
         ],
         "log.offset": 2879,
         "message": "Found plugin at /Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/metric_vis",
@@ -224,16 +224,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:58:59.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.path": "/Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/metrics",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugin",
-            "debug"
+            "debug",
+            "plugin"
         ],
         "log.offset": 3171,
         "message": "Found plugin at /Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/metrics",
@@ -245,16 +245,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:58:59.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.path": "/Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/region_map",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugin",
-            "debug"
+            "debug",
+            "plugin"
         ],
         "log.offset": 3457,
         "message": "Found plugin at /Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/region_map",
@@ -266,16 +266,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:58:59.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.path": "/Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/spy_modes",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugin",
-            "debug"
+            "debug",
+            "plugin"
         ],
         "log.offset": 3749,
         "message": "Found plugin at /Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/spy_modes",
@@ -287,16 +287,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:58:59.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.path": "/Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/state_session_storage_redirect",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugin",
-            "debug"
+            "debug",
+            "plugin"
         ],
         "log.offset": 4039,
         "message": "Found plugin at /Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/state_session_storage_redirect",
@@ -308,16 +308,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:58:59.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.path": "/Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/status_page",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugin",
-            "debug"
+            "debug",
+            "plugin"
         ],
         "log.offset": 4371,
         "message": "Found plugin at /Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/status_page",
@@ -329,16 +329,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:58:59.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.path": "/Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/table_vis",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugin",
-            "debug"
+            "debug",
+            "plugin"
         ],
         "log.offset": 4665,
         "message": "Found plugin at /Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/table_vis",
@@ -350,16 +350,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:58:59.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.path": "/Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/tagcloud",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugin",
-            "debug"
+            "debug",
+            "plugin"
         ],
         "log.offset": 4955,
         "message": "Found plugin at /Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/tagcloud",
@@ -371,16 +371,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:58:59.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.path": "/Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/tile_map",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugin",
-            "debug"
+            "debug",
+            "plugin"
         ],
         "log.offset": 5243,
         "message": "Found plugin at /Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/tile_map",
@@ -392,16 +392,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:58:59.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.path": "/Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/timelion",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugin",
-            "debug"
+            "debug",
+            "plugin"
         ],
         "log.offset": 5531,
         "message": "Found plugin at /Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/timelion",
@@ -413,16 +413,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:58:59.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.path": "/Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/vega",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugin",
-            "debug"
+            "debug",
+            "plugin"
         ],
         "log.offset": 5819,
         "message": "Found plugin at /Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/src/core_plugins/vega",
@@ -434,8 +434,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -454,8 +454,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -464,8 +464,8 @@
         "kibana.log.meta.plugin.version": "kibana",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugins",
-            "debug"
+            "debug",
+            "plugins"
         ],
         "log.offset": 6242,
         "message": "Initializing plugin kibana@kibana",
@@ -477,9 +477,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -487,9 +488,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:kibana@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 6498,
         "message": "Status changed from uninitialized to green - Ready",
@@ -501,8 +502,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -510,8 +511,8 @@
         "kibana.log.meta.plugin.version": "kibana",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugins",
-            "debug"
+            "debug",
+            "plugins"
         ],
         "log.offset": 6741,
         "message": "Initializing plugin elasticsearch@kibana",
@@ -523,9 +524,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -533,9 +535,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "yellow",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:elasticsearch@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 6937,
         "message": "Status changed from uninitialized to yellow - Waiting for Elasticsearch",
@@ -547,9 +549,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -557,9 +560,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "yellow",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:xpack_main@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 9719,
         "message": "Status changed from uninitialized to yellow - Waiting for Elasticsearch",
@@ -571,9 +574,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -581,9 +585,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "yellow",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:searchprofiler@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 12502,
         "message": "Status changed from uninitialized to yellow - Waiting for Elasticsearch",
@@ -595,9 +599,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -605,9 +610,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "yellow",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:ml@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 15277,
         "message": "Status changed from uninitialized to yellow - Waiting for Elasticsearch",
@@ -619,8 +624,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -628,8 +633,8 @@
         "kibana.log.meta.plugin.version": "kibana",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugins",
-            "debug"
+            "debug",
+            "plugins"
         ],
         "log.offset": 15538,
         "message": "Initializing plugin kbn_vislib_vis_types@kibana",
@@ -641,9 +646,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -651,9 +657,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "yellow",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:tilemap@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 18255,
         "message": "Status changed from uninitialized to yellow - Waiting for Elasticsearch",
@@ -665,9 +671,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -675,9 +682,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "yellow",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:watcher@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 21028,
         "message": "Status changed from uninitialized to yellow - Waiting for Elasticsearch",
@@ -689,9 +696,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -699,9 +707,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:license_management@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 23812,
         "message": "Status changed from uninitialized to green - Ready",
@@ -713,9 +721,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -723,9 +732,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:index_management@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 26583,
         "message": "Status changed from uninitialized to green - Ready",
@@ -737,8 +746,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -746,8 +755,8 @@
         "kibana.log.meta.plugin.version": "kibana",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugins",
-            "debug"
+            "debug",
+            "plugins"
         ],
         "log.offset": 26836,
         "message": "Initializing plugin input_control_vis@kibana",
@@ -759,8 +768,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -768,8 +777,8 @@
         "kibana.log.meta.plugin.version": "kibana",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugins",
-            "debug"
+            "debug",
+            "plugins"
         ],
         "log.offset": 27040,
         "message": "Initializing plugin kbn_doc_views@kibana",
@@ -781,8 +790,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -790,8 +799,8 @@
         "kibana.log.meta.plugin.version": "kibana",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugins",
-            "debug"
+            "debug",
+            "plugins"
         ],
         "log.offset": 27236,
         "message": "Initializing plugin markdown_vis@kibana",
@@ -803,8 +812,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -812,8 +821,8 @@
         "kibana.log.meta.plugin.version": "kibana",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugins",
-            "debug"
+            "debug",
+            "plugins"
         ],
         "log.offset": 27430,
         "message": "Initializing plugin metric_vis@kibana",
@@ -825,8 +834,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -834,8 +843,8 @@
         "kibana.log.meta.plugin.version": "kibana",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugins",
-            "debug"
+            "debug",
+            "plugins"
         ],
         "log.offset": 27620,
         "message": "Initializing plugin region_map@kibana",
@@ -847,8 +856,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -856,8 +865,8 @@
         "kibana.log.meta.plugin.version": "kibana",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugins",
-            "debug"
+            "debug",
+            "plugins"
         ],
         "log.offset": 27810,
         "message": "Initializing plugin spy_modes@kibana",
@@ -869,8 +878,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -879,8 +888,8 @@
         "kibana.log.meta.plugin.version": "kibana",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugins",
-            "debug"
+            "debug",
+            "plugins"
         ],
         "log.offset": 27998,
         "message": "Initializing plugin state_session_storage_redirect@kibana",
@@ -892,8 +901,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -901,8 +910,8 @@
         "kibana.log.meta.plugin.version": "kibana",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugins",
-            "debug"
+            "debug",
+            "plugins"
         ],
         "log.offset": 28527,
         "message": "Initializing plugin status_page@kibana",
@@ -914,8 +923,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -923,8 +932,8 @@
         "kibana.log.meta.plugin.version": "kibana",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugins",
-            "debug"
+            "debug",
+            "plugins"
         ],
         "log.offset": 28719,
         "message": "Initializing plugin table_vis@kibana",
@@ -936,8 +945,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -945,8 +954,8 @@
         "kibana.log.meta.plugin.version": "kibana",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugins",
-            "debug"
+            "debug",
+            "plugins"
         ],
         "log.offset": 28907,
         "message": "Initializing plugin tagcloud@kibana",
@@ -958,8 +967,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -967,8 +976,8 @@
         "kibana.log.meta.plugin.version": "kibana",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugins",
-            "debug"
+            "debug",
+            "plugins"
         ],
         "log.offset": 29093,
         "message": "Initializing plugin tile_map@kibana",
@@ -980,8 +989,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -990,8 +999,8 @@
         "kibana.log.meta.plugin.version": "kibana",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugins",
-            "debug"
+            "debug",
+            "plugins"
         ],
         "log.offset": 29279,
         "message": "Initializing plugin timelion@kibana",
@@ -1003,9 +1012,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -1013,9 +1023,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:timelion@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 29508,
         "message": "Status changed from uninitialized to green - Ready",
@@ -1027,9 +1037,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -1037,9 +1048,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "yellow",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:graph@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 32258,
         "message": "Status changed from uninitialized to yellow - Waiting for Elasticsearch",
@@ -1051,9 +1062,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -1061,9 +1073,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:monitoring@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 35032,
         "message": "Status changed from uninitialized to green - Ready",
@@ -1075,9 +1087,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -1085,9 +1098,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "yellow",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:security@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 37787,
         "message": "Status changed from uninitialized to yellow - Waiting for Elasticsearch",
@@ -1099,8 +1112,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -1119,8 +1132,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -1139,9 +1152,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -1149,9 +1163,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "yellow",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:grokdebugger@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 41031,
         "message": "Status changed from uninitialized to yellow - Waiting for Elasticsearch",
@@ -1163,9 +1177,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -1173,9 +1188,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:dashboard_mode@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 43816,
         "message": "Status changed from uninitialized to green - Ready",
@@ -1187,9 +1202,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:00.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -1197,9 +1213,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "yellow",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:logstash@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 46575,
         "message": "Status changed from uninitialized to yellow - Waiting for Elasticsearch",
@@ -1211,9 +1227,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:01.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -1221,9 +1238,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:apm@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 49345,
         "message": "Status changed from uninitialized to green - Ready",
@@ -1235,8 +1252,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:01.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -1248,8 +1265,8 @@
         "kibana.log.meta.plugin.version": "kibana",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugins",
-            "debug"
+            "debug",
+            "plugins"
         ],
         "log.offset": 52090,
         "message": "Initializing plugin console@6.3.0",
@@ -1261,9 +1278,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:01.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -1271,9 +1289,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:console@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 52374,
         "message": "Status changed from uninitialized to green - Ready",
@@ -1285,9 +1303,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:01.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -1295,9 +1314,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:console_extensions@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 55136,
         "message": "Status changed from uninitialized to green - Ready",
@@ -1309,8 +1328,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:01.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -1319,8 +1338,8 @@
         "kibana.log.meta.plugin.version": "kibana",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugins",
-            "debug"
+            "debug",
+            "plugins"
         ],
         "log.offset": 55391,
         "message": "Initializing plugin metrics@6.3.0",
@@ -1332,9 +1351,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:01.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -1342,9 +1362,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:metrics@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 55615,
         "message": "Status changed from uninitialized to green - Ready",
@@ -1356,8 +1376,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:01.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -1366,8 +1386,8 @@
         "kibana.log.meta.plugin.version": "kibana",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugins",
-            "debug"
+            "debug",
+            "plugins"
         ],
         "log.offset": 55859,
         "message": "Initializing plugin vega@kibana",
@@ -1379,16 +1399,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:01.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "reporting",
             "debug",
-            "exportTypes"
+            "exportTypes",
+            "reporting"
         ],
         "log.offset": 58589,
         "message": "Found exportType at /Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/node_modules/x-pack/plugins/reporting/export_types/csv/server/index.js",
@@ -1400,16 +1420,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:01.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "reporting",
             "debug",
-            "exportTypes"
+            "exportTypes",
+            "reporting"
         ],
         "log.offset": 58853,
         "message": "Found exportType at /Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/node_modules/x-pack/plugins/reporting/export_types/printable_pdf/server/index.js",
@@ -1421,8 +1441,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -1441,15 +1461,15 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "reporting",
-            "debug"
+            "debug",
+            "reporting"
         ],
         "log.offset": 59399,
         "message": "Browser type: phantom",
@@ -1461,9 +1481,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -1471,9 +1492,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "yellow",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:reporting@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 59525,
         "message": "Status changed from uninitialized to yellow - Waiting for Elasticsearch",
@@ -1485,15 +1506,15 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "reporting",
-            "debug"
+            "debug",
+            "reporting"
         ],
         "log.offset": 59793,
         "message": "Running on os \"darwin\", distribution \"undefined\", release \"undefined\"",
@@ -1505,15 +1526,15 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "reporting",
-            "debug"
+            "debug",
+            "reporting"
         ],
         "log.offset": 59973,
         "message": "Browser installed at /Users/ruflin/Downloads/6.3/kibana-6.3.0-darwin-x86_64/data/phantomjs-2.1.1-macosx/bin/phantomjs",
@@ -1525,16 +1546,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
+            "debug",
             "reporting",
-            "worker",
-            "debug"
+            "worker"
         ],
         "log.offset": 60195,
         "message": "CSV: Registering CSV worker",
@@ -1546,17 +1567,17 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "reporting",
+            "debug",
             "esqueue",
-            "worker",
-            "debug"
+            "reporting",
+            "worker"
         ],
         "log.offset": 60336,
         "message": "jgyzr8b31hu86bfe3bf3pw9w - Created worker for job type csv",
@@ -1568,16 +1589,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
+            "debug",
             "reporting",
-            "worker",
-            "debug"
+            "worker"
         ],
         "log.offset": 60518,
         "message": "PDF: Registering PDF worker",
@@ -1589,17 +1610,17 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "reporting",
+            "debug",
             "esqueue",
-            "worker",
-            "debug"
+            "reporting",
+            "worker"
         ],
         "log.offset": 60659,
         "message": "jgyzr8b81hu86bfe3bf6jd27 - Created worker for job type printable_pdf",
@@ -1611,8 +1632,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -1632,15 +1653,15 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "listening",
-            "info"
+            "info",
+            "listening"
         ],
         "log.offset": 61037,
         "message": "Server running at http://localhost:5601",
@@ -1652,15 +1673,15 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugin",
-            "debug"
+            "debug",
+            "plugin"
         ],
         "log.offset": 61180,
         "message": "Checking Elasticsearch version",
@@ -1672,9 +1693,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "Waiting for Elasticsearch",
@@ -1682,9 +1704,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:elasticsearch@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 61312,
         "message": "Status changed from yellow to green - Ready",
@@ -1696,15 +1718,15 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "license",
             "debug",
+            "license",
             "xpack"
         ],
         "log.offset": 61560,
@@ -1717,15 +1739,15 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "license",
             "info",
+            "license",
             "xpack"
         ],
         "log.offset": 61736,
@@ -1738,15 +1760,15 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "monitoring-ui",
-            "es-client"
+            "es-client",
+            "monitoring-ui"
         ],
         "log.offset": 61974,
         "message": "config sourced from: production cluster (http://localhost:9200)",
@@ -1758,9 +1780,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "Waiting for Elasticsearch",
@@ -1768,9 +1791,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:xpack_main@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 62150,
         "message": "Status changed from yellow to green - Ready",
@@ -1782,9 +1805,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "Waiting for Elasticsearch",
@@ -1792,9 +1816,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:searchprofiler@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 62395,
         "message": "Status changed from yellow to green - Ready",
@@ -1806,9 +1830,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "Waiting for Elasticsearch",
@@ -1816,9 +1841,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:ml@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 62644,
         "message": "Status changed from yellow to green - Ready",
@@ -1830,9 +1855,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "Waiting for Elasticsearch",
@@ -1840,9 +1866,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:tilemap@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 62881,
         "message": "Status changed from yellow to green - Ready",
@@ -1854,9 +1880,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "Waiting for Elasticsearch",
@@ -1864,9 +1891,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:watcher@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 63123,
         "message": "Status changed from yellow to green - Ready",
@@ -1878,9 +1905,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "Waiting for Elasticsearch",
@@ -1888,9 +1916,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:graph@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 63365,
         "message": "Status changed from yellow to green - Ready",
@@ -1902,9 +1930,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "Waiting for Elasticsearch",
@@ -1912,9 +1941,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:security@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 63605,
         "message": "Status changed from yellow to green - Ready",
@@ -1926,9 +1955,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "Waiting for Elasticsearch",
@@ -1936,9 +1966,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:grokdebugger@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 63848,
         "message": "Status changed from yellow to green - Ready",
@@ -1950,9 +1980,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "Waiting for Elasticsearch",
@@ -1960,9 +1991,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:logstash@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 64095,
         "message": "Status changed from yellow to green - Ready",
@@ -1974,9 +2005,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "Waiting for Elasticsearch",
@@ -1984,9 +2016,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:reporting@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 64338,
         "message": "Status changed from yellow to green - Ready",
@@ -1998,15 +2030,15 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "license",
             "debug",
+            "license",
             "xpack"
         ],
         "log.offset": 64582,
@@ -2019,16 +2051,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
             "info",
-            "monitoring-ui",
-            "kibana-monitoring"
+            "kibana-monitoring",
+            "monitoring-ui"
         ],
         "log.offset": 64764,
         "message": "Starting all Kibana monitoring collectors",
@@ -2040,16 +2072,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
             "debug",
-            "monitoring-ui",
-            "kibana-monitoring"
+            "kibana-monitoring",
+            "monitoring-ui"
         ],
         "log.offset": 64933,
         "message": "Initializing kibana_stats collector",
@@ -2061,16 +2093,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
             "debug",
-            "monitoring-ui",
-            "kibana-monitoring"
+            "kibana-monitoring",
+            "monitoring-ui"
         ],
         "log.offset": 65097,
         "message": "Setting logger for kibana_stats collector",
@@ -2082,16 +2114,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
             "debug",
-            "monitoring-ui",
-            "kibana-monitoring"
+            "kibana-monitoring",
+            "monitoring-ui"
         ],
         "log.offset": 65267,
         "message": "Setting logger for kibana_settings collector",
@@ -2103,16 +2135,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
             "debug",
-            "monitoring-ui",
-            "kibana-monitoring"
+            "kibana-monitoring",
+            "monitoring-ui"
         ],
         "log.offset": 65440,
         "message": "Fetching data from kibana_stats collector",
@@ -2124,16 +2156,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
             "debug",
-            "monitoring-ui",
-            "kibana-monitoring"
+            "kibana-monitoring",
+            "monitoring-ui"
         ],
         "log.offset": 65610,
         "message": "Uploading bulk Kibana monitoring payload",
@@ -2145,15 +2177,15 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:02.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "license",
             "info",
+            "license",
             "xpack"
         ],
         "log.offset": 65779,
@@ -2166,8 +2198,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:04.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -2176,9 +2208,9 @@
         "kibana.log.meta.load.sockets.http.total": 1,
         "kibana.log.meta.load.sockets.https.total": 0,
         "kibana.log.meta.os.load": [
+            4.42041015625,
             4.85498046875,
-            5.1650390625,
-            4.42041015625
+            5.1650390625
         ],
         "kibana.log.meta.os.mem.free": 60276736,
         "kibana.log.meta.os.mem.total": 17179869184,
@@ -2201,16 +2233,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:04.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
             "debug",
-            "monitoring-ui",
-            "kibana-monitoring"
+            "kibana-monitoring",
+            "monitoring-ui"
         ],
         "log.offset": 66573,
         "message": "Received Kibana Ops event data",
@@ -2222,15 +2254,15 @@
     },
     {
         "@timestamp": "2018-05-09T10:59:04.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "plugin",
-            "debug"
+            "debug",
+            "plugin"
         ],
         "log.offset": 66732,
         "message": "Checking Elasticsearch version",

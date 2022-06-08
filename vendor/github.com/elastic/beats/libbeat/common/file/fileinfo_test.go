@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !windows && !openbsd
 // +build !windows,!openbsd
 
 // Test for openbsd are excluded here as info.GID() returns 0 instead of the actual value
@@ -31,7 +32,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/common/file"
+	"github.com/elastic/beats/v7/libbeat/common/file"
 )
 
 func TestStat(t *testing.T) {

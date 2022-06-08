@@ -20,12 +20,11 @@ package virtualmachine
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"strings"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/common/cfgwarn"
-	"github.com/elastic/beats/metricbeat/mb"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/module/vsphere"
 
 	"github.com/pkg/errors"
 	"github.com/vmware/govmomi"
@@ -39,27 +38,26 @@ import (
 
 func init() {
 	mb.Registry.MustAddMetricSet("vsphere", "virtualmachine", New,
+		mb.WithHostParser(vsphere.HostParser),
 		mb.DefaultMetricSet(),
 	)
 }
 
-// MetricSet type defines all fields of the MetricSet
+// MetricSet type defines all fields of the MetricSet.
 type MetricSet struct {
-	mb.BaseMetricSet
-	HostURL         *url.URL
-	Insecure        bool
+	*vsphere.MetricSet
 	GetCustomFields bool
 }
 
-// New create a new instance of the MetricSet
+// New creates a new instance of the MetricSet.
 func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
-	cfgwarn.Beta("The vsphere virtualmachine metricset is beta")
+	ms, err := vsphere.NewMetricSet(base)
+	if err != nil {
+		return nil, err
+	}
 
 	config := struct {
-		Username        string `config:"username"`
-		Password        string `config:"password"`
-		Insecure        bool   `config:"insecure"`
-		GetCustomFields bool   `config:"get_custom_fields"`
+		GetCustomFields bool `config:"get_custom_fields"`
 	}{
 		GetCustomFields: false,
 	}
@@ -67,18 +65,8 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 	if err := base.Module().UnpackConfig(&config); err != nil {
 		return nil, err
 	}
-
-	u, err := url.Parse(base.HostData().URI)
-	if err != nil {
-		return nil, err
-	}
-
-	u.User = url.UserPassword(config.Username, config.Password)
-
 	return &MetricSet{
-		BaseMetricSet:   base,
-		HostURL:         u,
-		Insecure:        config.Insecure,
+		MetricSet:       ms,
 		GetCustomFields: config.GetCustomFields,
 	}, nil
 }
@@ -86,8 +74,8 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 // Fetch methods implements the data gathering and data conversion to the right
 // format. It publishes the event which is then forwarded to the output. In case
 // of an error set the Error field of mb.Event or simply call report.Error().
-func (m *MetricSet) Fetch(reporter mb.ReporterV2) error {
-	ctx, cancel := context.WithCancel(context.Background())
+func (m *MetricSet) Fetch(ctx context.Context, reporter mb.ReporterV2) error {
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	client, err := govmomi.NewClient(ctx, m.HostURL, m.Insecure)
@@ -95,7 +83,11 @@ func (m *MetricSet) Fetch(reporter mb.ReporterV2) error {
 		return errors.Wrap(err, "error in NewClient")
 	}
 
-	defer client.Logout(ctx)
+	defer func() {
+		if err := client.Logout(ctx); err != nil {
+			m.Logger().Debug(errors.Wrap(err, "error trying to logout from vshphere"))
+		}
+	}()
 
 	c := client.Client
 
@@ -117,7 +109,11 @@ func (m *MetricSet) Fetch(reporter mb.ReporterV2) error {
 		return errors.Wrap(err, "error in CreateContainerView")
 	}
 
-	defer v.Destroy(ctx)
+	defer func() {
+		if err := v.Destroy(ctx); err != nil {
+			m.Logger().Debug(errors.Wrap(err, "error trying to destroy view from vshphere"))
+		}
+	}()
 
 	// Retrieve summary property for all machines
 	var vmt []mo.VirtualMachine
@@ -127,20 +123,58 @@ func (m *MetricSet) Fetch(reporter mb.ReporterV2) error {
 	}
 
 	for _, vm := range vmt {
+		usedMemory := int64(vm.Summary.QuickStats.GuestMemoryUsage) * 1024 * 1024
+		usedCPU := vm.Summary.QuickStats.OverallCpuUsage
+		event := common.MapStr{
+			"name": vm.Summary.Config.Name,
+			"os":   vm.Summary.Config.GuestFullName,
+			"cpu": common.MapStr{
+				"used": common.MapStr{
+					"mhz": usedCPU,
+				},
+			},
+			"memory": common.MapStr{
+				"used": common.MapStr{
+					"guest": common.MapStr{
+						"bytes": usedMemory,
+					},
+					"host": common.MapStr{
+						"bytes": int64(vm.Summary.QuickStats.HostMemoryUsage) * 1024 * 1024,
+					},
+				},
+			},
+		}
 
-		freeMemory := (int64(vm.Summary.Config.MemorySizeMB) * 1024 * 1024) - (int64(vm.Summary.QuickStats.GuestMemoryUsage) * 1024 * 1024)
+		totalCPU := vm.Summary.Config.CpuReservation
+		if totalCPU > 0 {
+			freeCPU := totalCPU - usedCPU
+			// Avoid negative values if reported used CPU is slightly over total configured.
+			if freeCPU < 0 {
+				freeCPU = 0
+			}
+			event.Put("cpu.total.mhz", totalCPU)
+			event.Put("cpu.free.mhz", freeCPU)
+		}
 
-		event := common.MapStr{}
+		totalMemory := int64(vm.Summary.Config.MemorySizeMB) * 1024 * 1024
+		if totalMemory > 0 {
+			freeMemory := totalMemory - usedMemory
+			// Avoid negative values if reported used memory is slightly over total configured.
+			if freeMemory < 0 {
+				freeMemory = 0
+			}
+			event.Put("memory.total.guest.bytes", totalMemory)
+			event.Put("memory.free.guest.bytes", freeMemory)
+		}
 
-		event["name"] = vm.Summary.Config.Name
-		event.Put("cpu.used.mhz", vm.Summary.QuickStats.OverallCpuUsage)
-		event.Put("memory.used.guest.bytes", int64(vm.Summary.QuickStats.GuestMemoryUsage)*1024*1024)
-		event.Put("memory.used.host.bytes", int64(vm.Summary.QuickStats.HostMemoryUsage)*1024*1024)
-		event.Put("memory.total.guest.bytes", int64(vm.Summary.Config.MemorySizeMB)*1024*1024)
-		event.Put("memory.free.guest.bytes", freeMemory)
-
-		if vm.Summary.Runtime.Host != nil {
-			event["host"] = vm.Summary.Runtime.Host.Value
+		if host := vm.Summary.Runtime.Host; host != nil {
+			event["host.id"] = host.Value
+			hostSystem, err := getHostSystem(ctx, c, host.Reference())
+			if err == nil {
+				event["host.hostname"] = hostSystem.Summary.Config.Name
+			} else {
+				m.Logger().Debug(err.Error())
+			}
 		} else {
 			m.Logger().Debug("'Host', 'Runtime' or 'Summary' data not found. This is either a parsing error " +
 				"from vsphere library, an error trying to reach host/guest or incomplete information returned " +
@@ -161,7 +195,7 @@ func (m *MetricSet) Fetch(reporter mb.ReporterV2) error {
 		}
 
 		if vm.Summary.Vm != nil {
-			networkNames, err := getNetworkNames(c, vm.Summary.Vm.Reference())
+			networkNames, err := getNetworkNames(ctx, c, vm.Summary.Vm.Reference())
 			if err != nil {
 				m.Logger().Debug(err.Error())
 			} else {
@@ -194,8 +228,8 @@ func getCustomFields(customFields []types.BaseCustomFieldValue, customFieldsMap 
 	return outputFields
 }
 
-func getNetworkNames(c *vim25.Client, ref types.ManagedObjectReference) ([]string, error) {
-	ctx, cancel := context.WithCancel(context.Background())
+func getNetworkNames(ctx context.Context, c *vim25.Client, ref types.ManagedObjectReference) ([]string, error) {
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	var outputNetworkNames []string
@@ -256,4 +290,15 @@ func setCustomFieldsMap(ctx context.Context, client *vim25.Client) (map[int32]st
 	}
 
 	return customFieldsMap, nil
+}
+
+func getHostSystem(ctx context.Context, c *vim25.Client, ref types.ManagedObjectReference) (*mo.HostSystem, error) {
+	pc := property.DefaultCollector(c)
+
+	var hs mo.HostSystem
+	err := pc.RetrieveOne(ctx, ref, []string{"summary"}, &hs)
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving host information: %v", err)
+	}
+	return &hs, nil
 }

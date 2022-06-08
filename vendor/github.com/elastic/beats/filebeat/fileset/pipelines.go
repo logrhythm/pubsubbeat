@@ -24,8 +24,8 @@ import (
 
 	"github.com/joeshaw/multierror"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
 )
 
 // PipelineLoaderFactory builds and returns a PipelineLoader
@@ -60,35 +60,35 @@ func (m MultiplePipelineUnsupportedError) Error() string {
 
 // LoadPipelines loads the pipelines for each configured fileset.
 func (reg *ModuleRegistry) LoadPipelines(esClient PipelineLoader, overwrite bool) error {
-	for module, filesets := range reg.registry {
-		for name, fileset := range filesets {
+	for _, module := range reg.registry {
+		for _, fileset := range module.filesets {
 			// check that all the required Ingest Node plugins are available
 			requiredProcessors := fileset.GetRequiredProcessors()
-			logp.Debug("modules", "Required processors: %s", requiredProcessors)
+			reg.log.Debugf("Required processors: %s", requiredProcessors)
 			if len(requiredProcessors) > 0 {
 				err := checkAvailableProcessors(esClient, requiredProcessors)
 				if err != nil {
-					return fmt.Errorf("Error loading pipeline for fileset %s/%s: %v", module, name, err)
+					return fmt.Errorf("error loading pipeline for fileset %s/%s: %v", module.config.Module, fileset.name, err)
 				}
 			}
 
 			pipelines, err := fileset.GetPipelines(esClient.GetVersion())
 			if err != nil {
-				return fmt.Errorf("Error getting pipeline for fileset %s/%s: %v", module, name, err)
+				return fmt.Errorf("error getting pipeline for fileset %s/%s: %v", module.config.Module, fileset.name, err)
 			}
 
 			// Filesets with multiple pipelines can only be supported by Elasticsearch >= 6.5.0
 			esVersion := esClient.GetVersion()
 			minESVersionRequired := common.MustNewVersion("6.5.0")
 			if len(pipelines) > 1 && esVersion.LessThan(minESVersionRequired) {
-				return MultiplePipelineUnsupportedError{module, name, esVersion, *minESVersionRequired}
+				return MultiplePipelineUnsupportedError{module.config.Module, fileset.name, esVersion, *minESVersionRequired}
 			}
 
 			var pipelineIDsLoaded []string
 			for _, pipeline := range pipelines {
-				err = loadPipeline(esClient, pipeline.id, pipeline.contents, overwrite)
+				err = LoadPipeline(esClient, pipeline.id, pipeline.contents, overwrite, reg.log.With("pipeline", pipeline.id))
 				if err != nil {
-					err = fmt.Errorf("Error loading pipeline for fileset %s/%s: %v", module, name, err)
+					err = fmt.Errorf("error loading pipeline for fileset %s/%s: %v", module.config.Module, fileset.name, err)
 					break
 				}
 				pipelineIDsLoaded = append(pipelineIDsLoaded, pipeline.id)
@@ -100,7 +100,7 @@ func (reg *ModuleRegistry) LoadPipelines(esClient PipelineLoader, overwrite bool
 				// error, validate all pipelines before loading any of them. This requires https://github.com/elastic/elasticsearch/issues/35495.
 				errs := multierror.Errors{err}
 				for _, pipelineID := range pipelineIDsLoaded {
-					err = deletePipeline(esClient, pipelineID)
+					err = DeletePipeline(esClient, pipelineID)
 					if err != nil {
 						errs = append(errs, err)
 					}
@@ -112,64 +112,29 @@ func (reg *ModuleRegistry) LoadPipelines(esClient PipelineLoader, overwrite bool
 	return nil
 }
 
-func loadPipeline(esClient PipelineLoader, pipelineID string, content map[string]interface{}, overwrite bool) error {
+func LoadPipeline(esClient PipelineLoader, pipelineID string, content map[string]interface{}, overwrite bool, log *logp.Logger) error {
 	path := makeIngestPipelinePath(pipelineID)
 	if !overwrite {
 		status, _, _ := esClient.Request("GET", path, "", nil, nil)
 		if status == 200 {
-			logp.Debug("modules", "Pipeline %s already loaded", pipelineID)
+			log.Debug("Pipeline already exists in Elasticsearch.")
 			return nil
 		}
 	}
 
-	err := setECSProcessors(esClient.GetVersion(), pipelineID, content)
-	if err != nil {
-		return fmt.Errorf("failed to adapt pipeline for ECS compatibility: %v", err)
+	if err := AdaptPipelineForCompatibility(esClient.GetVersion(), pipelineID, content, log); err != nil {
+		return fmt.Errorf("failed to adapt pipeline with backwards compatibility changes: %w", err)
 	}
 
 	body, err := esClient.LoadJSON(path, content)
 	if err != nil {
 		return interpretError(err, body)
 	}
-	logp.Info("Elasticsearch pipeline with ID '%s' loaded", pipelineID)
+	log.Info("Elasticsearch pipeline loaded.")
 	return nil
 }
 
-// setECSProcessors sets required ECS options in processors when filebeat version is >= 7.0.0
-// and ES is 6.7.X to ease migration to ECS.
-func setECSProcessors(esVersion common.Version, pipelineID string, content map[string]interface{}) error {
-	ecsVersion := common.MustNewVersion("7.0.0")
-	if !esVersion.LessThan(ecsVersion) {
-		return nil
-	}
-
-	p, ok := content["processors"]
-	if !ok {
-		return nil
-	}
-	processors, ok := p.([]interface{})
-	if !ok {
-		return fmt.Errorf("'processors' in pipeline '%s' expected to be a list, found %T", pipelineID, p)
-	}
-
-	minUserAgentVersion := common.MustNewVersion("6.7.0")
-	for _, p := range processors {
-		processor, ok := p.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		if options, ok := processor["user_agent"].(map[string]interface{}); ok {
-			if esVersion.LessThan(minUserAgentVersion) {
-				return fmt.Errorf("user_agent processor requires option 'ecs: true', but Elasticsearch %v does not support this option (Elasticsearch %v or newer is required)", esVersion, minUserAgentVersion)
-			}
-			logp.Debug("modules", "Setting 'ecs: true' option in user_agent processor for field '%v' in pipeline '%s'", options["field"], pipelineID)
-			options["ecs"] = true
-		}
-	}
-	return nil
-}
-
-func deletePipeline(esClient PipelineLoader, pipelineID string) error {
+func DeletePipeline(esClient PipelineLoader, pipelineID string) error {
 	path := makeIngestPipelinePath(pipelineID)
 	_, _, err := esClient.Request("DELETE", path, "", nil, nil)
 	return err
@@ -200,7 +165,7 @@ func interpretError(initialErr error, body []byte) error {
 		}
 		err1x := json.Unmarshal(body, &response1x)
 		if err1x == nil && response1x.Error != "" {
-			return fmt.Errorf("The Filebeat modules require Elasticsearch >= 5.0. "+
+			return fmt.Errorf("the Filebeat modules require Elasticsearch >= 5.0. "+
 				"This is the response I got from Elasticsearch: %s", body)
 		}
 
@@ -214,10 +179,9 @@ func interpretError(initialErr error, body []byte) error {
 		strings.HasPrefix(response.Error.RootCause[0].Reason, "No processor type exists with name") &&
 		response.Error.RootCause[0].Header.ProcessorType != "" {
 
-		return fmt.Errorf("This module requires an Elasticsearch plugin that provides the %s processor. "+
+		return fmt.Errorf("this module requires an Elasticsearch plugin that provides the %s processor. "+
 			"Please visit the Elasticsearch documentation for instructions on how to install this plugin. "+
 			"Response body: %s", response.Error.RootCause[0].Header.ProcessorType, body)
-
 	}
 
 	// older ES version?
@@ -225,7 +189,7 @@ func interpretError(initialErr error, body []byte) error {
 		response.Error.RootCause[0].Type == "invalid_index_name_exception" &&
 		response.Error.RootCause[0].Index == "_ingest" {
 
-		return fmt.Errorf("The Ingest Node functionality seems to be missing from Elasticsearch. "+
+		return fmt.Errorf("the Ingest Node functionality seems to be missing from Elasticsearch. "+
 			"The Filebeat modules require Elasticsearch >= 5.0. "+
 			"This is the response I got from Elasticsearch: %s", body)
 	}

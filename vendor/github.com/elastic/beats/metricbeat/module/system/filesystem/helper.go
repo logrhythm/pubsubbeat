@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build darwin || freebsd || linux || openbsd || windows
 // +build darwin freebsd linux openbsd windows
 
 package filesystem
@@ -22,23 +23,24 @@ package filesystem
 import (
 	"bufio"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"runtime"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/metricbeat/module/system"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/metric/system/resolve"
 	sigar "github.com/elastic/gosigar"
 )
 
+// Config stores the metricset-local config
 type Config struct {
 	IgnoreTypes []string `config:"filesystem.ignore_types"`
 }
 
-type FileSystemStat struct {
+// FSStat contains filesystem metrics
+type FSStat struct {
 	sigar.FileSystemUsage
 	DevName     string  `json:"device_name"`
 	Mount       string  `json:"mount_point"`
@@ -47,6 +49,7 @@ type FileSystemStat struct {
 	ctime       time.Time
 }
 
+// GetFileSystemList retreves overall filesystem stats
 func GetFileSystemList() ([]sigar.FileSystem, error) {
 	fss := sigar.FileSystemList{}
 	if err := fss.Get(); err != nil {
@@ -106,30 +109,20 @@ func filterFileSystemList(fsList []sigar.FileSystem) []sigar.FileSystem {
 	return filtered
 }
 
-func GetFileSystemStat(fs sigar.FileSystem) (*FileSystemStat, error) {
+// GetFileSystemStat retreves stats for a single filesystem
+func GetFileSystemStat(fs sigar.FileSystem) (sigar.FileSystemUsage, error) {
+	// Sigar, in line with the underlying `statfs` call on unix, refers to inodes as `files` in the fields.
+	// There's no performant, filesystem-independent way to get *just* the count of files, so for most uses inodes will be close enough for someone to get the gist.
 	stat := sigar.FileSystemUsage{}
+	//  In some case for Windows OS the disk type value will be `unavailable` and access to this information is not allowed (ex. external disks).
 	if err := stat.Get(fs.DirName); err != nil {
-		return nil, err
+		return stat, err
 	}
-
-	var t string
-	if runtime.GOOS == "windows" {
-		t = fs.TypeName
-	} else {
-		t = fs.SysTypeName
-	}
-
-	filesystem := FileSystemStat{
-		FileSystemUsage: stat,
-		DevName:         fs.DevName,
-		Mount:           fs.DirName,
-		SysTypeName:     t,
-	}
-
-	return &filesystem, nil
+	return stat, nil
 }
 
-func AddFileSystemUsedPercentage(f *FileSystemStat) {
+// AddFileSystemUsedPercentage adds usage data to the filesystem struct
+func AddFileSystemUsedPercentage(f *FSStat) {
 	if f.Total == 0 {
 		return
 	}
@@ -138,21 +131,27 @@ func AddFileSystemUsedPercentage(f *FileSystemStat) {
 	f.UsedPercent = common.Round(perc, common.DefaultDecimalPlacesCount)
 }
 
-func GetFilesystemEvent(fsStat *FileSystemStat) common.MapStr {
-	return common.MapStr{
+// GetFilesystemEvent turns a stat struct into a MapStr
+func GetFilesystemEvent(fsStat *FSStat, addStats bool) common.MapStr {
+	evt := common.MapStr{
 		"type":        fsStat.SysTypeName,
 		"device_name": fsStat.DevName,
 		"mount_point": fsStat.Mount,
-		"total":       fsStat.Total,
-		"free":        fsStat.Free,
-		"available":   fsStat.Avail,
-		"files":       fsStat.Files,
-		"free_files":  fsStat.FreeFiles,
-		"used": common.MapStr{
+	}
+	if addStats == true {
+		evt.Put("total", fsStat.Total)
+		evt.Put("available", fsStat.Avail)
+		evt.Put("free", fsStat.Free)
+		evt.Put("used", common.MapStr{
 			"pct":   fsStat.UsedPercent,
 			"bytes": fsStat.Used,
-		},
+		})
 	}
+	if runtime.GOOS != "windows" {
+		evt.Put("files", fsStat.Files)
+		evt.Put("free_files", fsStat.FreeFiles)
+	}
+	return evt
 }
 
 // Predicate is a function predicate for use with filesystems. It returns true
@@ -189,10 +188,10 @@ func BuildTypeFilter(ignoreType ...string) Predicate {
 
 // DefaultIgnoredTypes tries to guess a sane list of filesystem types that
 // could be ignored in the running system
-func DefaultIgnoredTypes() (types []string) {
+func DefaultIgnoredTypes(sys resolve.Resolver) (types []string) {
 	// If /proc/filesystems exist, default ignored types are all marked
 	// as nodev
-	fsListFile := path.Join(*system.HostFS, "/proc/filesystems")
+	fsListFile := sys.ResolveHostFS("/proc/filesystems")
 	if f, err := os.Open(fsListFile); err == nil {
 		scanner := bufio.NewScanner(f)
 		for scanner.Scan() {

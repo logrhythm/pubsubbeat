@@ -18,61 +18,40 @@
 package eventlog
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
 
-	"github.com/joeshaw/multierror"
-
-	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common"
 )
-
-var commonConfigKeys = []string{"api", "name", "fields", "fields_under_root",
-	"tags", "processors"}
 
 // ConfigCommon is the common configuration data used to instantiate a new
 // EventLog. Each implementation is free to support additional configuration
 // options.
 type ConfigCommon struct {
-	API  string `config:"api"`  // Name of the API to use. Optional.
-	Name string `config:"name"` // Name of the event log or channel or file.
+	API      string `config:"api"`       // Name of the API to use. Optional.
+	Name     string `config:"name"`      // Name of the event log or channel or file.
+	ID       string `config:"id"`        // Identifier for the event log.
+	XMLQuery string `config:"xml_query"` // Custom query XML. Must not be used with the keys from eventlog.query.
 }
 
 type validator interface {
 	Validate() error
 }
 
-func readConfig(
-	c *common.Config,
-	config interface{},
-	validKeys []string,
-) error {
+func readConfig(c *common.Config, config interface{}) error {
 	if err := c.Unpack(config); err != nil {
-		return fmt.Errorf("Failed unpacking config. %v", err)
-	}
-
-	var errs multierror.Errors
-	if len(validKeys) > 0 {
-		sort.Strings(validKeys)
-
-		// Check for invalid keys.
-		for _, k := range c.GetFields() {
-			k = strings.ToLower(k)
-			i := sort.SearchStrings(validKeys, k)
-			if i >= len(validKeys) || validKeys[i] != k {
-				errs = append(errs, fmt.Errorf("Invalid event log key '%s' "+
-					"found. Valid keys are %s", k, strings.Join(validKeys, ", ")))
-			}
-		}
+		return fmt.Errorf("failed unpacking config. %v", err)
 	}
 
 	if v, ok := config.(validator); ok {
 		if err := v.Validate(); err != nil {
-			errs = append(errs, err)
+			return err
 		}
 	}
 
-	return errs.Err()
+	return nil
 }
 
 // Producer produces a new event log instance for reading event log records.
@@ -114,11 +93,11 @@ func Register(apiName string, priority int, producer producer, channels channels
 // and the registered EventLog producers.
 func New(options *common.Config) (EventLog, error) {
 	if len(eventLogs) == 0 {
-		return nil, fmt.Errorf("No event log API is available on this system")
+		return nil, errors.New("No event log API is available on this system")
 	}
 
 	var config ConfigCommon
-	if err := readConfig(options, &config, nil); err != nil {
+	if err := readConfig(options, &config); err != nil {
 		return nil, err
 	}
 

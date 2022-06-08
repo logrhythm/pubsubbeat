@@ -21,8 +21,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/mapping"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/mapping"
 )
 
 var v640 = common.MustNewVersion("6.4.0")
@@ -293,6 +293,7 @@ var (
 		"geo_point":    "geo_point",
 		"date":         "date",
 		"ip":           "ip",
+		"ip_range":     "ip_range",
 		"boolean":      "boolean",
 	}
 )

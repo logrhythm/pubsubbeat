@@ -19,35 +19,49 @@ package kibana
 
 import (
 	"bytes"
+	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"mime"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"path"
 	"strings"
 
-	"github.com/pkg/errors"
+	"github.com/joeshaw/multierror"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/common/transport/tlscommon"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/libbeat/outputs/transport"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common/transport/httpcommon"
+	"github.com/elastic/beats/v7/libbeat/common/useragent"
+	"github.com/elastic/beats/v7/libbeat/logp"
+)
+
+var (
+	// We started using Saved Objects API in 7.15. But to help integration
+	// developers migrate their dashboards we are more lenient.
+	MinimumRequiredVersionSavedObjects = common.MustNewVersion("7.14.0")
 )
 
 type Connection struct {
-	URL      string
-	Username string
-	Password string
-	Headers  map[string]string
+	URL          string
+	Username     string
+	Password     string
+	APIKey       string
+	ServiceToken string
+	Headers      http.Header
 
-	http    *http.Client
-	version common.Version
+	HTTP    *http.Client
+	Version common.Version
 }
 
 type Client struct {
 	Connection
+	log *logp.Logger
 }
 
 func addToURL(_url, _path string, params url.Values) string {
@@ -60,40 +74,85 @@ func addToURL(_url, _path string, params url.Values) string {
 
 func extractError(result []byte) error {
 	var kibanaResult struct {
-		Objects []struct {
-			Error struct {
-				Message string
+		Message    string
+		Attributes struct {
+			Objects []struct {
+				Id    string
+				Error struct {
+					Message string
+				}
 			}
 		}
 	}
 	if err := json.Unmarshal(result, &kibanaResult); err != nil {
-		return errors.Wrap(err, "parsing kibana response")
+		return err
 	}
-	for _, o := range kibanaResult.Objects {
-		if o.Error.Message != "" {
-			return errors.New(kibanaResult.Objects[0].Error.Message)
+	var errs multierror.Errors
+	if kibanaResult.Message != "" {
+		for _, err := range kibanaResult.Attributes.Objects {
+			errs = append(errs, fmt.Errorf("id: %s, message: %s", err.Id, err.Error.Message))
 		}
+		return fmt.Errorf("%s: %+v", kibanaResult.Message, errs.Err())
 	}
 	return nil
 }
 
+func extractMessage(result []byte) error {
+	var kibanaResult struct {
+		Success bool
+		Errors  []struct {
+			Id    string
+			Type  string
+			Error struct {
+				Type       string
+				References []struct {
+					Type string
+					Id   string
+				}
+			}
+		}
+	}
+	if err := json.Unmarshal(result, &kibanaResult); err != nil {
+		return nil
+	}
+
+	if !kibanaResult.Success {
+		var errs multierror.Errors
+		for _, err := range kibanaResult.Errors {
+			errs = append(errs, fmt.Errorf("error: %s, asset ID=%s; asset type=%s; references=%+v", err.Error.Type, err.Id, err.Type, err.Error.References))
+		}
+		return errs.Err()
+	}
+
+	return nil
+}
+
 // NewKibanaClient builds and returns a new Kibana client
-func NewKibanaClient(cfg *common.Config) (*Client, error) {
-	config := defaultClientConfig
+func NewKibanaClient(cfg *common.Config, beatname string) (*Client, error) {
+	config := DefaultClientConfig()
 	if err := cfg.Unpack(&config); err != nil {
 		return nil, err
 	}
 
-	return NewClientWithConfig(&config)
+	return NewClientWithConfig(&config, beatname)
 }
 
 // NewClientWithConfig creates and returns a kibana client using the given config
-func NewClientWithConfig(config *ClientConfig) (*Client, error) {
+func NewClientWithConfig(config *ClientConfig, beatname string) (*Client, error) {
+	return NewClientWithConfigDefault(config, 5601, beatname)
+}
+
+// NewClientWithConfig creates and returns a kibana client using the given config
+func NewClientWithConfigDefault(config *ClientConfig, defaultPort int, beatname string) (*Client, error) {
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
+
 	p := config.Path
 	if config.SpaceID != "" {
 		p = path.Join(p, "s", config.SpaceID)
 	}
-	kibanaURL, err := common.MakeURL(config.Protocol, p, config.Host, 5601)
+	kibanaURL, err := common.MakeURL(config.Protocol, p, config.Host, defaultPort)
 	if err != nil {
 		return nil, fmt.Errorf("invalid Kibana host: %v", err)
 	}
@@ -111,38 +170,42 @@ func NewClientWithConfig(config *ClientConfig) (*Client, error) {
 		password, _ = u.User.Password()
 		u.User = nil
 
+		if config.APIKey != "" && (username != "" || password != "") {
+			return nil, fmt.Errorf("cannot set api_key with username/password in Kibana URL")
+		}
+
 		// Re-write URL without credentials.
 		kibanaURL = u.String()
 	}
 
-	logp.Info("Kibana url: %s", kibanaURL)
+	log := logp.NewLogger("kibana")
+	log.Infof("Kibana url: %s", kibanaURL)
 
-	var dialer, tlsDialer transport.Dialer
-
-	tlsConfig, err := tlscommon.LoadTLSConfig(config.TLS)
-	if err != nil {
-		return nil, fmt.Errorf("fail to load the TLS config: %v", err)
+	headers := make(http.Header)
+	for k, v := range config.Headers {
+		headers.Set(k, v)
 	}
 
-	dialer = transport.NetDialer(config.Timeout)
-	tlsDialer, err = transport.TLSDialer(dialer, tlsConfig, config.Timeout)
+	if beatname == "" {
+		beatname = "Libbeat"
+	}
+	userAgent := useragent.UserAgent(beatname)
+	rt, err := config.Transport.Client(httpcommon.WithHeaderRoundTripper(map[string]string{"User-Agent": userAgent}))
 	if err != nil {
 		return nil, err
 	}
 
 	client := &Client{
 		Connection: Connection{
-			URL:      kibanaURL,
-			Username: username,
-			Password: password,
-			http: &http.Client{
-				Transport: &http.Transport{
-					Dial:    dialer.Dial,
-					DialTLS: tlsDialer.Dial,
-				},
-				Timeout: config.Timeout,
-			},
+			URL:          kibanaURL,
+			Username:     username,
+			Password:     password,
+			APIKey:       config.APIKey,
+			ServiceToken: config.ServiceToken,
+			Headers:      headers,
+			HTTP:         rt,
 		},
+		log: log,
 	}
 
 	if !config.IgnoreVersion {
@@ -157,31 +220,7 @@ func NewClientWithConfig(config *ClientConfig) (*Client, error) {
 func (conn *Connection) Request(method, extraPath string,
 	params url.Values, headers http.Header, body io.Reader) (int, []byte, error) {
 
-	reqURL := addToURL(conn.URL, extraPath, params)
-
-	req, err := http.NewRequest(method, reqURL, body)
-	if err != nil {
-		return 0, nil, fmt.Errorf("fail to create the HTTP %s request: %v", method, err)
-	}
-
-	if conn.Username != "" || conn.Password != "" {
-		req.SetBasicAuth(conn.Username, conn.Password)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Add("Accept", "application/json")
-
-	for header, values := range headers {
-		for _, value := range values {
-			req.Header.Add(header, value)
-		}
-	}
-
-	if method != "GET" {
-		req.Header.Set("kbn-version", conn.version.String())
-	}
-
-	resp, err := conn.http.Do(req)
+	resp, err := conn.Send(method, extraPath, params, headers, body)
 	if err != nil {
 		return 0, nil, fmt.Errorf("fail to execute the HTTP %s request: %v", method, err)
 	}
@@ -197,8 +236,69 @@ func (conn *Connection) Request(method, extraPath string,
 		return 0, nil, fmt.Errorf("fail to read response %s", err)
 	}
 
-	retError = extractError(result)
+	if resp.StatusCode >= 300 {
+		retError = extractError(result)
+	} else {
+		retError = extractMessage(result)
+	}
 	return resp.StatusCode, result, retError
+}
+
+// Sends an application/json request to Kibana with appropriate kbn headers
+func (conn *Connection) Send(method, extraPath string,
+	params url.Values, headers http.Header, body io.Reader) (*http.Response, error) {
+
+	return conn.SendWithContext(context.Background(), method, extraPath, params, headers, body)
+}
+
+// SendWithContext sends an application/json request to Kibana with appropriate kbn headers and the given context.
+func (conn *Connection) SendWithContext(ctx context.Context, method, extraPath string,
+	params url.Values, headers http.Header, body io.Reader) (*http.Response, error) {
+
+	reqURL := addToURL(conn.URL, extraPath, params)
+
+	req, err := http.NewRequestWithContext(ctx, method, reqURL, body)
+	if err != nil {
+		return nil, fmt.Errorf("fail to create the HTTP %s request: %+v", method, err)
+	}
+
+	if conn.Username != "" || conn.Password != "" {
+		req.SetBasicAuth(conn.Username, conn.Password)
+	}
+	if conn.APIKey != "" {
+		v := "ApiKey " + base64.StdEncoding.EncodeToString([]byte(conn.APIKey))
+		req.Header.Set("Authorization", v)
+	}
+	if conn.ServiceToken != "" {
+		v := "Bearer " + conn.ServiceToken
+		req.Header.Set("Authorization", v)
+	}
+
+	addHeaders(req.Header, conn.Headers)
+	addHeaders(req.Header, headers)
+
+	contentType := req.Header.Get("Content-Type")
+	contentType, _, _ = mime.ParseMediaType(contentType)
+	if contentType != "multipart/form-data" && contentType != "application/ndjson" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("kbn-xsrf", "1")
+
+	return conn.RoundTrip(req)
+}
+
+func addHeaders(out, in http.Header) {
+	for k, vs := range in {
+		for _, v := range vs {
+			out.Add(k, v)
+		}
+	}
+}
+
+// Implements RoundTrip interface
+func (conn *Connection) RoundTrip(r *http.Request) (*http.Response, error) {
+	return conn.HTTP.Do(r)
 }
 
 func (client *Client) readVersion() error {
@@ -242,41 +342,55 @@ func (client *Client) readVersion() error {
 		return fmt.Errorf("fail to parse kibana version (%v): %+v", versionString, err)
 	}
 
-	client.version = *version
+	client.Version = *version
 	return nil
 }
 
 // GetVersion returns the version read from kibana. The version is not set if
 // IgnoreVersion was set when creating the client.
-func (client *Client) GetVersion() common.Version { return client.version }
+func (client *Client) GetVersion() common.Version { return client.Version }
 
-func (client *Client) ImportJSON(url string, params url.Values, jsonBody map[string]interface{}) error {
+func (client *Client) ImportMultiPartFormFile(url string, params url.Values, filename string, contents string) error {
+	buf := &bytes.Buffer{}
+	w := multipart.NewWriter(buf)
 
-	body, err := json.Marshal(jsonBody)
+	pHeaders := textproto.MIMEHeader{}
+	pHeaders.Add("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename="%s"`, filename))
+	pHeaders.Add("Content-Type", "application/ndjson")
+
+	p, err := w.CreatePart(pHeaders)
 	if err != nil {
-		logp.Err("Failed to json encode body (%v): %#v", err, jsonBody)
-		return fmt.Errorf("fail to marshal the json content: %v", err)
+		return fmt.Errorf("failed to create multipart writer for payload: %+v", err)
 	}
-
-	statusCode, response, err := client.Connection.Request("POST", url, params, nil, bytes.NewBuffer(body))
+	_, err = io.Copy(p, strings.NewReader(contents))
 	if err != nil {
-		return fmt.Errorf("%v. Response: %s", err, truncateString(response))
+		return fmt.Errorf("failed to copy contents of the object: %+v", err)
 	}
-	if statusCode >= 300 {
+	w.Close()
+
+	headers := http.Header{}
+	headers.Add("Content-Type", w.FormDataContentType())
+	statusCode, response, err := client.Connection.Request("POST", url, params, headers, buf)
+	if err != nil || statusCode >= 300 {
 		return fmt.Errorf("returned %d to import file: %v. Response: %s", statusCode, err, response)
 	}
+
+	client.log.Debugf("Imported multipart file to %s with params %v", url, params)
 	return nil
 }
 
 func (client *Client) Close() error { return nil }
 
 // GetDashboard returns the dashboard with the given id with the index pattern removed
-func (client *Client) GetDashboard(id string) (common.MapStr, error) {
-	params := url.Values{}
-	params.Add("dashboard", id)
-	_, response, err := client.Request("GET", "/api/kibana/dashboards/export", params, nil, nil)
-	if err != nil {
-		return nil, fmt.Errorf("error exporting dashboard: %+v", err)
+func (client *Client) GetDashboard(id string) ([]byte, error) {
+	if client.Version.LessThan(MinimumRequiredVersionSavedObjects) {
+		return nil, fmt.Errorf("Kibana version must be at least " + MinimumRequiredVersionSavedObjects.String())
+	}
+
+	body := fmt.Sprintf(`{"objects": [{"type": "dashboard", "id": "%s" }], "includeReferencesDeep": true, "excludeExportDetails": true}`, id)
+	statusCode, response, err := client.Request("POST", "/api/saved_objects/_export", nil, nil, strings.NewReader(body))
+	if err != nil || statusCode >= 300 {
+		return nil, fmt.Errorf("error exporting dashboard: %+v, code: %d", err, statusCode)
 	}
 
 	result, err := RemoveIndexPattern(response)

@@ -21,9 +21,10 @@ import (
 	"net"
 	"net/url"
 	"strconv"
+	"strings"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/ecs/code/go/ecs"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/ecs"
 )
 
 // ProtocolFields contains HTTP fields. This contains all the HTTP fields from
@@ -35,11 +36,17 @@ type ProtocolFields struct {
 	// "Lowercase Capitalization" in the "Implementing ECS"  section.
 	RequestMethod common.NetString `ecs:"request.method"`
 
+	// HTTP request ID.
+	RequestID common.NetString `ecs:"request.id"`
+
 	// The full http request body.
 	RequestBodyContent common.NetString `ecs:"request.body.content"`
 
 	// Referrer for this HTTP request.
 	RequestReferrer common.NetString `ecs:"request.referrer"`
+
+	// HTTP request mime-type.
+	RequestMIMEType string `ecs:"request.mime_type"`
 
 	// Http response status code.
 	ResponseStatusCode int64 `ecs:"response.status_code"`
@@ -68,6 +75,9 @@ type ProtocolFields struct {
 	// HTTP response headers.
 	ResponseHeaders common.MapStr `packetbeat:"response.headers"`
 
+	// HTTP response mime-type.
+	ResponseMIMEType string `ecs:"response.mime_type"`
+
 	// HTTP response status phrase.
 	ResponseStatusPhrase common.NetString `packetbeat:"response.status_phrase"`
 }
@@ -83,6 +93,12 @@ func newURL(host string, port int64, path, query string) *ecs.Url {
 	if port != 80 {
 		u.Port = port
 	}
+	if path != "" {
+		periodIndex := strings.LastIndex(path, ".")
+		if periodIndex != -1 && periodIndex < len(path) {
+			u.Extension = path[(periodIndex + 1):]
+		}
+	}
 	u.Full = synthesizeFullURL(u, port)
 	return u
 }
@@ -95,6 +111,8 @@ func synthesizeFullURL(u *ecs.Url, port int64) string {
 	host := u.Domain
 	if port != 80 {
 		host = net.JoinHostPort(u.Domain, strconv.Itoa(int(u.Port)))
+	} else if strings.IndexByte(u.Domain, ':') != -1 {
+		host = "[" + u.Domain + "]"
 	}
 
 	urlBuilder := url.URL{

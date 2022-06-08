@@ -21,18 +21,16 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/common/kubernetes"
-	"github.com/elastic/beats/libbeat/common/safemapstr"
-	"github.com/elastic/beats/metricbeat/mb"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common/kubernetes"
+	"github.com/elastic/beats/v7/libbeat/common/safemapstr"
+	"github.com/elastic/beats/v7/metricbeat/mb"
 )
 
 // init registers the MetricSet with the central registry.
 // The New method will be called after the setup of the module and before starting to fetch data
 func init() {
-	if err := mb.Registry.AddMetricSet("kubernetes", "event", New); err != nil {
-		panic(err)
-	}
+	mb.Registry.MustAddMetricSet("kubernetes", "event", New)
 }
 
 // MetricSet type defines all fields of the MetricSet
@@ -43,6 +41,7 @@ type MetricSet struct {
 	watcher      kubernetes.Watcher
 	watchOptions kubernetes.WatchOptions
 	dedotConfig  dedotConfig
+	skipOlder    bool
 }
 
 // dedotConfig defines LabelsDedot and AnnotationsDedot.
@@ -64,7 +63,7 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 		return nil, fmt.Errorf("fail to unpack the kubernetes event configuration: %s", err)
 	}
 
-	client, err := kubernetes.GetKubernetesClient(config.InCluster, config.KubeConfig)
+	client, err := kubernetes.GetKubernetesClient(config.KubeConfig, config.KubeClientOptions)
 	if err != nil {
 		return nil, fmt.Errorf("fail to get kubernetes client: %s", err.Error())
 	}
@@ -74,7 +73,7 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 		Namespace:   config.Namespace,
 	}
 
-	watcher, err := kubernetes.NewWatcher(client, &kubernetes.Event{}, watchOptions)
+	watcher, err := kubernetes.NewNamedWatcher("event", client, &kubernetes.Event{}, watchOptions, nil)
 	if err != nil {
 		return nil, fmt.Errorf("fail to init kubernetes watcher: %s", err.Error())
 	}
@@ -89,6 +88,7 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 		dedotConfig:   dedotConfig,
 		watcher:       watcher,
 		watchOptions:  watchOptions,
+		skipOlder:     config.SkipOlder,
 	}, nil
 }
 
@@ -96,20 +96,28 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 func (m *MetricSet) Run(reporter mb.PushReporter) {
 	now := time.Now()
 	handler := kubernetes.ResourceEventHandlerFuncs{
-		AddFunc: func(obj kubernetes.Resource) {
+		AddFunc: func(obj interface{}) {
 			reporter.Event(generateMapStrFromEvent(obj.(*kubernetes.Event), m.dedotConfig))
 		},
-		UpdateFunc: func(obj kubernetes.Resource) {
+		UpdateFunc: func(obj interface{}) {
 			reporter.Event(generateMapStrFromEvent(obj.(*kubernetes.Event), m.dedotConfig))
 		},
 		// ignore events that are deleted
 		DeleteFunc: nil,
 	}
 	m.watcher.AddEventHandler(kubernetes.FilteringResourceEventHandler{
-		// skip events happened before watch
-		FilterFunc: func(obj kubernetes.Resource) bool {
+		FilterFunc: func(obj interface{}) bool {
 			eve := obj.(*kubernetes.Event)
-			if kubernetes.Time(eve.LastTimestamp).Before(now) {
+			// if fields are null they are decoded to `0001-01-01 00:00:00 +0000 UTC`
+			// so we need to check if they are valid first
+			lastTimestampValid := !kubernetes.Time(&eve.LastTimestamp).IsZero()
+			eventTimeValid := !kubernetes.MicroTime(&eve.EventTime).IsZero()
+			// if skipOlder, skip events happened before watch
+			if m.skipOlder && kubernetes.Time(&eve.LastTimestamp).Before(now) && lastTimestampValid {
+				return false
+			} else if m.skipOlder && kubernetes.MicroTime(&eve.EventTime).Before(now) && eventTimeValid {
+				// there might be cases that `LastTimestamp` is not a valid number so double check
+				// with `EventTime`
 				return false
 			}
 			return true
@@ -126,19 +134,19 @@ func (m *MetricSet) Run(reporter mb.PushReporter) {
 func generateMapStrFromEvent(eve *kubernetes.Event, dedotConfig dedotConfig) common.MapStr {
 	eventMeta := common.MapStr{
 		"timestamp": common.MapStr{
-			"created": kubernetes.Time(eve.Metadata.CreationTimestamp).UTC(),
+			"created": kubernetes.Time(&eve.ObjectMeta.CreationTimestamp).UTC(),
 		},
-		"name":             eve.Metadata.GetName(),
-		"namespace":        eve.Metadata.GetNamespace(),
-		"self_link":        eve.Metadata.GetSelfLink(),
-		"generate_name":    eve.Metadata.GetGenerateName(),
-		"uid":              eve.Metadata.GetUid(),
-		"resource_version": eve.Metadata.GetResourceVersion(),
+		"name":             eve.ObjectMeta.GetName(),
+		"namespace":        eve.ObjectMeta.GetNamespace(),
+		"self_link":        eve.ObjectMeta.GetSelfLink(),
+		"generate_name":    eve.ObjectMeta.GetGenerateName(),
+		"uid":              eve.ObjectMeta.GetUID(),
+		"resource_version": eve.ObjectMeta.GetResourceVersion(),
 	}
 
-	if len(eve.Metadata.Labels) != 0 {
-		labels := make(common.MapStr, len(eve.Metadata.Labels))
-		for k, v := range eve.Metadata.Labels {
+	if len(eve.ObjectMeta.Labels) != 0 {
+		labels := make(common.MapStr, len(eve.ObjectMeta.Labels))
+		for k, v := range eve.ObjectMeta.Labels {
 			if dedotConfig.LabelsDedot {
 				label := common.DeDot(k)
 				labels.Put(label, v)
@@ -150,9 +158,9 @@ func generateMapStrFromEvent(eve *kubernetes.Event, dedotConfig dedotConfig) com
 		eventMeta["labels"] = labels
 	}
 
-	if len(eve.Metadata.Annotations) != 0 {
-		annotations := make(common.MapStr, len(eve.Metadata.Annotations))
-		for k, v := range eve.Metadata.Annotations {
+	if len(eve.ObjectMeta.Annotations) != 0 {
+		annotations := make(common.MapStr, len(eve.ObjectMeta.Annotations))
+		for k, v := range eve.ObjectMeta.Annotations {
 			if dedotConfig.AnnotationsDedot {
 				annotation := common.DeDot(k)
 				annotations.Put(annotation, v)
@@ -165,29 +173,28 @@ func generateMapStrFromEvent(eve *kubernetes.Event, dedotConfig dedotConfig) com
 	}
 
 	output := common.MapStr{
-		"message": eve.GetMessage(),
-		"reason":  eve.GetReason(),
-		"type":    eve.GetType(),
-		"count":   eve.GetCount(),
+		"message": eve.Message,
+		"reason":  eve.Reason,
+		"type":    eve.Type,
+		"count":   eve.Count,
+		"source": common.MapStr{
+			"host":      eve.Source.Host,
+			"component": eve.Source.Component,
+		},
 		"involved_object": common.MapStr{
-			"api_version":      eve.GetInvolvedObject().GetApiVersion(),
-			"resource_version": eve.GetInvolvedObject().GetResourceVersion(),
-			"name":             eve.GetInvolvedObject().GetName(),
-			"kind":             eve.GetInvolvedObject().GetKind(),
-			"uid":              eve.GetInvolvedObject().GetUid(),
+			"api_version":      eve.InvolvedObject.APIVersion,
+			"resource_version": eve.InvolvedObject.ResourceVersion,
+			"name":             eve.InvolvedObject.Name,
+			"kind":             eve.InvolvedObject.Kind,
+			"uid":              eve.InvolvedObject.UID,
 		},
 		"metadata": eventMeta,
 	}
 
 	tsMap := make(common.MapStr)
 
-	if eve.FirstTimestamp != nil {
-		tsMap["first_occurrence"] = kubernetes.Time(eve.FirstTimestamp).UTC()
-	}
-
-	if eve.LastTimestamp != nil {
-		tsMap["last_occurrence"] = kubernetes.Time(eve.LastTimestamp).UTC()
-	}
+	tsMap["first_occurrence"] = kubernetes.Time(&eve.FirstTimestamp).UTC()
+	tsMap["last_occurrence"] = kubernetes.Time(&eve.LastTimestamp).UTC()
 
 	if len(tsMap) != 0 {
 		output["timestamp"] = tsMap

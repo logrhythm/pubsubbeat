@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package module_test
@@ -25,12 +26,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/outputs/codec/json"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/outputs/codec/json"
 
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/mb/module"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/module"
 )
 
 // ExampleWrapper demonstrates how to create a single Wrapper
@@ -40,7 +41,7 @@ func ExampleWrapper() {
 	// Build a configuration object.
 	config, err := common.NewConfigFrom(map[string]interface{}{
 		"module":     moduleName,
-		"metricsets": []string{eventFetcherName},
+		"metricsets": []string{reportingFetcherName},
 	})
 	if err != nil {
 		fmt.Println("Error:", err)
@@ -91,17 +92,18 @@ func ExampleWrapper() {
 	//   },
 	//   "@timestamp": "2016-05-10T23:27:58.485Z",
 	//   "event": {
-	//     "dataset": "fake.eventfetcher",
+	//     "dataset": "fake.reportingfetcher",
 	//     "duration": 111,
 	//     "module": "fake"
 	//   },
 	//   "fake": {
-	//     "eventfetcher": {
+	//     "reportingfetcher": {
 	//       "metric": 1
 	//     }
 	//   },
 	//   "metricset": {
-	//     "name": "eventfetcher"
+	//     "name": "reportingfetcher",
+	//     "period": 10000
 	//   },
 	//   "service": {
 	//     "type": "fake"
@@ -119,7 +121,7 @@ func ExampleRunner() {
 
 	config, err := common.NewConfigFrom(map[string]interface{}{
 		"module":     moduleName,
-		"metricsets": []string{eventFetcherName},
+		"metricsets": []string{reportingFetcherName},
 	})
 	if err != nil {
 		return
@@ -131,7 +133,7 @@ func ExampleRunner() {
 		return
 	}
 
-	connector, err := module.NewConnector(b.Publisher, config, nil)
+	connector, err := module.NewConnector(b.Info, b.Publisher, config)
 	if err != nil {
 		return
 	}

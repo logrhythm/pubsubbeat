@@ -15,20 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// +build darwin freebsd linux windows
+//go:build darwin || freebsd || linux || windows || aix
+// +build darwin freebsd linux windows aix
 
 package network
 
 import (
 	"strings"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/mb/parse"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/parse"
 
 	"github.com/pkg/errors"
-	"github.com/shirou/gopsutil/net"
+	"github.com/shirou/gopsutil/v3/net"
 )
 
 var debugf = logp.MakeDebug("system-network")
@@ -43,7 +44,16 @@ func init() {
 // MetricSet for fetching system network IO metrics.
 type MetricSet struct {
 	mb.BaseMetricSet
-	interfaces map[string]struct{}
+	interfaces   map[string]struct{}
+	prevCounters networkCounter
+}
+
+// networkCounter stores previous network counter values for calculating gauges in next collection
+type networkCounter struct {
+	prevNetworkInBytes    uint64
+	prevNetworkInPackets  uint64
+	prevNetworkOutBytes   uint64
+	prevNetworkOutPackets uint64
 }
 
 // New is a mb.MetricSetFactory that returns a new MetricSet.
@@ -69,16 +79,18 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 	return &MetricSet{
 		BaseMetricSet: base,
 		interfaces:    interfaceSet,
+		prevCounters:  networkCounter{},
 	}, nil
 }
 
 // Fetch fetches network IO metrics from the OS.
-func (m *MetricSet) Fetch(r mb.ReporterV2) {
+func (m *MetricSet) Fetch(r mb.ReporterV2) error {
 	stats, err := net.IOCounters(true)
 	if err != nil {
-		r.Error(errors.Wrap(err, "network io counters"))
-		return
+		return errors.Wrap(err, "network io counters")
 	}
+
+	var networkInBytes, networkOutBytes, networkInPackets, networkOutPackets uint64
 
 	for _, counters := range stats {
 		if m.interfaces != nil {
@@ -89,10 +101,48 @@ func (m *MetricSet) Fetch(r mb.ReporterV2) {
 			}
 		}
 
-		r.Event(mb.Event{
+		isOpen := r.Event(mb.Event{
 			MetricSetFields: ioCountersToMapStr(counters),
 		})
+
+		// accumulate values from all interfaces
+		networkInBytes += counters.BytesRecv
+		networkOutBytes += counters.BytesSent
+		networkInPackets += counters.PacketsRecv
+		networkOutPackets += counters.PacketsSent
+
+		if !isOpen {
+			return nil
+		}
 	}
+
+	if m.prevCounters != (networkCounter{}) {
+		// convert network metrics from counters to gauges
+		r.Event(mb.Event{
+			RootFields: common.MapStr{
+				"host": common.MapStr{
+					"network": common.MapStr{
+						"ingress": common.MapStr{
+							"bytes":   networkInBytes - m.prevCounters.prevNetworkInBytes,
+							"packets": networkInPackets - m.prevCounters.prevNetworkInPackets,
+						},
+						"egress": common.MapStr{
+							"bytes":   networkOutBytes - m.prevCounters.prevNetworkOutBytes,
+							"packets": networkOutPackets - m.prevCounters.prevNetworkOutPackets,
+						},
+					},
+				},
+			},
+		})
+	}
+
+	// update prevCounters
+	m.prevCounters.prevNetworkInBytes = networkInBytes
+	m.prevCounters.prevNetworkInPackets = networkInPackets
+	m.prevCounters.prevNetworkOutBytes = networkOutBytes
+	m.prevCounters.prevNetworkOutPackets = networkOutPackets
+
+	return nil
 }
 
 func ioCountersToMapStr(counters net.IOCountersStat) common.MapStr {

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package status
@@ -23,19 +24,19 @@ import (
 	"io/ioutil"
 	"testing"
 
-	mbtest "github.com/elastic/beats/metricbeat/mb/testing"
+	"github.com/stretchr/testify/require"
 
-	"github.com/stretchr/testify/assert"
+	mbtest "github.com/elastic/beats/v7/metricbeat/mb/testing"
 )
 
 func TestEventMapping(t *testing.T) {
 	f := "./_meta/test/input.json"
 	content, err := ioutil.ReadFile(f)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	reporter := &mbtest.CapturingReporterV2{}
-	err = eventMapping(reporter, content)
-	assert.NoError(t, err, f)
-	assert.True(t, len(reporter.GetEvents()) >= 1, f)
-	assert.Equal(t, 0, len(reporter.GetErrors()), f)
+	err = eventMapping(reporter, content, true)
+	require.NoError(t, err, f)
+	require.True(t, len(reporter.GetEvents()) >= 1, f)
+	require.Equal(t, 0, len(reporter.GetErrors()), f)
 }

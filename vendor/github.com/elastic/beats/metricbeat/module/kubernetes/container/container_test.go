@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package container
@@ -26,8 +27,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/metricbeat/module/kubernetes/util"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/metricbeat/module/kubernetes/util"
 )
 
 const testFile = "../_meta/test/stats_summary.json"
@@ -53,8 +54,8 @@ func TestEventMapping(t *testing.T) {
 		"cpu.usage.core.ns":   43959424,
 		"cpu.usage.nanocores": 11263994,
 
-		"logs.available.bytes": 98727014400,
-		"logs.capacity.bytes":  101258067968,
+		"logs.available.bytes": int64(98727014400),
+		"logs.capacity.bytes":  int64(101258067968),
 		"logs.used.bytes":      28672,
 		"logs.inodes.count":    6258720,
 		"logs.inodes.free":     6120096,
@@ -68,21 +69,32 @@ func TestEventMapping(t *testing.T) {
 		"memory.majorpagefaults":  0,
 
 		// calculated pct fields:
-		"cpu.usage.node.pct":     0.005631997,
-		"cpu.usage.limit.pct":    0.005631997,
-		"memory.usage.node.pct":  0.01,
-		"memory.usage.limit.pct": 0.1,
+		"cpu.usage.node.pct":          0.005631997,
+		"cpu.usage.limit.pct":         0.005631997,
+		"memory.usage.node.pct":       0.01,
+		"memory.usage.limit.pct":      0.1,
+		"memory.workingset.limit.pct": 0.09943977591036414,
 
 		"name": "nginx",
 
-		"rootfs.available.bytes": 98727014400,
-		"rootfs.capacity.bytes":  101258067968,
+		"rootfs.available.bytes": int64(98727014400),
+		"rootfs.capacity.bytes":  int64(101258067968),
 		"rootfs.used.bytes":      61440,
 		"rootfs.inodes.used":     21,
 	}
 
 	for k, v := range testCases {
 		testValue(t, events[0], k, v)
+	}
+
+	containerEcsFields := ecsfields(events[0])
+	testEcs := map[string]interface{}{
+		"cpu.usage":    0.005631997,
+		"memory.usage": 0.01,
+		"name":         "nginx",
+	}
+	for k, v := range testEcs {
+		testValue(t, containerEcsFields, k, v)
 	}
 }
 

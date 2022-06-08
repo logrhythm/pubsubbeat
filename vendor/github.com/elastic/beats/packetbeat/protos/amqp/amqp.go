@@ -22,13 +22,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/libbeat/monitoring"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/monitoring"
 
-	"github.com/elastic/beats/packetbeat/pb"
-	"github.com/elastic/beats/packetbeat/protos"
-	"github.com/elastic/beats/packetbeat/protos/tcp"
+	"github.com/elastic/beats/v7/packetbeat/pb"
+	"github.com/elastic/beats/v7/packetbeat/procs"
+	"github.com/elastic/beats/v7/packetbeat/protos"
+	"github.com/elastic/beats/v7/packetbeat/protos/tcp"
 )
 
 var (
@@ -47,8 +48,9 @@ type amqpPlugin struct {
 	transactions              *common.Cache
 	transactionTimeout        time.Duration
 	results                   protos.Reporter
+	watcher                   procs.ProcessesWatcher
 
-	//map containing functions associated with different method numbers
+	// map containing functions associated with different method numbers
 	methodMap map[codeClass]map[codeMethod]amqpMethod
 }
 
@@ -64,6 +66,7 @@ func init() {
 func New(
 	testMode bool,
 	results protos.Reporter,
+	watcher procs.ProcessesWatcher,
 	cfg *common.Config,
 ) (protos.Plugin, error) {
 	p := &amqpPlugin{}
@@ -74,17 +77,17 @@ func New(
 		}
 	}
 
-	if err := p.init(results, &config); err != nil {
+	if err := p.init(results, watcher, &config); err != nil {
 		return nil, err
 	}
 	return p, nil
 }
 
-func (amqp *amqpPlugin) init(results protos.Reporter, config *amqpConfig) error {
+func (amqp *amqpPlugin) init(results protos.Reporter, watcher procs.ProcessesWatcher, config *amqpConfig) error {
 	amqp.initMethodMap()
 	amqp.setFromConfig(config)
 
-	if amqp.hideConnectionInformation == false {
+	if !amqp.hideConnectionInformation {
 		amqp.addConnectionMethods()
 	}
 	amqp.transactions = common.NewCache(
@@ -92,6 +95,7 @@ func (amqp *amqpPlugin) init(results protos.Reporter, config *amqpConfig) error 
 		protos.DefaultTransactionHashSize)
 	amqp.transactions.StartJanitor(amqp.transactionTimeout)
 	amqp.results = results
+	amqp.watcher = watcher
 	return nil
 }
 
@@ -190,8 +194,8 @@ func (amqp *amqpPlugin) ConnectionTimeout() time.Duration {
 }
 
 func (amqp *amqpPlugin) Parse(pkt *protos.Packet, tcptuple *common.TCPTuple,
-	dir uint8, private protos.ProtocolData) protos.ProtocolData {
-
+	dir uint8, private protos.ProtocolData,
+) protos.ProtocolData {
 	defer logp.Recover("ParseAmqp exception")
 	detailedf("Parse method triggered")
 
@@ -210,7 +214,7 @@ func (amqp *amqpPlugin) Parse(pkt *protos.Packet, tcptuple *common.TCPTuple,
 			message: &amqpMessage{ts: pkt.Ts},
 		}
 	} else {
-		// concatenate databytes
+		// concatenate data bytes
 		priv.data[dir].data = append(priv.data[dir].data, pkt.Payload...)
 		if len(priv.data[dir].data) > tcp.TCPMaxDataInStream {
 			debugf("Stream data too large, dropping TCP stream")
@@ -274,13 +278,13 @@ func (amqp *amqpPlugin) handleAmqpRequest(msg *amqpMessage) {
 	}
 
 	trans.method = msg.method
-	// get the righ request
+	// get the right request
 	if len(msg.request) > 0 {
 		trans.request = strings.Join([]string{msg.method, msg.request}, " ")
 	} else {
 		trans.request = msg.method
 	}
-	//length = message + 4 bytes header + frame end octet
+	// length = message + 4 bytes header + frame end octet
 	trans.bytesIn = msg.bodySize + 12
 	if msg.fields != nil {
 		trans.amqp = msg.fields
@@ -288,9 +292,9 @@ func (amqp *amqpPlugin) handleAmqpRequest(msg *amqpMessage) {
 		trans.amqp = common.MapStr{}
 	}
 
-	//if error or exception, publish it now. sometimes client or server never send
-	//an ack message and the error is lost. Also, if nowait flag set, don't expect
-	//any response and publish
+	// if error or exception, publish it now. sometimes client or server never send
+	// an ack message and the error is lost. Also, if nowait flag set, don't expect
+	// any response and publish
 	if isAsynchronous(trans) {
 		amqp.publishTransaction(trans)
 		debugf("Amqp transaction completed")
@@ -313,9 +317,9 @@ func (amqp *amqpPlugin) handleAmqpResponse(msg *amqpMessage) {
 		return
 	}
 
-	//length = message + 4 bytes class/method + frame end octet + header
+	// length = message + 4 bytes class/method + frame end octet + header
 	trans.bytesOut = msg.bodySize + 12
-	//merge the both fields from request and response
+	// merge the both fields from request and response
 	trans.amqp.Update(msg.fields)
 	trans.response = common.OK_STATUS
 
@@ -340,8 +344,8 @@ func (amqp *amqpPlugin) handleAmqpResponse(msg *amqpMessage) {
 func (amqp *amqpPlugin) expireTransaction(trans *amqpTransaction) {
 	debugf("Transaction expired")
 
-	//possibility of a connection.close or channel.close method that didn't get an
-	//ok answer. Let's publish it.
+	// possibility of a connection.close or channel.close method that didn't get an
+	// ok answer. Let's publish it.
 	if isCloseError(trans) {
 		trans.notes = append(trans.notes, "Close-ok method not received by sender")
 		amqp.publishTransaction(trans)
@@ -350,8 +354,8 @@ func (amqp *amqpPlugin) expireTransaction(trans *amqpTransaction) {
 	amqp.transactions.Delete(trans.tuple.Hashable())
 }
 
-//This method handles published messages from clients. Being an async
-//process, the method, header and body frames are regrouped in one transaction
+// This method handles published messages from clients. Being an async
+// process, the method, header and body frames are regrouped in one transaction
 func (amqp *amqpPlugin) handlePublishing(client *amqpMessage) {
 	tuple := client.tcpTuple
 	trans := amqp.getTransaction(tuple.Hashable())
@@ -365,8 +369,8 @@ func (amqp *amqpPlugin) handlePublishing(client *amqpMessage) {
 	trans.src, trans.dst = common.MakeEndpointPair(client.tcpTuple.BaseTuple, client.cmdlineTuple)
 
 	trans.method = client.method
-	//for publishing and delivering, bytes in and out represent the length of the
-	//message itself
+	// for publishing and delivering, bytes in and out represent the length of the
+	// message itself
 	trans.bytesIn = client.bodySize
 
 	if client.bodySize > uint64(amqp.maxBodyLength) {
@@ -380,13 +384,13 @@ func (amqp *amqpPlugin) handlePublishing(client *amqpMessage) {
 	trans.amqp = client.fields
 	amqp.publishTransaction(trans)
 	debugf("Amqp transaction completed")
-	//delete trans from map
+	// delete trans from map
 	amqp.transactions.Delete(trans.tuple.Hashable())
 }
 
-//This method handles delivered messages via basic.deliver and basic.get-ok AND
-//returned messages to clients. Being an async process, the method, header and
-//body frames are regrouped in one transaction
+// This method handles delivered messages via basic.deliver and basic.get-ok AND
+// returned messages to clients. Being an async process, the method, header and
+// body frames are regrouped in one transaction
 func (amqp *amqpPlugin) handleDelivering(server *amqpMessage) {
 	tuple := server.tcpTuple
 	trans := amqp.getTransaction(tuple.Hashable())
@@ -399,8 +403,8 @@ func (amqp *amqpPlugin) handleDelivering(server *amqpMessage) {
 	trans.ts = server.ts
 	trans.src, trans.dst = common.MakeEndpointPair(server.tcpTuple.BaseTuple, server.cmdlineTuple)
 
-	//for publishing and delivering, bytes in and out represent the length of the
-	//message itself
+	// for publishing and delivering, bytes in and out represent the length of the
+	// message itself
 	trans.bytesOut = server.bodySize
 
 	if server.bodySize > uint64(amqp.maxBodyLength) {
@@ -418,7 +422,7 @@ func (amqp *amqpPlugin) handleDelivering(server *amqpMessage) {
 
 	amqp.publishTransaction(trans)
 	debugf("Amqp transaction completed")
-	//delete trans from map
+	// delete trans from map
 	amqp.transactions.Delete(trans.tuple.Hashable())
 }
 
@@ -435,6 +439,7 @@ func (amqp *amqpPlugin) publishTransaction(t *amqpTransaction) {
 	pbf.Event.Start = t.ts
 	pbf.Event.End = t.endTime
 	pbf.Event.Dataset = "amqp"
+	pbf.Event.Action = "amqp." + t.method
 	pbf.Network.Protocol = pbf.Event.Dataset
 	pbf.Network.Transport = "tcp"
 	pbf.Error.Message = t.notes
@@ -450,7 +455,11 @@ func (amqp *amqpPlugin) publishTransaction(t *amqpTransaction) {
 	}
 	fields["amqp"] = t.amqp
 
-	//let's try to convert request/response to a readable format
+	if userID, found := t.amqp["user-id"]; found {
+		fields["user.id"] = userID
+	}
+
+	// let's try to convert request/response to a readable format
 	if amqp.sendRequest {
 		if t.method == "basic.publish" {
 			if t.toString {
@@ -494,7 +503,7 @@ func (amqp *amqpPlugin) publishTransaction(t *amqpTransaction) {
 	amqp.results(evt)
 }
 
-//function to check if method is async or not
+// function to check if method is async or not
 func isAsynchronous(trans *amqpTransaction) bool {
 	if val, ok := trans.amqp["no-wait"]; ok && val == true {
 		return true
@@ -505,7 +514,7 @@ func isAsynchronous(trans *amqpTransaction) bool {
 		trans.method == "basic.nack"
 }
 
-//function to convert a body slice into a readable format
+// function to convert a body slice into a readable format
 func bodyToString(data []byte) string {
 	ret := make([]string, len(data))
 	for i, c := range data {
@@ -514,7 +523,7 @@ func bodyToString(data []byte) string {
 	return strings.Join(ret, " ")
 }
 
-//function used to check if a body message can be converted to readable string
+// function used to check if a body message can be converted to readable string
 func isStringable(m *amqpMessage) bool {
 	stringable := false
 

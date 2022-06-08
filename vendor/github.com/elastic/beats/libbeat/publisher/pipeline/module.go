@@ -21,13 +21,15 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/libbeat/monitoring"
-	"github.com/elastic/beats/libbeat/outputs"
-	"github.com/elastic/beats/libbeat/publisher/processing"
-	"github.com/elastic/beats/libbeat/publisher/queue"
+	"go.elastic.co/apm"
+
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/monitoring"
+	"github.com/elastic/beats/v7/libbeat/outputs"
+	"github.com/elastic/beats/v7/libbeat/publisher/processing"
+	"github.com/elastic/beats/v7/libbeat/publisher/queue"
 )
 
 // Global pipeline module for loading the main pipeline from a configuration object
@@ -43,6 +45,7 @@ type Monitors struct {
 	Metrics   *monitoring.Registry
 	Telemetry *monitoring.Registry
 	Logger    *logp.Logger
+	Tracer    *apm.Tracer
 }
 
 // OutputFactory is used by the publisher pipeline to create an output instance.
@@ -55,13 +58,31 @@ func init() {
 }
 
 // Load uses a Config object to create a new complete Pipeline instance with
-// configured queue and outputs.
+// configured queue and outputs. This is a non-blocking operation, and outputs should connect lazily.
 func Load(
 	beatInfo beat.Info,
 	monitors Monitors,
 	config Config,
 	processors processing.Supporter,
 	makeOutput func(outputs.Observer) (string, outputs.Group, error),
+) (*Pipeline, error) {
+
+	settings := Settings{
+		WaitClose:     0,
+		WaitCloseMode: NoWaitOnClose,
+		Processors:    processors,
+	}
+
+	return LoadWithSettings(beatInfo, monitors, config, makeOutput, settings)
+}
+
+// LoadWithSettings is the same as Load, but it exposes a Settings object that includes processors and WaitClose behavior
+func LoadWithSettings(
+	beatInfo beat.Info,
+	monitors Monitors,
+	config Config,
+	makeOutput func(outputs.Observer) (string, outputs.Group, error),
+	settings Settings,
 ) (*Pipeline, error) {
 	log := monitors.Logger
 	if log == nil {
@@ -73,13 +94,8 @@ func Load(
 	}
 
 	name := beatInfo.Name
-	settings := Settings{
-		WaitClose:     0,
-		WaitCloseMode: NoWaitOnClose,
-		Processors:    processors,
-	}
 
-	queueBuilder, err := createQueueBuilder(config.Queue, monitors)
+	queueBuilder, err := createQueueBuilder(config.Queue, monitors, settings.InputQueueSize)
 	if err != nil {
 		return nil, err
 	}
@@ -145,6 +161,8 @@ func loadOutput(
 			telemetry = monitors.Telemetry.NewRegistry("output")
 		}
 		monitoring.NewString(telemetry, "name").Set(outName)
+		monitoring.NewInt(telemetry, "batch_size").Set(int64(out.BatchSize))
+		monitoring.NewInt(telemetry, "clients").Set(int64(len(out.Clients)))
 	}
 
 	return out, nil
@@ -153,7 +171,8 @@ func loadOutput(
 func createQueueBuilder(
 	config common.ConfigNamespace,
 	monitors Monitors,
-) (func(queue.Eventer) (queue.Queue, error), error) {
+	inQueueSize int,
+) (func(queue.ACKListener) (queue.Queue, error), error) {
 	queueType := defaultQueueType
 	if b := config.Name(); b != "" {
 		queueType = b
@@ -174,7 +193,7 @@ func createQueueBuilder(
 		monitoring.NewString(queueReg, "name").Set(queueType)
 	}
 
-	return func(eventer queue.Eventer) (queue.Queue, error) {
-		return queueFactory(eventer, monitors.Logger, queueConfig)
+	return func(ackListener queue.ACKListener) (queue.Queue, error) {
+		return queueFactory(ackListener, monitors.Logger, queueConfig, inQueueSize)
 	}, nil
 }

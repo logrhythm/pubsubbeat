@@ -19,16 +19,17 @@ package readfile
 
 import (
 	"errors"
+	"io"
 	"time"
 
-	"github.com/elastic/beats/libbeat/reader"
+	"github.com/elastic/beats/v7/libbeat/reader"
 )
 
 var (
 	errTimeout = errors.New("timeout")
 )
 
-// timeoutProcessor will signal some configurable timeout error if no
+// TimeoutReader will signal some configurable timeout error if no
 // new line can be returned in time.
 type TimeoutReader struct {
 	reader  reader.Reader
@@ -36,6 +37,7 @@ type TimeoutReader struct {
 	signal  error
 	running bool
 	ch      chan lineMessage
+	done    chan struct{}
 }
 
 type lineMessage struct {
@@ -43,7 +45,7 @@ type lineMessage struct {
 	err  error
 }
 
-// New returns a new timeout reader from an input line reader.
+// NewTimeoutReader returns a new timeout reader from an input line reader.
 func NewTimeoutReader(reader reader.Reader, signal error, t time.Duration) *TimeoutReader {
 	if signal == nil {
 		signal = errTimeout
@@ -54,6 +56,7 @@ func NewTimeoutReader(reader reader.Reader, signal error, t time.Duration) *Time
 		signal:  signal,
 		timeout: t,
 		ch:      make(chan lineMessage, 1),
+		done:    make(chan struct{}),
 	}
 }
 
@@ -68,21 +71,34 @@ func (r *TimeoutReader) Next() (reader.Message, error) {
 		go func() {
 			for {
 				message, err := r.reader.Next()
-				r.ch <- lineMessage{message, err}
-				if err != nil {
-					break
+				select {
+				case <-r.done:
+					return
+				case r.ch <- lineMessage{message, err}:
+					if err != nil {
+						return
+					}
 				}
 			}
 		}()
 	}
-
+	timer := time.NewTimer(r.timeout)
 	select {
 	case msg := <-r.ch:
 		if msg.err != nil {
 			r.running = false
 		}
+		timer.Stop()
 		return msg.line, msg.err
-	case <-time.After(r.timeout):
+	case <-timer.C:
 		return reader.Message{}, r.signal
+	case <-r.done:
+		return reader.Message{}, io.EOF
 	}
+}
+
+func (r *TimeoutReader) Close() error {
+	close(r.done)
+
+	return r.reader.Close()
 }

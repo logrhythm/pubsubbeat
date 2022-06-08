@@ -6,9 +6,10 @@ import unittest
 from auditbeat import *
 from elasticsearch import Elasticsearch
 from beat.beat import INTEGRATION_TESTS
+from beat import common_tests
 
 
-class Test(BaseTest):
+class Test(BaseTest, common_tests.TestExportsMixin, common_tests.TestDashboardMixin):
     def test_start_stop(self):
         """
         Auditbeat starts and stops without error.
@@ -34,13 +35,13 @@ class Test(BaseTest):
             assert self.log_contains("auditbeat stopped")
 
     @unittest.skipUnless(INTEGRATION_TESTS, "integration test")
-    def test_template(self):
+    def test_index_management(self):
         """
-        Test that the template can be loaded with `setup --template`
+        Test that the template can be loaded with `setup --index-management`
         """
         dirs = [self.temp_dir("auditbeat_test")]
         with PathCleanup(dirs):
-            es = Elasticsearch([self.get_elasticsearch_url()])
+            es = self.get_elasticsearch_instance()
 
             self.render_config_template(
                 modules=[{
@@ -49,8 +50,9 @@ class Test(BaseTest):
                         "paths": dirs,
                     }
                 }],
-                elasticsearch={"host": self.get_elasticsearch_url()})
-            self.run_beat(extra_args=["setup", "--template"], exit_code=0)
+                elasticsearch=self.get_elasticsearch_template_config()
+            )
+            self.run_beat(extra_args=["setup", "--index-management"], exit_code=0)
 
             assert self.log_contains('Loaded index template')
             assert len(es.cat.templates(name='auditbeat-*', h='name')) > 0
@@ -66,7 +68,6 @@ class Test(BaseTest):
             kibana_dir = os.path.join(self.beat_path, "build", "kibana")
             shutil.copytree(kibana_dir, os.path.join(self.working_dir, "kibana"))
 
-            es = Elasticsearch([self.get_elasticsearch_url()])
             self.render_config_template(
                 modules=[{
                     "name": "file_integrity",
@@ -74,8 +75,8 @@ class Test(BaseTest):
                         "paths": dirs,
                     }
                 }],
-                elasticsearch={"host": self.get_elasticsearch_url()},
-                kibana={"host": self.get_kibana_url()},
+                elasticsearch=self.get_elasticsearch_template_config(),
+                kibana=self.get_kibana_template_config(),
             )
             self.run_beat(extra_args=["setup", "--dashboards"], exit_code=0)
 

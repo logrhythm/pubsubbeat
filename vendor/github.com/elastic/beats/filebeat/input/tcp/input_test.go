@@ -23,7 +23,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/filebeat/inputsource"
+	"github.com/elastic/beats/v7/filebeat/input/inputtest"
+	"github.com/elastic/beats/v7/filebeat/inputsource"
+	"github.com/elastic/beats/v7/libbeat/common"
 )
 
 func TestCreateEvent(t *testing.T) {
@@ -35,8 +37,7 @@ func TestCreateEvent(t *testing.T) {
 	message := []byte(hello)
 	mt := inputsource.NetworkMetadata{RemoteAddr: addr}
 
-	data := createEvent(message, mt)
-	event := data.GetEvent()
+	event := createEvent(message, mt)
 
 	m, err := event.GetValue("message")
 	assert.NoError(t, err)
@@ -44,4 +45,11 @@ func TestCreateEvent(t *testing.T) {
 
 	from, _ := event.GetValue("log.source.address")
 	assert.Equal(t, ip, from)
+}
+
+func TestNewInputDone(t *testing.T) {
+	config := common.MapStr{
+		"host": ":0",
+	}
+	inputtest.AssertNotStartedInputCanBeDone(t, NewInput, &config)
 }

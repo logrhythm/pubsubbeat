@@ -3,15 +3,6 @@
   description: >
     Kafka log lines.
   fields:
-    - name: level
-      type: alias
-      path: log.level
-      migration: true
-    - name: message
-      type: alias
-      path: message
-      migration: true
-
     - name: component
       type: keyword
       description: >
@@ -20,6 +11,10 @@
       type: keyword
       description: >
         Java class the log is coming from.
+    - name: thread
+      type: keyword
+      description: >
+        Thread name the log is coming from.
     - name: trace
       type: group
       description: >

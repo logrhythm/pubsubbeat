@@ -1,10 +1,10 @@
+from os import listdir
+from os.path import abspath, isdir, join
+
 comment = """Package defaults imports all Monitor packages so that they
 register with the global monitor registry. This package can be imported in the
 main package to automatically register all of the standard supported Heartbeat
 modules."""
-
-from os.path import abspath, isdir, join
-from os import listdir
 
 
 blacklist = [
@@ -23,7 +23,11 @@ def get_importable_lines(go_beat_path, import_line):
         package = "monitors/{}".format(mode)
         return [format(package, m) for m in collect_monitors(package)]
 
-    return sorted(imports("active") + imports("passive"))
+    return [{
+        "file_suffix": "",
+        "build_tags": "",
+        "imported_lines": sorted(imports("active") + imports("passive"))
+    }]
 
 
 def collect_monitors(package):

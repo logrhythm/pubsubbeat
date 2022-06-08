@@ -20,13 +20,16 @@ package actions
 import (
 	"testing"
 
+	"github.com/elastic/beats/v7/libbeat/logp"
+
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
 )
 
 func TestTruncateFields(t *testing.T) {
+	log := logp.NewLogger("truncate_fields_test")
 	var tests = map[string]struct {
 		MaxBytes     int
 		MaxChars     int
@@ -158,6 +161,7 @@ func TestTruncateFields(t *testing.T) {
 					FailOnError: true,
 				},
 				truncate: test.TruncateFunc,
+				logger:   log,
 			}
 
 			event := &beat.Event{
@@ -174,4 +178,39 @@ func TestTruncateFields(t *testing.T) {
 			assert.Equal(t, test.Output, newEvent.Fields)
 		})
 	}
+
+	t.Run("supports metadata as a target", func(t *testing.T) {
+		p := truncateFields{
+			config: truncateFieldsConfig{
+				Fields:      []string{"@metadata.message"},
+				MaxBytes:    3,
+				FailOnError: true,
+			},
+			truncate: (*truncateFields).truncateBytes,
+			logger:   log,
+		}
+
+		event := &beat.Event{
+			Meta: common.MapStr{
+				"message": "too long line",
+			},
+			Fields: common.MapStr{},
+		}
+
+		expFields := common.MapStr{
+			"log": common.MapStr{
+				"flags": []string{"truncated"},
+			},
+		}
+
+		expMeta := common.MapStr{
+			"message": "too",
+		}
+
+		newEvent, err := p.Run(event)
+		assert.NoError(t, err)
+
+		assert.Equal(t, expFields, newEvent.Fields)
+		assert.Equal(t, expMeta, newEvent.Meta)
+	})
 }

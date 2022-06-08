@@ -1,16 +1,13 @@
 {
     "@timestamp": "2017-10-12T08:05:34.853Z",
-    "agent": {
-        "hostname": "host.example.com",
-        "name": "host.example.com"
-    },
     "event": {
         "dataset": "system.process.summary",
         "duration": 115000,
         "module": "system"
     },
     "metricset": {
-        "name": "process_summary"
+        "name": "process_summary",
+        "period": 10000
     },
     "service": {
         "type": "system"
@@ -18,14 +15,10 @@
     "system": {
         "process": {
             "summary": {
-                "dead": 0,
-                "idle": 112,
-                "running": 0,
-                "sleeping": 288,
-                "stopped": 0,
-                "total": 401,
-                "unknown": 0,
-                "zombie": 1
+                "idle": 122,
+                "running": 1,
+                "sleeping": 222,
+                "total": 345
             }
         }
     }

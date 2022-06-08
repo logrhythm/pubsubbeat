@@ -77,7 +77,11 @@ certain criteria or time. Closing the harvester means closing the file handler.
 If a file is updated after the harvester is closed, the file will be picked up
 again after `scan_frequency` has elapsed. However, if the file is moved or
 deleted while the harvester is closed, {beatname_uc} will not be able to pick up
-the file again, and any data that the harvester hasn't read will be lost.
+the file again, and any data that the harvester hasn't read will be lost. 
+The `close_*` settings are applied synchronously when {beatname_uc} attempts 
+to read from a file, meaning that if {beatname_uc} is in a blocked state
+due to blocked output, full queue or other issue, a file that would 
+otherwise be closed remains open until {beatname_uc} once again attempts to read from the file.
 
 
 [float]
@@ -122,8 +126,12 @@ is renamed. This happens, for example, when rotating files. By default, the
 harvester stays open and keeps reading the file because the file handler does
 not depend on the file name. If the `close_renamed` option is enabled and the
 file is renamed or moved in such a way that it's no longer matched by the file
-patterns specified for the , the file will not be picked up again.
+patterns specified for the path, the file will not be picked up again.
 {beatname_uc} will not finish reading the file.
+
+Do not use this option when `path` based `file_identity` is configured. It does
+not make sense to enable the option, as Filebeat cannot detect renames using
+path names as unique identifiers.
 
 WINDOWS: If your Windows log rotation system shows errors because it can't
 rotate the files, you should enable this option.
@@ -226,6 +234,13 @@ from inode reuse on Linux. For more information, see <<inode-reuse-issue>>.
 
 NOTE: Every time a file is renamed, the file state is updated and the counter
 for `clean_inactive` starts at 0 again.
+
+TIP: During testing, you might notice that the registry contains state entries
+that should be removed based on the `clean_inactive` setting. This happens
+because {beatname_uc} doesn't remove the entries until it opens the registry
+again to read a different file. If you are testing the `clean_inactive` setting,
+make sure {beatname_uc} is configured to read from more than one file, or the
+file state will never be removed from the registry. 
 
 [float]
 [id="{beatname_lc}-input-{type}-clean-removed"]
@@ -386,3 +401,44 @@ file that hasn't been harvested for a longer period of time.
 This configuration option applies per input. You can use this option to
 indirectly set higher priorities on certain inputs by assigning a higher
 limit of harvesters.
+
+[float]
+===== `file_identity`
+
+Different `file_identity` methods can be configured to suit the
+environment where you are collecting log messages.
+
+
+*`native`*:: The default behaviour of {beatname_uc} is to differentiate
+between files using their inodes and device ids.
+
+[source,yaml]
+----
+file_identity.native: ~
+----
+
+*`path`*:: To identify files based on their paths use this strategy.
+
+WARNING: Only use this strategy if your log files are rotated to a folder
+outside of the scope of your input or not at all. Otherwise you end up
+with duplicated events.
+
+WARNING: This strategy does not support renaming files.
+If an input file is renamed, {beatname_uc} will read it again if the new path
+matches the settings of the input.
+
+[source,yaml]
+----
+file_identity.path: ~
+----
+
+*`inode_marker`*:: If the device id changes from time to time, you must use
+this method to distinguish files. This option is not supported on Windows.
+
+Set the location of the marker file the following way:
+
+[source,yaml]
+----
+file_identity.inode_marker.path: /logs/.filebeat-marker
+----
+

@@ -1,13 +1,10 @@
 # -*- coding: utf-8 -*-
-
-from filebeat import BaseTest
-
 import codecs
 import os
+import shutil
 import time
 import unittest
-from nose.plugins.skip import Skip, SkipTest
-import shutil
+from filebeat import BaseTest
 
 # Additional tests to be added:
 # * Check what happens when file renamed -> no recrawling should happen
@@ -22,7 +19,7 @@ class Test(BaseTest):
         """
 
         self.render_config_template(
-            path=os.path.abspath(self.working_dir) + "/log/*"
+            path=os.path.abspath(self.working_dir) + "/log/*",
         )
         os.mkdir(self.working_dir + "/log/")
 
@@ -58,21 +55,21 @@ class Test(BaseTest):
         """
 
         self.render_config_template(
-            path=os.path.abspath(self.working_dir) + "/log/*"
+            path=os.path.abspath(self.working_dir) + "/log/*",
         )
         os.mkdir(self.working_dir + "/log/")
 
         testfile = self.working_dir + "/log/test.log"
-        file = open(testfile, 'w', 0)
+        file = open(testfile, 'bw', 0)
 
         iterations = 80
         for n in range(0, iterations):
-            file.write("hello world" + str(n))
-            file.write("\n")
+            file.write(b"hello world" + n.to_bytes(2, "big"))
+            file.write(b"\n")
 
         # An additional line is written to the log file. This line should not
         # be read as there is no finishing \n or \r
-        file.write("unfinished line")
+        file.write(b"unfinished line")
 
         filebeat = self.start_beat()
 
@@ -90,13 +87,13 @@ class Test(BaseTest):
         assert iterations == len(output)
 
         # Complete line so it can be picked up
-        file.write("\n")
+        file.write(b"\n")
         self.wait_until(
             lambda: self.output_has(lines=81),
             max_timeout=15)
 
         # Add one more line to make sure it keeps reading
-        file.write("HelloWorld \n")
+        file.write(b"HelloWorld \n")
         file.close()
 
         self.wait_until(
@@ -121,12 +118,12 @@ class Test(BaseTest):
         os.mkdir(self.working_dir + "/log/")
 
         testfile = self.working_dir + "/log/test.log"
-        file = open(testfile, 'w', 0)
+        file = open(testfile, 'wb', 0)
 
         # An additional line is written to the log file. This line should not
         # be read as there is no finishing \n or \r
-        file.write("complete line\n")
-        file.write("unfinished line ")
+        file.write(b"complete line\n")
+        file.write(b"unfinished line ")
 
         filebeat = self.start_beat()
 
@@ -135,7 +132,7 @@ class Test(BaseTest):
             lambda: self.output_has(lines=1),
             max_timeout=15)
 
-        file.write("extend unfinished line")
+        file.write(b"extend unfinished line")
         time.sleep(1)
 
         # Check that unfinished line is still not read
@@ -143,14 +140,14 @@ class Test(BaseTest):
             lambda: self.output_has(lines=1),
             max_timeout=15)
 
-        file.write("\n")
+        file.write(b"\n")
 
         # Check that unfinished line is now read
         self.wait_until(
             lambda: self.output_has(lines=2),
             max_timeout=15)
 
-        file.write("hello world\n")
+        file.write(b"hello world\n")
 
         # Check that new line is read
         self.wait_until(
@@ -165,17 +162,17 @@ class Test(BaseTest):
         """
 
         self.render_config_template(
-            path=os.path.abspath(self.working_dir) + "/log/*"
+            path=os.path.abspath(self.working_dir) + "/log/*",
         )
         os.mkdir(self.working_dir + "/log/")
 
         testfile1 = self.working_dir + "/log/test-old.log"
-        file = open(testfile1, 'w')
+        file = open(testfile1, 'wb', buffering=0)
 
         iterations1 = 5
         for n in range(0, iterations1):
-            file.write("old file")
-            file.write("\n")
+            file.write(b"old file")
+            file.write(b"\n")
 
         file.close()
 
@@ -342,7 +339,7 @@ class Test(BaseTest):
         """
 
         self.render_config_template(
-            path=os.path.abspath(self.working_dir) + "/log/*"
+            path=os.path.abspath(self.working_dir) + "/log/*",
         )
         os.mkdir(self.working_dir + "/log/")
 
@@ -376,7 +373,7 @@ class Test(BaseTest):
         """
 
         self.render_config_template(
-            path=os.path.abspath(self.working_dir) + "/log/*"
+            path=os.path.abspath(self.working_dir) + "/log/*",
         )
         os.mkdir(self.working_dir + "/log/")
 
@@ -422,7 +419,7 @@ class Test(BaseTest):
         """
 
         self.render_config_template(
-            path=os.path.abspath(self.working_dir) + "/log/*"
+            path=os.path.abspath(self.working_dir) + "/log/*",
         )
         os.mkdir(self.working_dir + "/log/")
 
@@ -460,7 +457,7 @@ class Test(BaseTest):
 
         self.render_config_template(
             path=os.path.abspath(self.working_dir) + "/log/*",
-            tail_files="true"
+            tail_files="true",
         )
         os.mkdir(self.working_dir + "/log/")
 
@@ -504,7 +501,7 @@ class Test(BaseTest):
 
         self.render_config_template(
             path=os.path.abspath(self.working_dir) + "/log/*",
-            encoding="utf-8"
+            encoding="utf-8",
         )
         os.mkdir(self.working_dir + "/log/")
 
@@ -517,18 +514,18 @@ class Test(BaseTest):
             max_timeout=15)
 
         # Add utf-8 Chars for the first time
-        with codecs.open(testfile, "w", "utf-8") as f:
+        with codecs.open(testfile, "w", "utf_8") as f:
             # Write lines before registrar started
 
             # Special encoding needed?!?
-            f.write("ニコラスRuflin".decode("utf-8") + "\n")
+            f.write("ニコラスRuflin\n")
             f.flush()
 
             self.wait_until(
                 lambda: self.output_has(lines=1), max_timeout=10)
 
         # Append utf-8 chars to check if it keeps reading
-        with codecs.open(testfile, "a") as f:
+        with codecs.open(testfile, "a", "utf_8") as f:
             # write additional lines
             f.write("Hello\n")
             f.write("薩科Ruflin" + "\n")
@@ -551,19 +548,19 @@ class Test(BaseTest):
         # Sample texts are from http://www.columbia.edu/~kermit/utf8.html
         encodings = [
             # golang, python, sample text
-            ("plain", "ascii", u"I can eat glass"),
+            ("plain", "ascii", "I can eat glass"),
             ("utf-8", "utf_8",
-             u"ὕαλον ϕαγεῖν δύναμαι· τοῦτο οὔ με βλάπτει."),
+             "ὕαλον ϕαγεῖν δύναμαι· τοῦτο οὔ με βλάπτει."),
             ("utf-16be", "utf_16_be",
-             u"Pot să mănânc sticlă și ea nu mă rănește."),
+             "Pot să mănânc sticlă și ea nu mă rănește."),
             ("utf-16le", "utf_16_le",
-             u"काचं शक्नोम्यत्तुम् । नोपहिनस्ति माम् ॥"),
+             "काचं शक्नोम्यत्तुम् । नोपहिनस्ति माम् ॥"),
             ("latin1", "latin1",
-             u"I kå Glas frässa, ond des macht mr nix!"),
-            ("BIG5", "big5", u"我能吞下玻璃而不傷身體。"),
-            ("gb18030", "gb18030", u"我能吞下玻璃而不傷身。體"),
-            ("euc-kr", "euckr", u" 나는 유리를 먹을 수 있어요. 그래도 아프지 않아요"),
-            ("euc-jp", "eucjp", u"私はガラスを食べられます。それは私を傷つけません。")
+             "I kå Glas frässa, ond des macht mr nix!"),
+            ("BIG5", "big5", "我能吞下玻璃而不傷身體。"),
+            ("gb18030", "gb18030", "我能吞下玻璃而不傷身。體"),
+            ("euc-kr", "euckr", " 나는 유리를 먹을 수 있어요. 그래도 아프지 않아요"),
+            ("euc-jp", "eucjp", "私はガラスを食べられます。それは私を傷つけません。")
         ]
 
         # create a file in each encoding
@@ -616,7 +613,7 @@ class Test(BaseTest):
 
         self.render_config_template(
             path=os.path.abspath(self.working_dir) + "/log/*",
-            include_lines=["^ERR", "^WARN"]
+            include_lines=["^ERR", "^WARN"],
         )
         os.mkdir(self.working_dir + "/log/")
 
@@ -651,9 +648,8 @@ class Test(BaseTest):
         """
         Checks if all the log lines are exported by default
         """
-
         self.render_config_template(
-            path=os.path.abspath(self.working_dir) + "/log/*"
+            path=os.path.abspath(self.working_dir) + "/log/*",
         )
         os.mkdir(self.working_dir + "/log/")
 
@@ -691,7 +687,7 @@ class Test(BaseTest):
 
         self.render_config_template(
             path=os.path.abspath(self.working_dir) + "/log/*",
-            exclude_lines=["^DBG"]
+            exclude_lines=["^DBG"],
         )
         os.mkdir(self.working_dir + "/log/")
 
@@ -730,7 +726,7 @@ class Test(BaseTest):
         self.render_config_template(
             path=os.path.abspath(self.working_dir) + "/log/*",
             exclude_lines=["^DBG"],
-            include_lines=["apache"]
+            include_lines=["apache"],
         )
         os.mkdir(self.working_dir + "/log/")
 
@@ -765,9 +761,35 @@ class Test(BaseTest):
         """
         Checks that filebeat handles files without reading permission well
         """
+        if os.name == "nt":
+            # Currently skipping this test on windows as it requires `pip install win32api`
+            # which seems to have windows only dependencies.
+            # To solve this problem a requirements_windows.txt could be introduced which would
+            # then only be used on Windows.
+            #
+            # Below is some additional code to give some indication on how the implementation
+            # to remove permissions on Windows (where os.chmod isn't enough) could look like:
+            #
+            # from win32 import win32api
+            # import win32security
+            # import ntsecuritycon as con
+
+            # user, domain, type = win32security.LookupAccountName(
+            #     "", win32api.GetUserName())
+            # sd = win32security.GetFileSecurity(
+            #     testfile, win32security.DACL_SECURITY_INFORMATION)
+
+            # dacl = win32security.ACL()
+            # # Remove all access rights
+            # dacl.AddAccessAllowedAce(win32security.ACL_REVISION, 0, user)
+
+            # sd.SetSecurityDescriptorDacl(1, dacl, 0)
+            # win32security.SetFileSecurity(
+            #     testfile, win32security.DACL_SECURITY_INFORMATION, sd)
+            raise unittest.SkipTest("Requires win32api be installed")
         if os.name != "nt" and os.geteuid() == 0:
             # root ignores permission flags, so we have to skip the test
-            raise SkipTest
+            raise unittest.SkipTest
 
         self.render_config_template(
             path=os.path.abspath(self.working_dir) + "/log/*",
@@ -784,36 +806,9 @@ class Test(BaseTest):
 
         file.close()
 
-        # Remove reading rights from file
+        # Remove reading rights from file. On Windows this can only set the read-only flag:
+        # https://docs.python.org/3/library/os.html#os.chmod
         os.chmod(testfile, 0o000)
-
-        if os.name == "nt":
-
-            raise SkipTest
-            # TODO: Currently skipping this test on windows as it requires `pip install win32api`
-            # which seems to have windows only dependencies.
-            # To solve this problem a requirements_windows.txt could be introduced which would
-            # then only be used on Windows.
-            #
-            # Below is some additional code to give some indication on how the implementation could
-            # look like.
-
-            from win32 import win32api
-            import win32security
-            import ntsecuritycon as con
-
-            user, domain, type = win32security.LookupAccountName(
-                "", win32api.GetUserName())
-            sd = win32security.GetFileSecurity(
-                testfile, win32security.DACL_SECURITY_INFORMATION)
-
-            dacl = win32security.ACL()
-            # Remove all access rights
-            dacl.AddAccessAllowedAce(win32security.ACL_REVISION, 0, user)
-
-            sd.SetSecurityDescriptorDacl(1, dacl, 0)
-            win32security.SetFileSecurity(
-                testfile, win32security.DACL_SECURITY_INFORMATION, sd)
 
         filebeat = self.start_beat()
 

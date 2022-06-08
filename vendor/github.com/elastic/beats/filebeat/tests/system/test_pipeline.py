@@ -2,7 +2,6 @@ from filebeat import BaseTest
 from beat.beat import INTEGRATION_TESTS
 import os
 import unittest
-from elasticsearch import Elasticsearch
 import json
 import logging
 
@@ -12,8 +11,7 @@ class Test(BaseTest):
     def init(self):
         self.elasticsearch_url = self.get_elasticsearch_url()
         self.kibana_url = self.get_kibana_url()
-        print("Using elasticsearch: {}".format(self.elasticsearch_url))
-        self.es = Elasticsearch([self.elasticsearch_url])
+        self.es = self.get_elasticsearch_instance()
         logging.getLogger("urllib3").setLevel(logging.WARNING)
         logging.getLogger("elasticsearch").setLevel(logging.ERROR)
 
@@ -41,24 +39,19 @@ class Test(BaseTest):
         index_name = "filebeat-test-input"
         try:
             self.es.indices.delete(index=index_name)
-        except:
+        except BaseException:
             pass
         self.wait_until(lambda: not self.es.indices.exists(index_name))
 
-        body = {
-            "transient": {
-                "script.max_compilations_rate": "100/1m"
-            }
-        }
-
-        self.es.transport.perform_request('PUT', "/_cluster/settings", body=body)
-
         self.render_config_template(
             path=os.path.abspath(self.working_dir) + "/log/*",
-            elasticsearch=dict(
-                host=self.elasticsearch_url,
-                pipeline="estest",
-                index=index_name),
+            elasticsearch={
+                'host': self.elasticsearch_url,
+                'pipeline': "estest",
+                'index': index_name,
+                'user': os.getenv("ES_USER"),
+                'pass': os.getenv("ES_PASS")
+            },
             pipeline="test",
             setup_template_name=index_name,
             setup_template_pattern=index_name + "*",
@@ -91,7 +84,7 @@ class Test(BaseTest):
                 res = self.es.search(index=index_name,
                                      body={"query": {"match_all": {}}})
                 return [o["_source"] for o in res["hits"]["hits"]]
-            except:
+            except BaseException:
                 return []
 
         self.wait_until(lambda: len(search_objects()) > 0, max_timeout=20)

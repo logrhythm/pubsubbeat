@@ -18,6 +18,7 @@
 package mapping
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -25,7 +26,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common"
 	"github.com/elastic/go-ucfg/yaml"
 )
 
@@ -58,7 +59,8 @@ func TestFieldsHasNode(t *testing.T) {
 				Field{Name: "a", Fields: Fields{
 					Field{Name: "b", Fields: Fields{
 						Field{Name: "c"},
-					}}}},
+					}},
+				}},
 			},
 			hasNode: true,
 		},
@@ -68,7 +70,8 @@ func TestFieldsHasNode(t *testing.T) {
 				Field{Name: "a", Fields: Fields{
 					Field{Name: "b", Fields: Fields{
 						Field{Name: "c"},
-					}}}},
+					}},
+				}},
 			},
 			hasNode: true,
 		},
@@ -181,6 +184,46 @@ func TestDynamicYaml(t *testing.T) {
 			} else {
 				assert.Equal(t, test.output.Dynamic, keys.Dynamic)
 			}
+		})
+	}
+}
+
+func TestAnalyzer(t *testing.T) {
+	tests := map[string]struct {
+		input  []byte
+		output Field
+		err    error
+	}{
+		"simple analyzer": {
+			input: []byte(`{name: test, analyzer: simple}`),
+			output: Field{
+				Name:     "test",
+				Analyzer: Analyzer{Name: "simple"},
+			},
+			err: nil,
+		},
+		"pattern analyzer": {
+			input: []byte(`{"name": "test", "analyzer": {"custom": {"type": "pattern", "pattern":"[\\W&&[^-]]+"}}}`),
+			output: Field{
+				Name:     "test",
+				Analyzer: Analyzer{Name: "custom", Definition: map[string]interface{}{"type": "pattern", "pattern": "[\\W\u0026\u0026[^-]]+"}},
+			},
+			err: nil,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			keys := Field{}
+
+			cfg, err := yaml.NewConfig(test.input)
+			assert.NoError(t, err)
+			err = cfg.Unpack(&keys)
+
+			if fmt.Sprint(err) != fmt.Sprint(test.err) {
+				t.Fatalf("unexpected error for %s: got:%v want:%v", name, err, test.err)
+			}
+			assert.Equal(t, test.output.Analyzer, keys.Analyzer)
 		})
 	}
 }
@@ -331,6 +374,43 @@ func TestFieldValidate(t *testing.T) {
 				"scaling_factor":     100,
 				"object_type_params": []common.MapStr{{"object_type": "scaled_float", "object_type_mapping_type": "float"}}},
 			err: true,
+		},
+		"valid unit": {
+			cfg:   common.MapStr{"type": "long", "unit": "nanos"},
+			err:   false,
+			field: Field{Type: "long", Unit: "nanos"},
+		},
+		"invalid unit": {
+			cfg: common.MapStr{"type": "long", "unit": "celsius"},
+			err: true,
+		},
+		"valid metric type": {
+			cfg:   common.MapStr{"type": "long", "metric_type": "gauge"},
+			err:   false,
+			field: Field{Type: "long", MetricType: "gauge"},
+		},
+		"invalid metric type": {
+			cfg: common.MapStr{"type": "long", "metric_type": "timer"},
+			err: true,
+		},
+		"invalid config mixing dynamic_template with object_type": {
+			cfg: common.MapStr{"dynamic_template": true, "type": "object", "object_type": "text"},
+			err: true,
+		},
+		"invalid config mixing dynamic_template with object_type_params": {
+			cfg: common.MapStr{
+				"type": "object",
+				"object_type_params": []common.MapStr{{
+					"object_type": "scaled_float", "object_type_mapping_type": "float", "scaling_factor": 100,
+				}},
+				"dynamic_template": true,
+			},
+			err: true,
+		},
+		"allow ip_range": {
+			cfg:   common.MapStr{"type": "ip_range"},
+			err:   false,
+			field: Field{Type: "ip_range"},
 		},
 	}
 
@@ -527,7 +607,7 @@ func TestFieldsCanConcat(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			err := test.fields.canConcat(test.key, strings.Split(test.key, "."))
 			if test.err == "" {
-				assert.Nil(t, err)
+				assert.NoError(t, err)
 				return
 			}
 			if assert.Error(t, err) {

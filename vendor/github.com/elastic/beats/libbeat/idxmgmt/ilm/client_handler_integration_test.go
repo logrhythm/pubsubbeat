@@ -15,7 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//+build integration
+//go:build integration
+// +build integration
 
 package ilm_test
 
@@ -30,11 +31,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/idxmgmt/ilm"
-	"github.com/elastic/beats/libbeat/outputs/elasticsearch"
-	"github.com/elastic/beats/libbeat/outputs/outil"
-	"github.com/elastic/beats/libbeat/version"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common/transport/httpcommon"
+	"github.com/elastic/beats/v7/libbeat/esleg/eslegclient"
+	"github.com/elastic/beats/v7/libbeat/idxmgmt/ilm"
+	"github.com/elastic/beats/v7/libbeat/version"
 )
 
 const (
@@ -47,21 +48,14 @@ const (
 func TestESClientHandler_CheckILMEnabled(t *testing.T) {
 	t.Run("no ilm if disabled", func(t *testing.T) {
 		h := newESClientHandler(t)
-		b, err := h.CheckILMEnabled(ilm.ModeDisabled)
+		b, err := h.CheckILMEnabled(false)
 		assert.NoError(t, err)
 		assert.False(t, b)
 	})
 
-	t.Run("with ilm if auto", func(t *testing.T) {
-		h := newESClientHandler(t)
-		b, err := h.CheckILMEnabled(ilm.ModeAuto)
-		assert.NoError(t, err)
-		assert.True(t, b)
-	})
-
 	t.Run("with ilm if enabled", func(t *testing.T) {
 		h := newESClientHandler(t)
-		b, err := h.CheckILMEnabled(ilm.ModeEnabled)
+		b, err := h.CheckILMEnabled(true)
 		assert.NoError(t, err)
 		assert.True(t, b)
 	})
@@ -110,59 +104,21 @@ func TestESClientHandler_ILMPolicy(t *testing.T) {
 	})
 }
 
-func TestESClientHandler_Alias(t *testing.T) {
-	makeAlias := func(base string) ilm.Alias {
-		return ilm.Alias{
-			Name:    makeName(base),
-			Pattern: "{now/d}-000001",
-		}
-	}
-
-	t.Run("does not exist", func(t *testing.T) {
-		name := makeName("esch-alias-no")
-		h := newESClientHandler(t)
-		b, err := h.HasAlias(name)
-		assert.NoError(t, err)
-		assert.False(t, b)
-	})
-
-	t.Run("create new", func(t *testing.T) {
-		alias := makeAlias("esch-alias-create")
-		h := newESClientHandler(t)
-		err := h.CreateAlias(alias)
-		assert.NoError(t, err)
-
-		b, err := h.HasAlias(alias.Name)
-		assert.NoError(t, err)
-		assert.True(t, b)
-	})
-
-	t.Run("second create", func(t *testing.T) {
-		alias := makeAlias("esch-alias-2create")
-		h := newESClientHandler(t)
-
-		err := h.CreateAlias(alias)
-		assert.NoError(t, err)
-
-		err = h.CreateAlias(alias)
-		require.Error(t, err)
-		assert.Equal(t, ilm.ErrAliasAlreadyExists, ilm.ErrReason(err))
-
-		b, err := h.HasAlias(alias.Name)
-		assert.NoError(t, err)
-		assert.True(t, b)
-	})
+func newESClientHandler(t *testing.T) ilm.ClientHandler {
+	client := newRawESClient(t)
+	return ilm.NewESClientHandler(client)
 }
 
-func newESClientHandler(t *testing.T) ilm.ClientHandler {
-	client, err := elasticsearch.NewClient(elasticsearch.ClientSettings{
+func newRawESClient(t *testing.T) ilm.ESClient {
+	transport := httpcommon.DefaultHTTPTransportSettings()
+	transport.Timeout = 60 * time.Second
+	client, err := eslegclient.NewConnection(eslegclient.ConnectionSettings{
 		URL:              getURL(),
-		Index:            outil.MakeSelector(),
 		Username:         getUser(),
-		Password:         getUser(),
-		Timeout:          60 * time.Second,
+		Password:         getPass(),
 		CompressionLevel: 3,
-	}, nil)
+		Transport:        transport,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +127,7 @@ func newESClientHandler(t *testing.T) ilm.ClientHandler {
 		t.Fatalf("Failed to connect to Test Elasticsearch instance: %v", err)
 	}
 
-	return ilm.NewESClientHandler(client)
+	return client
 }
 
 func makeName(base string) string {
@@ -211,38 +167,29 @@ func getEnv(name, def string) string {
 
 func TestFileClientHandler_CheckILMEnabled(t *testing.T) {
 	for name, test := range map[string]struct {
-		m       ilm.Mode
-		version string
-		enabled bool
-		err     bool
+		enabled    bool
+		version    string
+		ilmEnabled bool
+		err        bool
 	}{
 		"ilm enabled": {
-			m:       ilm.ModeEnabled,
-			enabled: true,
-		},
-		"ilm auto": {
-			m:       ilm.ModeAuto,
-			enabled: true,
+			enabled:    true,
+			ilmEnabled: true,
 		},
 		"ilm disabled": {
-			m:       ilm.ModeDisabled,
-			enabled: false,
+			enabled:    false,
+			ilmEnabled: false,
 		},
 		"ilm enabled, version too old": {
-			m:       ilm.ModeEnabled,
+			enabled: true,
 			version: "5.0.0",
 			err:     true,
-		},
-		"ilm auto, version too old": {
-			m:       ilm.ModeAuto,
-			version: "5.0.0",
-			enabled: false,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			h := ilm.NewFileClientHandler(newMockClient(test.version))
-			b, err := h.CheckILMEnabled(test.m)
-			assert.Equal(t, test.enabled, b)
+			b, err := h.CheckILMEnabled(test.enabled)
+			assert.Equal(t, test.ilmEnabled, b)
 			if test.err {
 				assert.Error(t, err)
 			} else {

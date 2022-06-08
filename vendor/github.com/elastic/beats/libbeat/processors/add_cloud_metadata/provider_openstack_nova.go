@@ -18,7 +18,7 @@
 package add_cloud_metadata
 
 import (
-	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common"
 )
 
 const (
@@ -31,40 +31,56 @@ const (
 // newOpenstackNovaMetadataFetcher returns a metadataFetcher for the
 // OpenStack Nova Metadata Service
 // Document https://docs.openstack.org/nova/latest/user/metadata-service.html
-func newOpenstackNovaMetadataFetcher(c *common.Config) (*metadataFetcher, error) {
+var openstackNovaMetadataFetcher = provider{
+	Name:   "openstack-nova",
+	Local:  true,
+	Create: buildOpenstackNovaCreate("http"),
+}
 
-	osSchema := func(m map[string]interface{}) common.MapStr {
-		return common.MapStr(m)
-	}
+var openstackNovaSSLMetadataFetcher = provider{
+	Name:   "openstack-nova-ssl",
+	Local:  true,
+	Create: buildOpenstackNovaCreate("https"),
+}
 
-	urls, err := getMetadataURLs(c, metadataHost, []string{
-		osMetadataInstanceIDURI,
-		osMetadataInstanceTypeURI,
-		osMetadataHostnameURI,
-		osMetadataZoneURI,
-	})
-	if err != nil {
-		return nil, err
-	}
+func buildOpenstackNovaCreate(scheme string) func(provider string, c *common.Config) (metadataFetcher, error) {
+	return func(provider string, c *common.Config) (metadataFetcher, error) {
+		osSchema := func(m map[string]interface{}) common.MapStr {
+			m["service"] = common.MapStr{
+				"name": "Nova",
+			}
+			return common.MapStr{"cloud": m}
+		}
 
-	responseHandlers := map[string]responseHandler{
-		urls[0]: func(all []byte, result *result) error {
-			result.metadata.Put("instance.id", string(all))
-			return nil
-		},
-		urls[1]: func(all []byte, result *result) error {
-			result.metadata.Put("machine.type", string(all))
-			return nil
-		},
-		urls[2]: func(all []byte, result *result) error {
-			result.metadata.Put("instance.name", string(all))
-			return nil
-		},
-		urls[3]: func(all []byte, result *result) error {
-			result.metadata["availability_zone"] = string(all)
-			return nil
-		},
+		urls, err := getMetadataURLsWithScheme(c, scheme, metadataHost, []string{
+			osMetadataInstanceIDURI,
+			osMetadataInstanceTypeURI,
+			osMetadataHostnameURI,
+			osMetadataZoneURI,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		responseHandlers := map[string]responseHandler{
+			urls[0]: func(all []byte, result *result) error {
+				result.metadata.Put("instance.id", string(all))
+				return nil
+			},
+			urls[1]: func(all []byte, result *result) error {
+				result.metadata.Put("machine.type", string(all))
+				return nil
+			},
+			urls[2]: func(all []byte, result *result) error {
+				result.metadata.Put("instance.name", string(all))
+				return nil
+			},
+			urls[3]: func(all []byte, result *result) error {
+				result.metadata["availability_zone"] = string(all)
+				return nil
+			},
+		}
+		fetcher := &httpMetadataFetcher{"openstack", nil, responseHandlers, osSchema}
+		return fetcher, nil
 	}
-	fetcher := &metadataFetcher{"openstack", nil, responseHandlers, osSchema}
-	return fetcher, nil
 }

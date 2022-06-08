@@ -20,11 +20,11 @@ package cassandra
 import (
 	"time"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
 
-	"github.com/elastic/beats/packetbeat/pb"
-	"github.com/elastic/beats/packetbeat/protos"
+	"github.com/elastic/beats/v7/packetbeat/pb"
+	"github.com/elastic/beats/v7/packetbeat/protos"
 )
 
 // Transaction Publisher.
@@ -33,7 +33,6 @@ type transPub struct {
 	sendResponse       bool
 	sendRequestHeader  bool
 	sendResponseHeader bool
-	ignoredOps         string
 
 	results protos.Reporter
 }
@@ -69,7 +68,9 @@ func (pub *transPub) createEvent(requ, resp *message) beat.Event {
 
 	evt, pbf := pb.NewBeatEvent(ts)
 	pbf.SetSource(&src)
+	pbf.AddIP(src.IP)
 	pbf.SetDestination(&dst)
+	pbf.AddIP(dst.IP)
 	pbf.Event.Dataset = "cassandra"
 	pbf.Network.Transport = "tcp"
 	pbf.Network.Protocol = pbf.Event.Dataset
@@ -80,7 +81,7 @@ func (pub *transPub) createEvent(requ, resp *message) beat.Event {
 	cassandra := common.MapStr{}
 	status := common.OK_STATUS
 
-	//requ can be null, if the message is a PUSHed message
+	// requ can be null, if the message is a PUSHed message
 	if requ != nil {
 		pbf.Source.Bytes = int64(requ.Size)
 		pbf.Event.Start = requ.Ts
@@ -99,7 +100,7 @@ func (pub *transPub) createEvent(requ, resp *message) beat.Event {
 			}
 		}
 	} else {
-		//dealing with PUSH message
+		// dealing with PUSH message
 		cassandra["no_request"] = true
 	}
 

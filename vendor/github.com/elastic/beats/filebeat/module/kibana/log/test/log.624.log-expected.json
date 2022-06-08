@@ -1,9 +1,10 @@
 [
     {
         "@timestamp": "2018-05-09T10:57:32.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -11,9 +12,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:kibana@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 0,
         "message": "Status changed from uninitialized to green - Ready",
@@ -25,9 +26,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:32.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -35,9 +37,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "yellow",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:elasticsearch@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 243,
         "message": "Status changed from uninitialized to yellow - Waiting for Elasticsearch",
@@ -49,9 +51,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:32.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -59,9 +62,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "yellow",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:xpack_main@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 515,
         "message": "Status changed from uninitialized to yellow - Waiting for Elasticsearch",
@@ -73,9 +76,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:32.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -83,9 +87,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "yellow",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:searchprofiler@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 784,
         "message": "Status changed from uninitialized to yellow - Waiting for Elasticsearch",
@@ -97,9 +101,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:32.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -107,9 +112,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "yellow",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:ml@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 1057,
         "message": "Status changed from uninitialized to yellow - Waiting for Elasticsearch",
@@ -121,9 +126,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:32.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -131,9 +137,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "yellow",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:tilemap@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 1318,
         "message": "Status changed from uninitialized to yellow - Waiting for Elasticsearch",
@@ -145,9 +151,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:32.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -155,9 +162,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "yellow",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:watcher@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 1584,
         "message": "Status changed from uninitialized to yellow - Waiting for Elasticsearch",
@@ -169,9 +176,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:32.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -179,9 +187,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:license_management@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 1850,
         "message": "Status changed from uninitialized to green - Ready",
@@ -193,9 +201,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:32.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -203,9 +212,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:index_management@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 2105,
         "message": "Status changed from uninitialized to green - Ready",
@@ -217,9 +226,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:32.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -227,9 +237,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:timelion@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 2358,
         "message": "Status changed from uninitialized to green - Ready",
@@ -241,9 +251,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:32.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -251,9 +262,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "yellow",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:graph@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 2603,
         "message": "Status changed from uninitialized to yellow - Waiting for Elasticsearch",
@@ -265,9 +276,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:32.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -275,9 +287,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:monitoring@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 2867,
         "message": "Status changed from uninitialized to green - Ready",
@@ -289,9 +301,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:32.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -299,9 +312,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "yellow",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:security@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 3114,
         "message": "Status changed from uninitialized to yellow - Waiting for Elasticsearch",
@@ -313,8 +326,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:32.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -333,8 +346,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:32.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -353,9 +366,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:32.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -363,9 +377,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "yellow",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:grokdebugger@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 3846,
         "message": "Status changed from uninitialized to yellow - Waiting for Elasticsearch",
@@ -377,9 +391,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:32.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -387,9 +402,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:dashboard_mode@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 4117,
         "message": "Status changed from uninitialized to green - Ready",
@@ -401,9 +416,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:32.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -411,9 +427,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "yellow",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:logstash@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 4368,
         "message": "Status changed from uninitialized to yellow - Waiting for Elasticsearch",
@@ -425,9 +441,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:32.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -435,9 +452,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:apm@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 4635,
         "message": "Status changed from uninitialized to green - Ready",
@@ -449,9 +466,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:32.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -459,9 +477,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:console@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 4875,
         "message": "Status changed from uninitialized to green - Ready",
@@ -473,9 +491,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:32.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -483,9 +502,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:console_extensions@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 5119,
         "message": "Status changed from uninitialized to green - Ready",
@@ -497,9 +516,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:32.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -507,9 +527,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:metrics@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 5374,
         "message": "Status changed from uninitialized to green - Ready",
@@ -521,8 +541,8 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:34.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
@@ -541,9 +561,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:34.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "uninitialized",
@@ -551,9 +572,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "yellow",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:reporting@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 5890,
         "message": "Status changed from uninitialized to yellow - Waiting for Elasticsearch",
@@ -565,15 +586,15 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:34.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "listening",
-            "info"
+            "info",
+            "listening"
         ],
         "log.offset": 6158,
         "message": "Server running at http://localhost:5601",
@@ -585,9 +606,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:34.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "Waiting for Elasticsearch",
@@ -595,9 +617,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:elasticsearch@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 6301,
         "message": "Status changed from yellow to green - Ready",
@@ -609,15 +631,15 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:34.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "license",
             "info",
+            "license",
             "xpack"
         ],
         "log.offset": 6549,
@@ -630,9 +652,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:34.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "Waiting for Elasticsearch",
@@ -640,9 +663,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:xpack_main@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 6787,
         "message": "Status changed from yellow to green - Ready",
@@ -654,9 +677,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:34.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "Waiting for Elasticsearch",
@@ -664,9 +688,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:searchprofiler@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 7032,
         "message": "Status changed from yellow to green - Ready",
@@ -678,9 +702,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:34.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "Waiting for Elasticsearch",
@@ -688,9 +713,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:ml@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 7281,
         "message": "Status changed from yellow to green - Ready",
@@ -702,9 +727,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:34.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "Waiting for Elasticsearch",
@@ -712,9 +738,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:tilemap@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 7518,
         "message": "Status changed from yellow to green - Ready",
@@ -726,9 +752,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:34.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "Waiting for Elasticsearch",
@@ -736,9 +763,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:watcher@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 7760,
         "message": "Status changed from yellow to green - Ready",
@@ -750,9 +777,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:34.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "Waiting for Elasticsearch",
@@ -760,9 +788,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:graph@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 8002,
         "message": "Status changed from yellow to green - Ready",
@@ -774,9 +802,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:34.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "Waiting for Elasticsearch",
@@ -784,9 +813,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:security@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 8242,
         "message": "Status changed from yellow to green - Ready",
@@ -798,9 +827,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:34.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "Waiting for Elasticsearch",
@@ -808,9 +838,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:grokdebugger@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 8485,
         "message": "Status changed from yellow to green - Ready",
@@ -822,9 +852,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:34.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "Waiting for Elasticsearch",
@@ -832,9 +863,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:logstash@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 8732,
         "message": "Status changed from yellow to green - Ready",
@@ -846,9 +877,10 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:34.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.type": "info",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.prevMsg": "Waiting for Elasticsearch",
@@ -856,9 +888,9 @@
         "kibana.log.meta.type": "log",
         "kibana.log.state": "green",
         "kibana.log.tags": [
-            "status",
+            "info",
             "plugin:reporting@6.3.0",
-            "info"
+            "status"
         ],
         "log.offset": 8975,
         "message": "Status changed from yellow to green - Ready",
@@ -870,16 +902,16 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:34.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
             "info",
-            "monitoring-ui",
-            "kibana-monitoring"
+            "kibana-monitoring",
+            "monitoring-ui"
         ],
         "log.offset": 9219,
         "message": "Starting all Kibana monitoring collectors",
@@ -891,15 +923,15 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:35.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
+        "event.kind": "event",
         "event.module": "kibana",
         "fileset.name": "log",
         "input.type": "log",
         "kibana.log.meta.type": "log",
         "kibana.log.tags": [
-            "license",
             "info",
+            "license",
             "xpack"
         ],
         "log.offset": 9388,
@@ -912,10 +944,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:51.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 68000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.response.body.bytes": 9,
@@ -944,10 +977,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:52.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 224000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/",
@@ -977,10 +1011,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:52.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 43000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1010,10 +1045,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:52.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 30000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1043,10 +1079,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:52.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 32000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1077,10 +1114,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:52.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 75000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1110,10 +1148,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:52.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 54000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1143,10 +1182,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:52.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 13000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1177,10 +1217,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:52.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 131000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1210,10 +1251,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:53.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 25000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1243,10 +1285,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:53.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 18000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1276,10 +1319,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:54.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 5000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1311,10 +1355,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:54.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 181000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1345,10 +1390,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 10000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1379,10 +1425,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 13000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1413,10 +1460,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 19000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1447,10 +1495,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 27000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1481,10 +1530,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 28000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1515,10 +1565,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 24000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1549,10 +1600,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 26000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1583,10 +1635,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 22000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1617,10 +1670,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 22000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1651,10 +1705,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 17000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1685,10 +1740,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 15000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1719,10 +1775,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 129000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1752,10 +1809,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 5000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/bundles/commons.style.css",
@@ -1786,10 +1844,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 3000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1820,10 +1879,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 5000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1853,10 +1913,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 15000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1887,10 +1948,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 17000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1921,10 +1983,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 20000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1955,10 +2018,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 23000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -1989,10 +2053,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 26000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -2023,10 +2088,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 28000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -2057,10 +2123,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 4000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -2091,10 +2158,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 7000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -2125,10 +2193,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 7000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -2159,10 +2228,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 30000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -2193,10 +2263,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 20000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -2228,10 +2299,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 21000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -2262,10 +2334,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 26000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -2297,10 +2370,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 34000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -2331,10 +2405,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 44000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -2365,10 +2440,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:55.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 14000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",
@@ -2399,10 +2475,11 @@
     },
     {
         "@timestamp": "2018-05-09T10:57:56.000Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "kibana.log",
         "event.duration": 5000000,
+        "event.kind": "event",
         "event.module": "kibana",
+        "event.outcome": "success",
         "fileset.name": "log",
         "http.request.method": "get",
         "http.request.referrer": "http://localhost:5601/app/kibana",

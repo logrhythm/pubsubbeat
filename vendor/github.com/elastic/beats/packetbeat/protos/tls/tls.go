@@ -19,17 +19,19 @@ package tls
 
 import (
 	"crypto/x509"
+	"strings"
 	"time"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
-
-	"github.com/elastic/beats/packetbeat/pb"
-	"github.com/elastic/beats/packetbeat/procs"
-	"github.com/elastic/beats/packetbeat/protos"
-	"github.com/elastic/beats/packetbeat/protos/applayer"
-	"github.com/elastic/beats/packetbeat/protos/tcp"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common/x509util"
+	"github.com/elastic/beats/v7/libbeat/ecs"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/packetbeat/pb"
+	"github.com/elastic/beats/v7/packetbeat/procs"
+	"github.com/elastic/beats/v7/packetbeat/protos"
+	"github.com/elastic/beats/v7/packetbeat/protos/applayer"
+	"github.com/elastic/beats/v7/packetbeat/protos/tcp"
 )
 
 type stream struct {
@@ -53,9 +55,11 @@ type tlsPlugin struct {
 	ports                  []int
 	sendCertificates       bool
 	includeRawCertificates bool
+	includeDetailedFields  bool
 	fingerprints           []*FingerprintAlgorithm
 	transactionTimeout     time.Duration
 	results                protos.Reporter
+	watcher                procs.ProcessesWatcher
 }
 
 var (
@@ -74,6 +78,7 @@ func init() {
 func New(
 	testMode bool,
 	results protos.Reporter,
+	watcher procs.ProcessesWatcher,
 	cfg *common.Config,
 ) (protos.Plugin, error) {
 	p := &tlsPlugin{}
@@ -84,18 +89,19 @@ func New(
 		}
 	}
 
-	if err := p.init(results, &config); err != nil {
+	if err := p.init(results, watcher, &config); err != nil {
 		return nil, err
 	}
 	return p, nil
 }
 
-func (plugin *tlsPlugin) init(results protos.Reporter, config *tlsConfig) error {
+func (plugin *tlsPlugin) init(results protos.Reporter, watcher procs.ProcessesWatcher, config *tlsConfig) error {
 	if err := plugin.setFromConfig(config); err != nil {
 		return err
 	}
 
 	plugin.results = results
+	plugin.watcher = watcher
 	isDebug = logp.IsDebug("tls")
 
 	return nil
@@ -105,6 +111,7 @@ func (plugin *tlsPlugin) setFromConfig(config *tlsConfig) error {
 	plugin.ports = config.Ports
 	plugin.sendCertificates = config.SendCertificates
 	plugin.includeRawCertificates = config.IncludeRawCertificates
+	plugin.includeDetailedFields = config.IncludeDetailedFields
 	plugin.transactionTimeout = config.TransactionTimeout
 	for _, hashName := range config.Fingerprints {
 		algo, err := GetFingerprintAlgorithm(hashName)
@@ -163,17 +170,16 @@ func (plugin *tlsPlugin) doParse(
 	tcptuple *common.TCPTuple,
 	dir uint8,
 ) *tlsConnectionData {
-
 	// Ignore further traffic after the handshake is completed (encrypted connection)
 	// TODO: request/response analysis
-	if 0 != conn.handshakeCompleted&(1<<dir) {
+	if conn.handshakeCompleted&(1<<dir) != 0 {
 		return conn
 	}
 
 	st := conn.streams[dir]
 	if st == nil {
 		st = newStream(tcptuple)
-		st.cmdlineTuple = procs.ProcWatcher.FindProcessesTupleTCP(tcptuple.IPPort())
+		st.cmdlineTuple = plugin.watcher.FindProcessesTupleTCP(tcptuple.IPPort())
 		conn.streams[dir] = st
 	}
 
@@ -222,8 +228,8 @@ func newStream(tcptuple *common.TCPTuple) *stream {
 }
 
 func (plugin *tlsPlugin) ReceivedFin(tcptuple *common.TCPTuple, dir uint8,
-	private protos.ProtocolData) protos.ProtocolData {
-
+	private protos.ProtocolData,
+) protos.ProtocolData {
 	if conn := ensureTLSConnection(private); conn != nil {
 		plugin.sendEvent(conn)
 	}
@@ -267,46 +273,74 @@ func (plugin *tlsPlugin) createEvent(conn *tlsConnectionData) beat.Event {
 		client, server = server, client
 	}
 
-	tls := common.MapStr{
-		"handshake_completed": conn.handshakeCompleted > 1,
+	tls := ecs.Tls{
+		Established: conn.handshakeCompleted > 1,
 	}
+	detailed := common.MapStr{}
 
-	fingerprints := common.MapStr{}
 	emptyHello := &helloMessage{}
 	var clientHello, serverHello *helloMessage
 	if client.parser.hello != nil {
 		clientHello = client.parser.hello
-		tls["client_hello"] = clientHello.toMap()
-		hash, str := getJa3Fingerprint(clientHello)
-		ja3 := common.MapStr{
-			"hash": hash,
-			"str":  str,
-		}
-		fingerprints["ja3"] = ja3
+		detailed["client_hello"] = clientHello.toMap()
+		tls.ClientJa3, _ = getJa3Fingerprint(clientHello)
+		tls.ClientSupportedCiphers = clientHello.supportedCiphers()
 	} else {
 		clientHello = emptyHello
 	}
 	if server.parser.hello != nil {
 		serverHello = server.parser.hello
-		tls["server_hello"] = serverHello.toMap()
+		detailed["server_hello"] = serverHello.toMap()
+		tls.Cipher = serverHello.selected.cipherSuite.String()
 	} else {
 		serverHello = emptyHello
 	}
-	if cert, chain := plugin.getCerts(client.parser.certificates); cert != nil {
-		tls["client_certificate"] = cert
-		if chain != nil {
-			tls["client_certificate_chain"] = chain
-		}
+	if server.parser.ocspResponseIsValid {
+		detailed["ocsp_response"] = server.parser.ocspResponse.String()
 	}
 	if plugin.sendCertificates {
-		if cert, chain := plugin.getCerts(server.parser.certificates); cert != nil {
-			tls["server_certificate"] = cert
+		if cert, chain := plugin.getCerts(client.parser.certificates); cert != nil {
+			detailed["client_certificate"] = cert
 			if chain != nil {
-				tls["server_certificate_chain"] = chain
+				detailed["client_certificate_chain"] = chain
+			}
+		}
+		if cert, chain := plugin.getCerts(server.parser.certificates); cert != nil {
+			detailed["server_certificate"] = cert
+			if chain != nil {
+				detailed["server_certificate_chain"] = chain
 			}
 		}
 	}
-	tls["client_certificate_requested"] = server.parser.certRequested
+	if plugin.includeRawCertificates {
+		tls.ClientCertificateChain = getPEMCertChain(client.parser.certificates)
+		tls.ServerCertificateChain = getPEMCertChain(server.parser.certificates)
+	}
+	if list := client.parser.certificates; len(list) > 0 {
+		cert := list[0]
+		hashCert(cert, plugin.fingerprints, map[string]*string{
+			"md5":    &tls.ClientHashMd5,
+			"sha1":   &tls.ClientHashSha1,
+			"sha256": &tls.ClientHashSha256,
+		})
+		tls.ClientSubject = cert.Subject.String()
+		tls.ClientIssuer = cert.Issuer.String()
+		tls.ClientNotAfter = cert.NotAfter
+		tls.ClientNotBefore = cert.NotBefore
+	}
+	if list := server.parser.certificates; len(list) > 0 {
+		cert := list[0]
+		hashCert(cert, plugin.fingerprints, map[string]*string{
+			"md5":    &tls.ServerHashMd5,
+			"sha1":   &tls.ServerHashSha1,
+			"sha256": &tls.ServerHashSha256,
+		})
+		tls.ServerSubject = cert.Subject.String()
+		tls.ServerIssuer = cert.Issuer.String()
+		tls.ServerNotAfter = cert.NotAfter
+		tls.ServerNotBefore = cert.NotBefore
+	}
+	detailed["client_certificate_requested"] = server.parser.certRequested
 
 	// It is a bit tricky to detect the mechanism used for a resumed session. If the client offered a ticket, then
 	// ticket is assumed as the method used for resumption even when a session ID is also used (as RFC-5077 requires).
@@ -315,12 +349,12 @@ func (plugin *tlsPlugin) createEvent(conn *tlsConnectionData) beat.Event {
 	ticketOffered := len(clientHello.ticket.value) != 0 && serverHello.ticket.present
 	resumed := !client.parser.keyExchanged && !server.parser.keyExchanged && (sessionIDMatch || ticketOffered)
 
-	tls["resumed"] = resumed
+	tls.Resumed = resumed
 	if resumed {
 		if ticketOffered {
-			tls["resumption_method"] = "ticket"
+			detailed["resumption_method"] = "ticket"
 		} else {
-			tls["resumption_method"] = "id"
+			detailed["resumption_method"] = "id"
 		}
 	}
 
@@ -336,8 +370,8 @@ func (plugin *tlsPlugin) createEvent(conn *tlsConnectionData) beat.Event {
 		alertTypes = append(alertTypes, alert.code.String())
 	}
 	if numAlerts != 0 {
-		tls["alerts"] = alerts
-		tls["alert_types"] = alertTypes
+		detailed["alerts"] = alerts
+		detailed["alert_types"] = alertTypes
 	}
 
 	src := &common.Endpoint{}
@@ -356,26 +390,25 @@ func (plugin *tlsPlugin) createEvent(conn *tlsConnectionData) beat.Event {
 		src, dst = &source, &destination
 	}
 
-	if len(fingerprints) > 0 {
-		tls["fingerprints"] = fingerprints
-	}
-
 	// TLS version in use
-	if conn.handshakeCompleted > 1 {
-		var version string
-		if serverHello != nil {
-			var ok bool
-			if value, exists := serverHello.extensions.Parsed["supported_versions"]; exists {
-				version, ok = value.(string)
-			}
-			if !ok {
-				version = serverHello.version.String()
-			}
-		} else if clientHello != nil {
-			version = clientHello.version.String()
+	var version tlsVersion
+	if !serverHello.version.IsZero() {
+		var ok bool
+		var raw []byte
+		const supportedVersionsExt = 43
+		if raw, ok = serverHello.extensions.Raw[supportedVersionsExt]; ok {
+			version.major = raw[0]
+			version.minor = raw[1]
 		}
-		tls["version"] = version
+		if !ok {
+			version = serverHello.version
+		}
+	} else if !clientHello.version.IsZero() {
+		version = clientHello.version
 	}
+	detailed["version"] = version.String()
+	pVer := version.GetProtocolVersion()
+	tls.VersionProtocol, tls.Version = pVer.Protocol, pVer.Version
 
 	evt, pbf := pb.NewBeatEvent(conn.startTime)
 	pbf.SetSource(src)
@@ -388,29 +421,85 @@ func (plugin *tlsPlugin) createEvent(conn *tlsConnectionData) beat.Event {
 	fields := evt.Fields
 	fields["type"] = pbf.Network.Protocol
 	fields["status"] = status
-	fields["tls"] = tls
 
 	// set "server.domain" to SNI, if provided
 	if value, ok := clientHello.extensions.Parsed["server_name_indication"]; ok {
 		if list, ok := value.([]string); ok && len(list) > 0 {
 			pbf.Destination.Domain = list[0]
+			tls.ClientServerName = list[0]
+		}
+	}
+	// set next protocol from server's ALPN extension
+	if value, ok := serverHello.extensions.Parsed["application_layer_protocol_negotiation"]; ok {
+		if list, ok := value.([]string); ok && len(list) > 0 {
+			tls.NextProtocol = list[0]
 		}
 	}
 
+	// Serialize ECS TLS fields
+	pb.MarshalStruct(fields, "tls", tls)
+	if plugin.includeDetailedFields {
+		if cert, ok := detailed["client_certificate"]; ok {
+			fields.Put("tls.client.x509", cert)
+			detailed.Delete("client_certificate")
+		}
+		if cert, ok := detailed["server_certificate"]; ok {
+			fields.Put("tls.server.x509", cert)
+			detailed.Delete("server_certificate")
+		}
+		fields.Put("tls.detailed", detailed)
+	}
+
+	if len(tls.ServerCertificateChain) > 0 {
+		fields.Put("tls.server.certificate_chain", tls.ServerCertificateChain)
+	}
+	if len(tls.ClientCertificateChain) > 0 {
+		fields.Put("tls.client.certificate_chain", tls.ClientCertificateChain)
+	}
+	if len(tls.ClientSupportedCiphers) > 0 {
+		fields.Put("tls.client.supported_ciphers", tls.ClientSupportedCiphers)
+	}
+	// Enforce booleans (not serialized when false)
+	if !tls.Established {
+		fields.Put("tls.established", tls.Established)
+	}
+	if !tls.Resumed {
+		fields.Put("tls.resumed", tls.Resumed)
+	}
 	return evt
+}
+
+func getPEMCertChain(certs []*x509.Certificate) (chain []string) {
+	n := len(certs)
+	if n == 0 {
+		return
+	}
+	chain = make([]string, 0, n)
+	for _, cert := range certs {
+		chain = append(chain, x509util.CertToPEMString(cert))
+	}
+	return
+}
+
+func hashCert(cert *x509.Certificate, algos []*FingerprintAlgorithm, req map[string]*string) {
+	for _, fp := range algos {
+		if dst := req[fp.name]; dst != nil {
+			*dst = strings.ToUpper(fp.algo.Hash(cert.Raw))
+		}
+	}
 }
 
 func (plugin *tlsPlugin) getCerts(certs []*x509.Certificate) (common.MapStr, []common.MapStr) {
 	if len(certs) == 0 {
 		return nil, nil
 	}
-	cert := certToMap(certs[0], plugin.includeRawCertificates, plugin.fingerprints)
+	cert := certToMap(certs[0])
 	if len(certs) == 1 {
 		return cert, nil
 	}
 	chain := make([]common.MapStr, len(certs)-1)
 	for idx := 1; idx < len(certs); idx++ {
-		chain[idx-1] = certToMap(certs[idx], plugin.includeRawCertificates, plugin.fingerprints)
+		chain[idx-1] = certToMap(certs[idx])
 	}
 	return cert, chain
 }

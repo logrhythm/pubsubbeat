@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package mysql
@@ -27,13 +28,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
 
-	"github.com/elastic/beats/packetbeat/protos"
-	"github.com/elastic/beats/packetbeat/protos/tcp"
-	"github.com/elastic/beats/packetbeat/publish"
+	"github.com/elastic/beats/v7/packetbeat/procs"
+	"github.com/elastic/beats/v7/packetbeat/protos"
+	"github.com/elastic/beats/v7/packetbeat/protos/tcp"
+	"github.com/elastic/beats/v7/packetbeat/publish"
 )
 
 const serverPort = 3306
@@ -43,12 +45,8 @@ type eventStore struct {
 }
 
 func (e *eventStore) publish(event beat.Event) {
-	publish.MarshalPacketbeatFields(&event, nil)
+	publish.MarshalPacketbeatFields(&event, nil, nil)
 	e.events = append(e.events, event)
-}
-
-func (e *eventStore) empty() bool {
-	return len(e.events) == 0
 }
 
 func mysqlModForTests(store *eventStore) *mysqlPlugin {
@@ -60,7 +58,7 @@ func mysqlModForTests(store *eventStore) *mysqlPlugin {
 	var mysql mysqlPlugin
 	config := defaultConfig
 	config.Ports = []int{serverPort}
-	mysql.init(callback, &config)
+	mysql.init(callback, procs.ProcessesWatcher{}, &config)
 	return &mysql
 }
 
@@ -108,6 +106,7 @@ func TestMySQLParser_simpleRequest(t *testing.T) {
 		t.Errorf("Wrong message size %d", stream.message.size)
 	}
 }
+
 func TestMySQLParser_OKResponse(t *testing.T) {
 	data := []byte(
 		"0700000100010401000000")
@@ -361,11 +360,11 @@ func TestParseMySQL_simpleUpdateResponse(t *testing.T) {
 	var tuple common.TCPTuple
 	var private mysqlPrivateData
 
-	var countHandleMysql = 0
+	countHandleMysql := 0
 
 	mysql.handleMysql = func(mysql *mysqlPlugin, m *mysqlMessage, tcp *common.TCPTuple,
-		dir uint8, raw_msg []byte) {
-
+		dir uint8, raw_msg []byte,
+	) {
 		countHandleMysql++
 	}
 
@@ -402,11 +401,11 @@ func TestParseMySQL_threeResponses(t *testing.T) {
 	var tuple common.TCPTuple
 	var private mysqlPrivateData
 
-	var countHandleMysql = 0
+	countHandleMysql := 0
 
 	mysql.handleMysql = func(mysql *mysqlPlugin, m *mysqlMessage, tcptuple *common.TCPTuple,
-		dir uint8, raw_msg []byte) {
-
+		dir uint8, raw_msg []byte,
+	) {
 		countHandleMysql++
 	}
 
@@ -429,7 +428,6 @@ func TestParseMySQL_splitResponse(t *testing.T) {
 			"3b00000303646566086d696e697477697404706f737404706f73740d706f73745f757365726e616d6508757365726e616d650c2100f0000000fd0000000000" +
 			"3500000403646566086d696e697477697404706f737404706f73740a706f73745f7469746c65057469746c650c2100f0000000fd0000000000" +
 			"3300000503646566086d696e697477697404706f737404706f737409706f73745f626f647904626f64790c2100fdff0200fc1000000000")
-
 	if err != nil {
 		t.Errorf("Failed to decode string")
 	}
@@ -444,11 +442,11 @@ func TestParseMySQL_splitResponse(t *testing.T) {
 	var tuple common.TCPTuple
 	var private mysqlPrivateData
 
-	var countHandleMysql = 0
+	countHandleMysql := 0
 
 	mysql.handleMysql = func(mysql *mysqlPlugin, m *mysqlMessage, tcptuple *common.TCPTuple,
-		dir uint8, raw_msg []byte) {
-
+		dir uint8, raw_msg []byte,
+	) {
 		countHandleMysql++
 	}
 
@@ -519,7 +517,7 @@ func Test_gap_in_response(t *testing.T) {
 	reqData, err := hex.DecodeString(
 		"130000000373656c656374202a20" +
 			"66726f6d2074657374")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	respData, err := hex.DecodeString(
 		"0100000103240000020364656604" +
 			"74657374047465737404746573740161" +
@@ -537,7 +535,7 @@ func Test_gap_in_response(t *testing.T) {
 			"6f6620746865207072696e74696e6720" +
 			"616e64207479706573657474696e6720" +
 			"696e6475737472792e204c6f72656d20")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	tcptuple := testTCPTuple()
 	req := protos.Packet{Payload: reqData}
@@ -571,7 +569,7 @@ func Test_gap_in_eat_message(t *testing.T) {
 	reqData, err := hex.DecodeString(
 		"130000000373656c656374202a20" +
 			"66726f6d20746573")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	stream := &mysqlStream{data: reqData, message: new(mysqlMessage), isClient: true}
 	ok, complete := mysqlMessageParser(stream)
@@ -589,13 +587,13 @@ func Test_read_length(t *testing.T) {
 	var length int
 
 	_, err = readLength([]byte{}, 0)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 
 	_, err = readLength([]byte{0x00, 0x00}, 0)
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 
 	length, err = readLength([]byte{0x01, 0x00, 0x00}, 0)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, length, 1)
 }
 
@@ -621,12 +619,18 @@ func Test_parseMysqlResponse_invalid(t *testing.T) {
 		{0x05, 0x00, 0x00, 0x01, 0x01, 0x05, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00},
 		{0x05, 0x00, 0x00, 0x01, 0x01, 0x05, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00},
 		{0x05, 0x00, 0x00, 0x01, 0x01, 0x05, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00},
-		{0x05, 0x00, 0x00, 0x01, 0x01, 0x05, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00,
-			0x01, 0x00},
-		{0x15, 0x00, 0x00, 0x01, 0x01, 0x05, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00,
-			0x01, 0x00, 0x01},
-		{0x15, 0x00, 0x00, 0x01, 0x01, 0x05, 0x15, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00,
-			0x01, 0x00, 0x01, 0x00},
+		{
+			0x05, 0x00, 0x00, 0x01, 0x01, 0x05, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00,
+			0x01, 0x00,
+		},
+		{
+			0x15, 0x00, 0x00, 0x01, 0x01, 0x05, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00,
+			0x01, 0x00, 0x01,
+		},
+		{
+			0x15, 0x00, 0x00, 0x01, 0x01, 0x05, 0x15, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00,
+			0x01, 0x00, 0x01, 0x00,
+		},
 	}
 
 	for _, input := range tests {
@@ -636,12 +640,14 @@ func Test_parseMysqlResponse_invalid(t *testing.T) {
 	}
 
 	tests = [][]byte{
-		{0x15, 0x00, 0x00, 0x01, 0x01,
-			0x0b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0xfe, 0x00, 0x01, //field
+		{
+			0x15, 0x00, 0x00, 0x01, 0x01,
+			0x0b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0xfe, 0x00, 0x01, // field
 			0x01, 0x00, 0x00, 0x00, 0xfe, // EOF
 		},
-		{0x15, 0x00, 0x00, 0x01, 0x01,
-			0x0b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0xfe, 0x00, 0x01, //field
+		{
+			0x15, 0x00, 0x00, 0x01, 0x01,
+			0x0b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0xfe, 0x00, 0x01, // field
 			0x01, 0x00, 0x00, 0x00, 0xfe, // EOF
 			0x00, 0x00,
 		},
@@ -662,11 +668,11 @@ func Test_PreparedStatement(t *testing.T) {
 
 	send := func(dir uint8, data string) {
 		rawData, err := hex.DecodeString(data)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		packet := protos.Packet{Payload: rawData}
 
 		var private protos.ProtocolData
-		private = mysql.Parse(&packet, tcpTuple, dir, private)
+		mysql.Parse(&packet, tcpTuple, dir, private)
 	}
 
 	send(tcp.TCPDirectionOriginal, "c00000001673656c6563742064697374696e637420636f756e742864697374696e63742070757263686173656465305f2e69642920617320636f6c5f305f305f2066726f6d2070757263686173655f64656d616e642070757263686173656465305f2077686572652070757263686173656465305f2e636861696e5f6d61737465723d3f20616e642070757263686173656465305f2e6372656174655f74696d653e3d3f20616e642070757263686173656465305f2e6372656174655f74696d653c3d3f")

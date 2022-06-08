@@ -20,14 +20,16 @@ package actions
 import (
 	"testing"
 
+	"github.com/elastic/beats/v7/libbeat/logp"
+
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
 )
 
 func TestCopyFields(t *testing.T) {
-
+	log := logp.NewLogger("copy_fields_test")
 	var tests = map[string]struct {
 		FromTo   fromTo
 		Input    common.MapStr
@@ -120,6 +122,29 @@ func TestCopyFields(t *testing.T) {
 				"message":          42,
 			},
 		},
+		"copy map from nested key message.original to top level field message_copied": {
+			FromTo: fromTo{
+				From: "message.original",
+				To:   "message_copied",
+			},
+			Input: common.MapStr{
+				"message": common.MapStr{
+					"original": common.MapStr{
+						"original": "original",
+					},
+				},
+			},
+			Expected: common.MapStr{
+				"message": common.MapStr{
+					"original": common.MapStr{
+						"original": "original",
+					},
+				},
+				"message_copied": common.MapStr{
+					"original": "original",
+				},
+			},
+		},
 	}
 
 	for name, test := range tests {
@@ -130,6 +155,7 @@ func TestCopyFields(t *testing.T) {
 						test.FromTo,
 					},
 				},
+				log,
 			}
 
 			event := &beat.Event{
@@ -142,4 +168,35 @@ func TestCopyFields(t *testing.T) {
 			assert.Equal(t, test.Expected, newEvent.Fields)
 		})
 	}
+
+	t.Run("supports metadata as a target", func(t *testing.T) {
+		p := copyFields{
+			copyFieldsConfig{
+				Fields: []fromTo{
+					{
+						From: "@metadata.message",
+						To:   "@metadata.message_copied",
+					},
+				},
+			},
+			log,
+		}
+
+		event := &beat.Event{
+			Meta: common.MapStr{
+				"message": "please copy this line",
+			},
+		}
+
+		expMeta := common.MapStr{
+			"message":        "please copy this line",
+			"message_copied": "please copy this line",
+		}
+
+		newEvent, err := p.Run(event)
+		assert.NoError(t, err)
+
+		assert.Equal(t, expMeta, newEvent.Meta)
+		assert.Equal(t, event.Fields, newEvent.Fields)
+	})
 }

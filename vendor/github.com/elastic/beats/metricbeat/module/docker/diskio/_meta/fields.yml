@@ -22,11 +22,18 @@
           type: long
           description: >
             Number of current reads per second
-    - name: reads
-      type: scaled_float
-      deprecated: 6.4
-      description: >
-        Number of current reads per second
+        - name: service_time
+          type: long
+          description: >
+            Total time to service IO requests, in nanoseconds
+        - name: wait_time
+          type: long
+          description: >
+            Total time requests spent waiting in queues for service, in nanoseconds
+        - name: queued
+          type: long
+          description: >
+            Total number of queued requests
     - name: write
       type: group
       description: >
@@ -45,11 +52,18 @@
           type: long
           description: >
             Number of current writes per second
-    - name: writes
-      type: scaled_float
-      deprecated: 6.4
-      description: >
-        Number of current writes per second
+        - name: service_time
+          type: long
+          description: >
+            Total time to service IO requests, in nanoseconds
+        - name: wait_time
+          type: long
+          description: >
+            Total time requests spent waiting in queues for service, in nanoseconds
+        - name: queued
+          type: long
+          description: >
+            Total number of queued requests
     - name: summary
       type: group
       description: >
@@ -68,8 +82,15 @@
           type: long
           description: >
             Number of current operations per second
-    - name: total
-      type: scaled_float
-      deprecated: 6.4
-      description: >
-        Number of reads and writes per second
+        - name: service_time
+          type: long
+          description: >
+            Total time to service IO requests, in nanoseconds
+        - name: wait_time
+          type: long
+          description: >
+            Total time requests spent waiting in queues for service, in nanoseconds
+        - name: queued
+          type: long
+          description: >
+            Total number of queued requests

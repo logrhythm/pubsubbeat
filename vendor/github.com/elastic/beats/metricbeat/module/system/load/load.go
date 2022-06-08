@@ -15,17 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// +build darwin freebsd linux openbsd
+//go:build darwin || freebsd || linux || openbsd || aix
+// +build darwin freebsd linux openbsd aix
 
 package load
 
 import (
 	"github.com/pkg/errors"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/metric/system/cpu"
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/mb/parse"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/metric/system/cpu"
+	"github.com/elastic/beats/v7/libbeat/metric/system/numcpu"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/parse"
 )
 
 func init() {
@@ -48,18 +50,17 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 }
 
 // Fetch fetches system load metrics.
-func (m *MetricSet) Fetch(r mb.ReporterV2) {
+func (m *MetricSet) Fetch(r mb.ReporterV2) error {
 	load, err := cpu.Load()
 	if err != nil {
-		r.Error(errors.Wrap(err, "failed to get CPU load values"))
-		return
+		return errors.Wrap(err, "failed to get CPU load values")
 	}
 
 	avgs := load.Averages()
 	normAvgs := load.NormalizedAverages()
 
 	event := common.MapStr{
-		"cores": cpu.NumCores,
+		"cores": numcpu.NumCPU(),
 		"1":     avgs.OneMinute,
 		"5":     avgs.FiveMinute,
 		"15":    avgs.FifteenMinute,
@@ -73,4 +74,6 @@ func (m *MetricSet) Fetch(r mb.ReporterV2) {
 	r.Event(mb.Event{
 		MetricSetFields: event,
 	})
+
+	return nil
 }

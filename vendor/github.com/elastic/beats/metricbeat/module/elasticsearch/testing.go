@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package elasticsearch
@@ -24,39 +25,41 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/elastic/beats/metricbeat/mb"
-	mbtest "github.com/elastic/beats/metricbeat/mb/testing"
+	"github.com/stretchr/testify/require"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/metricbeat/helper"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	mbtest "github.com/elastic/beats/v7/metricbeat/mb/testing"
 )
 
 // TestMapper tests mapping methods
 func TestMapper(t *testing.T, glob string, mapper func(mb.ReporterV2, []byte) error) {
 	files, err := filepath.Glob(glob)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	// Makes sure glob matches at least 1 file
-	assert.True(t, len(files) > 0)
+	require.True(t, len(files) > 0)
 
 	for _, f := range files {
 		t.Run(f, func(t *testing.T) {
 			input, err := ioutil.ReadFile(f)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			reporter := &mbtest.CapturingReporterV2{}
 			err = mapper(reporter, input)
-			assert.NoError(t, err)
-			assert.True(t, len(reporter.GetEvents()) >= 1)
-			assert.Equal(t, 0, len(reporter.GetErrors()))
+			require.NoError(t, err)
+			require.True(t, len(reporter.GetEvents()) >= 1)
+			require.Equal(t, 0, len(reporter.GetErrors()))
 		})
 	}
 }
 
 // TestMapperWithInfo tests mapping methods with Info fields
-func TestMapperWithInfo(t *testing.T, glob string, mapper func(mb.ReporterV2, Info, []byte) error) {
+func TestMapperWithInfo(t *testing.T, glob string, mapper func(mb.ReporterV2, Info, []byte, bool) error) {
 	files, err := filepath.Glob(glob)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	// Makes sure glob matches at least 1 file
-	assert.True(t, len(files) > 0)
+	require.True(t, len(files) > 0)
 
 	info := Info{
 		ClusterID:   "1234",
@@ -66,13 +69,71 @@ func TestMapperWithInfo(t *testing.T, glob string, mapper func(mb.ReporterV2, In
 	for _, f := range files {
 		t.Run(f, func(t *testing.T) {
 			input, err := ioutil.ReadFile(f)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			reporter := &mbtest.CapturingReporterV2{}
-			err = mapper(reporter, info, input)
-			assert.NoError(t, err)
-			assert.True(t, len(reporter.GetEvents()) >= 1)
-			assert.Equal(t, 0, len(reporter.GetErrors()))
+			err = mapper(reporter, info, input, true)
+			require.NoError(t, err)
+			require.True(t, len(reporter.GetEvents()) >= 1)
+			require.Equal(t, 0, len(reporter.GetErrors()))
+		})
+	}
+}
+
+// TestMapperWithMetricSetAndInfo tests mapping methods with Info fields
+func TestMapperWithMetricSetAndInfo(t *testing.T, glob string, ms MetricSetAPI, mapper func(mb.ReporterV2, MetricSetAPI, Info, []byte, bool) error) {
+	files, err := filepath.Glob(glob)
+	require.NoError(t, err)
+	// Makes sure glob matches at least 1 file
+	require.True(t, len(files) > 0)
+
+	info := Info{
+		ClusterID:   "1234",
+		ClusterName: "helloworld",
+	}
+
+	for _, f := range files {
+		t.Run(f, func(t *testing.T) {
+			input, err := ioutil.ReadFile(f)
+			require.NoError(t, err)
+
+			reporter := &mbtest.CapturingReporterV2{}
+			err = mapper(reporter, ms, info, input, true)
+			require.NoError(t, err)
+			require.True(t, len(reporter.GetEvents()) >= 1)
+			require.Equal(t, 0, len(reporter.GetErrors()))
+		})
+	}
+}
+
+// TestMapperWithMetricSetAndInfo tests mapping methods with Info fields
+func TestMapperWithHttpHelper(t *testing.T, glob string, httpClient *helper.HTTP,
+	mapper func(mb.ReporterV2, *helper.HTTP, Info, []byte, bool) error) {
+	files, err := filepath.Glob(glob)
+	require.NoError(t, err)
+	// Makes sure glob matches at least 1 file
+	require.True(t, len(files) > 0)
+
+	info := Info{
+		ClusterID:   "1234",
+		ClusterName: "helloworld",
+		Version: Version{Number: &common.Version{
+			Major:  7,
+			Minor:  6,
+			Bugfix: 0,
+		}},
+	}
+
+	for _, f := range files {
+		t.Run(f, func(t *testing.T) {
+			input, err := ioutil.ReadFile(f)
+			require.NoError(t, err)
+
+			reporter := &mbtest.CapturingReporterV2{}
+			err = mapper(reporter, httpClient, info, input, true)
+			require.NoError(t, err)
+			require.True(t, len(reporter.GetEvents()) >= 1)
+			require.Equal(t, 0, len(reporter.GetErrors()))
 		})
 	}
 }

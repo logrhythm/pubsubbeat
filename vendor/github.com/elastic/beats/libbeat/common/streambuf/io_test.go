@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package streambuf
@@ -67,7 +68,7 @@ func Test_ReadByteOK(t *testing.T) {
 	b := New([]byte{1})
 	v, err := b.ReadByte()
 	b.checkInvariants(t)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, byte(1), v)
 
 	_, err = b.ReadByte()
@@ -79,10 +80,10 @@ func Test_ReadUnreadByteOK(t *testing.T) {
 	v, err := b.ReadByte()
 	b.checkInvariants(t)
 	assert.Equal(t, byte(1), v)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	err = b.UnreadByte()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, 2, b.Len())
 }
 
@@ -109,7 +110,7 @@ func Test_UnreadAfterEOFOK(t *testing.T) {
 	assert.Equal(t, io.EOF, err)
 
 	err = b.UnreadByte()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func Test_WriteByte(t *testing.T) {
@@ -117,7 +118,7 @@ func Test_WriteByte(t *testing.T) {
 
 	err := b.WriteByte(1)
 	b.checkInvariants(t)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, 1, b.Len())
 	assert.Equal(t, byte(1), b.Bytes()[0])
 }
@@ -130,7 +131,7 @@ func Test_WriteByteEOFCheck(t *testing.T) {
 
 	err = b.WriteByte(1)
 	b.checkInvariants(t)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func Test_WriteByteFixedFail(t *testing.T) {
@@ -147,13 +148,13 @@ func Test_ReadBufSmaller(t *testing.T) {
 	n, err := b.Read(tmp)
 	b.checkInvariants(t)
 	assert.Equal(t, 5, n)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []byte{1, 2, 3, 4, 5}, tmp[:n])
 
 	n, err = b.Read(tmp)
 	b.checkInvariants(t)
 	assert.Equal(t, 3, n)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []byte{6, 7, 8}, tmp[:n])
 
 	n, err = b.Read(tmp)
@@ -168,7 +169,7 @@ func Test_ReadBufBigger(t *testing.T) {
 	n, err := b.Read(tmp)
 	b.checkInvariants(t)
 	assert.Equal(t, 8, n)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []byte{1, 2, 3, 4, 5, 6, 7, 8}, tmp[:n])
 
 	n, err = b.Read(tmp)
@@ -189,7 +190,7 @@ func Test_WriteOK(t *testing.T) {
 	n, err := b.Write([]byte{1, 2, 3})
 	b.checkInvariants(t)
 	assert.Equal(t, 3, n)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, 3, b.Len())
 }
 
@@ -200,7 +201,7 @@ func Test_WriteDoesNotRetain(t *testing.T) {
 	n, err := b.Write(tmp)
 	b.checkInvariants(t)
 	assert.Equal(t, 3, n)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	b.Bytes()[0] = 'a'
 	assert.Equal(t, byte(1), tmp[0])
@@ -217,7 +218,7 @@ func Test_WriteNil(t *testing.T) {
 	b := New([]byte{1, 2, 3})
 	n, err := b.Write(nil)
 	assert.Equal(t, 0, n)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func Test_ReadFromOK(t *testing.T) {
@@ -226,7 +227,7 @@ func Test_ReadFromOK(t *testing.T) {
 
 	n, err := b.ReadFrom(from)
 	assert.Equal(t, int64(4), n)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []byte{1, 2, 3, 4}, b.Bytes())
 
 	// check buffers are not retained
@@ -249,7 +250,7 @@ func Test_ReadFromIfEOF(t *testing.T) {
 	// copy from
 	n, err := b.ReadFrom(from)
 	assert.Equal(t, int64(4), n)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []byte{1, 2, 3, 4}, b.Bytes())
 
 	// check buffers are not retained
@@ -273,12 +274,12 @@ func Test_ReadFromFailOnFixed(t *testing.T) {
 func Test_ReadRuneOK(t *testing.T) {
 	b := New([]byte("xäüö"))
 	r, s, err := b.ReadRune()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, 'x', r)
 	assert.Equal(t, 1, s)
 
 	r, s, err = b.ReadRune()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, 'ä', r)
 	assert.Equal(t, 2, s)
 }
@@ -302,7 +303,7 @@ func Test_ReadAtOK(t *testing.T) {
 
 	tmp := make([]byte, 2)
 	n, err := b.ReadAt(tmp, 1)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, 2, n)
 	assert.Equal(t, []byte{3, 4}, tmp[:n])
 
@@ -328,7 +329,7 @@ func Test_WriteAtToNil(t *testing.T) {
 	b := New(nil)
 	n, err := b.WriteAt([]byte{1, 2, 3}, 4)
 	assert.Equal(t, 3, n)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func Test_WriteAtOverwrites(t *testing.T) {
@@ -336,14 +337,14 @@ func Test_WriteAtOverwrites(t *testing.T) {
 	b.Advance(1)
 	n, err := b.WriteAt([]byte{1, 2, 3}, 1)
 	assert.Equal(t, 3, n)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []byte{'b', 1, 2, 3}, b.Bytes())
 
 	b = New(make([]byte, 3, 20))
 	b.Advance(2)
 	n, err = b.WriteAt([]byte{1, 2, 3}, 1)
 	assert.Equal(t, 3, n)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, 4, b.Len())
 	// assert.Equal(t, []byte{0, 1, 2, 3}, b.Bytes())
 }

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package icmp
@@ -24,14 +25,15 @@ import (
 	"net"
 	"testing"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 
-	"github.com/elastic/beats/packetbeat/protos"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
 
-	"github.com/tsg/gopacket"
-	"github.com/tsg/gopacket/layers"
+	"github.com/elastic/beats/v7/packetbeat/procs"
+	"github.com/elastic/beats/v7/packetbeat/protos"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -60,7 +62,7 @@ func TestIcmpDirection(t *testing.T) {
 func BenchmarkIcmpProcessICMPv4(b *testing.B) {
 	logp.TestingSetup(logp.WithSelectors("icmp", "icmpdetailed"))
 
-	icmp, err := New(true, func(beat.Event) {}, common.NewConfig())
+	icmp, err := New(true, func(beat.Event) {}, procs.ProcessesWatcher{}, common.NewConfig())
 	if err != nil {
 		b.Error("Failed to create ICMP processor")
 		return

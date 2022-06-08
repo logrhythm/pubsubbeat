@@ -23,29 +23,17 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/cmd/instance"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/cmd/instance"
 )
 
 const (
 	//DashboardKey used for registering dashboards in setup cmd
 	DashboardKey = "dashboards"
-	//MachineLearningKey used for registering ml jobs in setup cmd
-	MachineLearningKey = "machine-learning"
 	//PipelineKey used for registering pipelines in setup cmd
 	PipelineKey = "pipelines"
 	//IndexManagementKey used for loading all components related to ES index management in setup cmd
 	IndexManagementKey = "index-management"
-
-	//TemplateKey used for loading template in setup cmd
-	//
-	//Deprecated: use IndexManagementKey instead
-	TemplateKey = "template"
-
-	//ILMPolicyKey used for loading ilm in setup cmd
-	//
-	//Deprecated: use IndexManagementKey instead
-	ILMPolicyKey = "ilm-policy"
 )
 
 func genSetupCmd(settings instance.Settings, beatCreator beat.Creator) *cobra.Command {
@@ -56,12 +44,11 @@ func genSetupCmd(settings instance.Settings, beatCreator beat.Creator) *cobra.Co
 
  * Index mapping template in Elasticsearch to ensure fields are mapped.
  * Kibana dashboards (where available).
- * ML jobs (where available).
  * Ingest pipelines (where available).
  * ILM policy (for Elasticsearch 6.5 and newer).
 `,
 		Run: func(cmd *cobra.Command, args []string) {
-			beat, err := instance.NewBeat(settings.Name, settings.IndexPrefix, settings.Version)
+			beat, err := instance.NewBeat(settings.Name, settings.IndexPrefix, settings.Version, settings.ElasticLicensed)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error initializing beat: %s\n", err)
 				os.Exit(1)
@@ -69,11 +56,8 @@ func genSetupCmd(settings instance.Settings, beatCreator beat.Creator) *cobra.Co
 
 			var registeredFlags = map[string]bool{
 				DashboardKey:       false,
-				MachineLearningKey: false,
 				PipelineKey:        false,
 				IndexManagementKey: false,
-				TemplateKey:        false,
-				ILMPolicyKey:       false,
 			}
 			var setupAll = true
 
@@ -100,16 +84,10 @@ func genSetupCmd(settings instance.Settings, beatCreator beat.Creator) *cobra.Co
 					switch k {
 					case DashboardKey:
 						s.Dashboard = true
-					case MachineLearningKey:
-						s.MachineLearning = true
 					case PipelineKey:
 						s.Pipeline = true
 					case IndexManagementKey:
 						s.IndexManagement = true
-					case ILMPolicyKey:
-						s.ILMPolicy = true
-					case TemplateKey:
-						s.Template = true
 					}
 				}
 			}
@@ -121,14 +99,9 @@ func genSetupCmd(settings instance.Settings, beatCreator beat.Creator) *cobra.Co
 	}
 
 	setup.Flags().Bool(DashboardKey, false, "Setup dashboards")
-	setup.Flags().Bool(MachineLearningKey, false, "Setup machine learning job configurations")
 	setup.Flags().Bool(PipelineKey, false, "Setup Ingest pipelines")
 	setup.Flags().Bool(IndexManagementKey, false,
 		"Setup all components related to Elasticsearch index management, including template, ilm policy and rollover alias")
-	setup.Flags().Bool(TemplateKey, false, "Setup index template")
-	setup.Flags().MarkDeprecated(TemplateKey, fmt.Sprintf("please use --%s instead", IndexManagementKey))
-	setup.Flags().Bool(ILMPolicyKey, false, "Setup ILM policy")
-	setup.Flags().MarkDeprecated(ILMPolicyKey, fmt.Sprintf("please use --%s instead", IndexManagementKey))
 
 	return &setup
 }

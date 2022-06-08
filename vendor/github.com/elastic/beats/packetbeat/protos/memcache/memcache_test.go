@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package memcache
@@ -24,8 +25,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/packetbeat/procs"
 )
 
 type memcacheTest struct {
@@ -36,7 +38,7 @@ type memcacheTest struct {
 func newMemcacheTest(config memcacheConfig) *memcacheTest {
 	mct := &memcacheTest{}
 	mc := &memcache{}
-	mc.init(nil, &config)
+	mc.init(nil, procs.ProcessesWatcher{}, &config)
 	mc.handler = mct
 	mct.mc = mc
 	return mct
@@ -90,7 +92,7 @@ func Test_TryMergeUnmergeableResponses(t *testing.T) {
 	msg2 := textParseNoFail(t, "0\r\n")
 	b, err := tryMergeResponses(mct.mc, msg1, msg2)
 	assert.False(t, b)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func Test_TryMergeUnmergeableResponseWithValue(t *testing.T) {
@@ -99,7 +101,7 @@ func Test_TryMergeUnmergeableResponseWithValue(t *testing.T) {
 	msg2 := textParseNoFail(t, "0\r\n")
 	b, err := tryMergeResponses(mct.mc, msg1, msg2)
 	assert.False(t, b)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func Test_TryMergeUnmergeableResponseWithStat(t *testing.T) {
@@ -108,7 +110,7 @@ func Test_TryMergeUnmergeableResponseWithStat(t *testing.T) {
 	msg2 := textParseNoFail(t, "0\r\n")
 	b, err := tryMergeResponses(mct.mc, msg1, msg2)
 	assert.False(t, b)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func Test_MergeTextValueResponses(t *testing.T) {
@@ -119,12 +121,12 @@ func Test_MergeTextValueResponses(t *testing.T) {
 
 	b, err := tryMergeResponses(mct.mc, msg1, msg2)
 	assert.True(t, b)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.False(t, msg1.isComplete)
 
 	b, err = tryMergeResponses(mct.mc, msg1, msg3)
 	assert.True(t, b)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.True(t, msg1.isComplete)
 }
 
@@ -136,12 +138,12 @@ func Test_MergeTextStatsValueResponses(t *testing.T) {
 
 	b, err := tryMergeResponses(mct.mc, msg1, msg2)
 	assert.True(t, b)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.False(t, msg1.isComplete)
 
 	b, err = tryMergeResponses(mct.mc, msg1, msg3)
 	assert.True(t, b)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.True(t, msg1.isComplete)
 }
 
@@ -159,12 +161,12 @@ func Test_MergeBinaryStatsValueResponses(t *testing.T) {
 
 	b, err := tryMergeResponses(mct.mc, msg1, msg2)
 	assert.True(t, b)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.False(t, msg1.isComplete)
 
 	b, err = tryMergeResponses(mct.mc, msg1, msg3)
 	assert.True(t, b)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.True(t, msg1.isComplete)
 }
 
@@ -179,12 +181,12 @@ func Test_MergeTextValueResponsesNoLimits(t *testing.T) {
 
 	b, err := tryMergeResponses(mct.mc, msg1, msg2)
 	assert.True(t, b)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.False(t, msg1.isComplete)
 
 	b, err = tryMergeResponses(mct.mc, msg1, msg3)
 	assert.True(t, b)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.True(t, msg1.isComplete)
 
 	msg := msg1
@@ -206,12 +208,12 @@ func Test_MergeTextValueResponsesWithLimits(t *testing.T) {
 
 	b, err := tryMergeResponses(mct.mc, msg1, msg2)
 	assert.True(t, b)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.False(t, msg1.isComplete)
 
 	b, err = tryMergeResponses(mct.mc, msg1, msg3)
 	assert.True(t, b)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.True(t, msg1.isComplete)
 
 	msg := msg1

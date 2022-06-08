@@ -1,4 +1,5 @@
 from base import BaseTest
+from beat import common_tests
 
 import json
 import os
@@ -9,7 +10,7 @@ import sys
 import unittest
 
 
-class Test(BaseTest):
+class Test(BaseTest, common_tests.TestExportsMixin):
 
     def test_base(self):
         """
@@ -137,7 +138,7 @@ class Test(BaseTest):
             max_timeout=2)
         proc.check_kill_and_wait()
         self.wait_until(
-            lambda: self.log_contains("Total non-zero metrics"),
+            lambda: self.log_contains("Total metrics"),
             max_timeout=2)
 
     def test_persistent_uuid(self):
@@ -164,8 +165,7 @@ class Test(BaseTest):
 
         # remove log, restart beat and check meta file did not change
         # and same UUID is used in log output.
-
-        os.remove(os.path.join(self.working_dir, "mockbeat.log"))
+        os.remove(os.path.join(self.working_dir, "mockbeat-" + self.today + ".ndjson"))
         meta1 = run()
         assert self.log_contains("Beat ID: {}".format(meta1["uuid"]))
 

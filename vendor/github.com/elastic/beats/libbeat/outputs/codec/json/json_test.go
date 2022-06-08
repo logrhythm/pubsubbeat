@@ -18,15 +18,18 @@
 package json
 
 import (
+	"math"
 	"testing"
+	"time"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
 )
 
 func TestJsonCodec(t *testing.T) {
 	type testCase struct {
 		config   Config
+		ts       time.Time
 		in       common.MapStr
 		expected string
 	}
@@ -50,24 +53,39 @@ func TestJsonCodec(t *testing.T) {
   "msg": "message"
 }`,
 		},
-		"html escaping enabled": testCase{
+		"html escaping enabled": {
 			config:   Config{EscapeHTML: true},
 			in:       common.MapStr{"msg": "<hello>world</hello>"},
 			expected: `{"@timestamp":"0001-01-01T00:00:00.000Z","@metadata":{"beat":"test","type":"_doc","version":"1.2.3"},"msg":"\u003chello\u003eworld\u003c/hello\u003e"}`,
 		},
-		"html escaping disabled": testCase{
+		"html escaping disabled": {
 			config:   Config{EscapeHTML: false},
 			in:       common.MapStr{"msg": "<hello>world</hello>"},
 			expected: `{"@timestamp":"0001-01-01T00:00:00.000Z","@metadata":{"beat":"test","type":"_doc","version":"1.2.3"},"msg":"<hello>world</hello>"}`,
 		},
+		"UTC timezone offset": {
+			config:   Config{LocalTime: true},
+			in:       common.MapStr{"msg": "message"},
+			expected: `{"@timestamp":"0001-01-01T00:00:00.000+00:00","@metadata":{"beat":"test","type":"_doc","version":"1.2.3"},"msg":"message"}`,
+		},
+		"PST timezone offset": {
+			config:   Config{LocalTime: true},
+			ts:       time.Time{}.In(time.FixedZone("PST", -8*60*60)),
+			in:       common.MapStr{"msg": "message"},
+			expected: `{"@timestamp":"0000-12-31T16:00:00.000-08:00","@metadata":{"beat":"test","type":"_doc","version":"1.2.3"},"msg":"message"}`,
+		},
+		"float undefined values": {
+			in:       common.MapStr{"nan": math.NaN()},
+			expected: `{"@timestamp":"0001-01-01T00:00:00.000Z","@metadata":{"beat":"test","type":"_doc","version":"1.2.3"},"nan":null}`,
+		},
 	}
 
 	for name, test := range cases {
-		cfg, fields, expected := test.config, test.in, test.expected
+		cfg, ts, fields, expected := test.config, test.ts, test.in, test.expected
 
 		t.Run(name, func(t *testing.T) {
 			codec := New("1.2.3", cfg)
-			actual, err := codec.Encode("test", &beat.Event{Fields: fields})
+			actual, err := codec.Encode("test", &beat.Event{Fields: fields, Timestamp: ts})
 
 			if err != nil {
 				t.Errorf("Error during event write %v", err)

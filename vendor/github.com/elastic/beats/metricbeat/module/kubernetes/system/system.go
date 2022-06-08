@@ -18,10 +18,15 @@
 package system
 
 import (
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/metricbeat/helper"
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/mb/parse"
+	"fmt"
+
+	"github.com/pkg/errors"
+
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/metricbeat/helper"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/parse"
+	k8smod "github.com/elastic/beats/v7/metricbeat/module/kubernetes"
 )
 
 const (
@@ -54,6 +59,7 @@ func init() {
 type MetricSet struct {
 	mb.BaseMetricSet
 	http *helper.HTTP
+	mod  k8smod.Module
 }
 
 // New create a new instance of the MetricSet
@@ -64,32 +70,36 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 	if err != nil {
 		return nil, err
 	}
+	mod, ok := base.Module().(k8smod.Module)
+	if !ok {
+		return nil, fmt.Errorf("must be child of kubernetes module")
+	}
 	return &MetricSet{
 		BaseMetricSet: base,
 		http:          http,
+		mod:           mod,
 	}, nil
 }
 
 // Fetch methods implements the data gathering and data conversion to the right
 // format. It publishes the event which is then forwarded to the output. In case
 // of an error set the Error field of mb.Event or simply call report.Error().
-func (m *MetricSet) Fetch(reporter mb.ReporterV2) {
-	body, err := m.http.FetchContent()
+func (m *MetricSet) Fetch(reporter mb.ReporterV2) error {
+	body, err := m.mod.GetKubeletStats(m.http)
 	if err != nil {
-		logger.Error(err)
-		reporter.Error(err)
-		return
+		return errors.Wrap(err, "error doing HTTP request to fetch 'system' Metricset data")
 	}
 
 	events, err := eventMapping(body)
 	if err != nil {
-		logger.Error(err)
-		reporter.Error(err)
-		return
+		return errors.Wrap(err, "error in mapping")
 	}
 
 	for _, e := range events {
-		reporter.Event(mb.Event{MetricSetFields: e})
+		isOpen := reporter.Event(mb.TransformMapStrToEvent("kubernetes", e, nil))
+		if !isOpen {
+			return nil
+		}
 	}
-	return
+	return nil
 }

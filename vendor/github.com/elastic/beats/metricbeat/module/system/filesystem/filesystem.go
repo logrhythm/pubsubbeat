@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build darwin || freebsd || linux || openbsd || windows
 // +build darwin freebsd linux openbsd windows
 
 package filesystem
@@ -22,9 +23,10 @@ package filesystem
 import (
 	"strings"
 
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/mb/parse"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/metric/system/resolve"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/parse"
 
 	"github.com/pkg/errors"
 )
@@ -49,9 +51,9 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 	if err := base.Module().UnpackConfig(&config); err != nil {
 		return nil, err
 	}
-
+	sys := base.Module().(resolve.Resolver)
 	if config.IgnoreTypes == nil {
-		config.IgnoreTypes = DefaultIgnoredTypes()
+		config.IgnoreTypes = DefaultIgnoredTypes(sys)
 	}
 	if len(config.IgnoreTypes) > 0 {
 		logp.Info("Ignoring filesystem types: %s", strings.Join(config.IgnoreTypes, ", "))
@@ -65,11 +67,11 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 
 // Fetch fetches filesystem metrics for all mounted filesystems and returns
 // an event for each mount point.
-func (m *MetricSet) Fetch(r mb.ReporterV2) {
+func (m *MetricSet) Fetch(r mb.ReporterV2) error {
 	fss, err := GetFileSystemList()
 	if err != nil {
-		r.Error(errors.Wrap(err, "filesystem list"))
-		return
+		return errors.Wrap(err, "error getting filesystem list")
+
 	}
 
 	if len(m.config.IgnoreTypes) > 0 {
@@ -77,19 +79,27 @@ func (m *MetricSet) Fetch(r mb.ReporterV2) {
 	}
 
 	for _, fs := range fss {
-		fsStat, err := GetFileSystemStat(fs)
+		stat, err := GetFileSystemStat(fs)
+		addStats := true
 		if err != nil {
-			debugf("error getting filesystem stats for '%s': %v", fs.DirName, err)
-			continue
+			addStats = false
+			m.Logger().Debugf("error fetching filesystem stats for '%s': %v", fs.DirName, err)
 		}
-		AddFileSystemUsedPercentage(fsStat)
+		fsStat := FSStat{
+			FileSystemUsage: stat,
+			DevName:         fs.DevName,
+			Mount:           fs.DirName,
+			SysTypeName:     fs.SysTypeName,
+		}
+
+		AddFileSystemUsedPercentage(&fsStat)
 
 		event := mb.Event{
-			MetricSetFields: GetFilesystemEvent(fsStat),
+			MetricSetFields: GetFilesystemEvent(&fsStat, addStats),
 		}
 		if !r.Event(event) {
-			debugf("Failed to report event, interrupting Fetch")
-			return
+			return nil
 		}
 	}
+	return nil
 }

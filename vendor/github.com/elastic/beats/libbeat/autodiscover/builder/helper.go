@@ -24,9 +24,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common/cfgwarn"
+	"github.com/elastic/beats/v7/libbeat/logp"
 )
+
+const logName = "autodiscover.builder"
 
 // GetContainerID returns the id of a container
 func GetContainerID(container common.MapStr) string {
@@ -42,7 +45,13 @@ func GetContainerName(container common.MapStr) string {
 
 // GetHintString takes a hint and returns its value as a string
 func GetHintString(hints common.MapStr, key, config string) string {
-	if iface, err := hints.GetValue(fmt.Sprintf("%s.%s", key, config)); err == nil {
+	base := config
+	if base == "" {
+		base = key
+	} else if key != "" {
+		base = fmt.Sprint(key, ".", config)
+	}
+	if iface, err := hints.GetValue(base); err == nil {
 		if str, ok := iface.(string); ok {
 			return str
 		}
@@ -53,7 +62,13 @@ func GetHintString(hints common.MapStr, key, config string) string {
 
 // GetHintMapStr takes a hint and returns a MapStr
 func GetHintMapStr(hints common.MapStr, key, config string) common.MapStr {
-	if iface, err := hints.GetValue(fmt.Sprintf("%s.%s", key, config)); err == nil {
+	base := config
+	if base == "" {
+		base = key
+	} else if key != "" {
+		base = fmt.Sprint(key, ".", config)
+	}
+	if iface, err := hints.GetValue(base); err == nil {
 		if mapstr, ok := iface.(common.MapStr); ok {
 			return mapstr
 		}
@@ -73,14 +88,32 @@ func GetHintAsList(hints common.MapStr, key, config string) []string {
 
 // GetProcessors gets processor definitions from the hints and returns a list of configs as a MapStr
 func GetProcessors(hints common.MapStr, key string) []common.MapStr {
-	rawProcs := GetHintMapStr(hints, key, "processors")
-	if rawProcs == nil {
+	processors := GetConfigs(hints, key, "processors")
+	for _, proc := range processors {
+		for key, value := range proc {
+			if str, ok := value.(string); ok {
+				cfg := common.MapStr{}
+				if err := json.Unmarshal([]byte(str), &cfg); err != nil {
+					logp.NewLogger(logName).Debugw("Unable to unmarshal json due to error", "error", err)
+					continue
+				}
+				proc[key] = cfg
+			}
+		}
+	}
+	return processors
+}
+
+// GetConfigs takes in a key and returns a list of configs as a slice of MapStr
+func GetConfigs(hints common.MapStr, key, name string) []common.MapStr {
+	raw := GetHintMapStr(hints, key, name)
+	if raw == nil {
 		return nil
 	}
 
 	var words, nums []string
 
-	for key := range rawProcs {
+	for key := range raw {
 		if _, err := strconv.Atoi(key); err != nil {
 			words = append(words, key)
 			continue
@@ -93,7 +126,7 @@ func GetProcessors(hints common.MapStr, key string) []common.MapStr {
 
 	var configs []common.MapStr
 	for _, key := range nums {
-		rawCfg, _ := rawProcs[key]
+		rawCfg := raw[key]
 		if config, ok := rawCfg.(common.MapStr); ok {
 			configs = append(configs, config)
 		}
@@ -101,7 +134,7 @@ func GetProcessors(hints common.MapStr, key string) []common.MapStr {
 
 	for _, word := range words {
 		configs = append(configs, common.MapStr{
-			word: rawProcs[word],
+			word: raw[word],
 		})
 	}
 
@@ -128,15 +161,15 @@ func GetHintAsConfigs(hints common.MapStr, key string) []common.MapStr {
 		if str[0] != '[' {
 			cfg := common.MapStr{}
 			if err := json.Unmarshal([]byte(str), &cfg); err != nil {
-				logp.Debug("autodiscover.builder", "unable to unmarshal json due to error: %v", err)
+				logp.NewLogger(logName).Debugw("Unable to unmarshal json due to error", "error", err)
 				return nil
 			}
 			return []common.MapStr{cfg}
 		}
 
-		cfg := []common.MapStr{}
+		var cfg []common.MapStr
 		if err := json.Unmarshal([]byte(str), &cfg); err != nil {
-			logp.Debug("autodiscover.builder", "unable to unmarshal json due to error: %v", err)
+			logp.NewLogger(logName).Debugw("Unable to unmarshal json due to error", "error", err)
 			return nil
 		}
 		return cfg
@@ -144,18 +177,40 @@ func GetHintAsConfigs(hints common.MapStr, key string) []common.MapStr {
 	return nil
 }
 
-// IsNoOp is a big red button to prevent spinning up Runners in case of issues.
-func IsNoOp(hints common.MapStr, key string) bool {
+// IsEnabled will return true when 'enabled' is **explicitly** set to true.
+func IsEnabled(hints common.MapStr, key string) bool {
+	if value, err := hints.GetValue(fmt.Sprintf("%s.enabled", key)); err == nil {
+		enabled, _ := strconv.ParseBool(value.(string))
+		return enabled
+	}
+
+	return false
+}
+
+// IsDisabled will return true when 'enabled' is **explicitly** set to false.
+func IsDisabled(hints common.MapStr, key string) bool {
+	if value, err := hints.GetValue(fmt.Sprintf("%s.enabled", key)); err == nil {
+		enabled, err := strconv.ParseBool(value.(string))
+		if err != nil {
+			logp.NewLogger(logName).Debugw("Error parsing 'enabled' hint.",
+				"error", err, "autodiscover.hints", hints)
+			return false
+		}
+		return !enabled
+	}
+
+	// keep reading disable (deprecated) for backwards compatibility
 	if value, err := hints.GetValue(fmt.Sprintf("%s.disable", key)); err == nil {
-		noop, _ := strconv.ParseBool(value.(string))
-		return noop
+		cfgwarn.Deprecate("8.0.0", "disable hint is deprecated. Use `enabled: false` instead.")
+		disabled, _ := strconv.ParseBool(value.(string))
+		return disabled
 	}
 
 	return false
 }
 
 // GenerateHints parses annotations based on a prefix and sets up hints that can be picked up by individual Beats.
-func GenerateHints(annotations common.MapStr, container, prefix string, defaultDisable bool) common.MapStr {
+func GenerateHints(annotations common.MapStr, container, prefix string) common.MapStr {
 	hints := common.MapStr{}
 	if rawEntries, err := annotations.GetValue(prefix); err == nil {
 		if entries, ok := rawEntries.(common.MapStr); ok {
@@ -195,10 +250,44 @@ func GenerateHints(annotations common.MapStr, container, prefix string, defaultD
 		}
 	}
 
-	// Update hints: if .disabled annotation does not exist, set according to disabledByDefault flag
-	if _, err := hints.GetValue("logs.disable"); err != nil && defaultDisable {
-		hints.Put("logs.disable", "true")
+	return hints
+}
+
+// GetHintsAsList gets a set of hints and tries to convert them into a list of hints
+func GetHintsAsList(hints common.MapStr, key string) []common.MapStr {
+	raw := GetHintMapStr(hints, key, "")
+	if raw == nil {
+		return nil
 	}
 
-	return hints
+	var words, nums []string
+
+	for key := range raw {
+		if _, err := strconv.Atoi(key); err != nil {
+			words = append(words, key)
+			continue
+		} else {
+			nums = append(nums, key)
+		}
+	}
+
+	sort.Strings(nums)
+
+	var configs []common.MapStr
+	for _, key := range nums {
+		rawCfg := raw[key]
+		if config, ok := rawCfg.(common.MapStr); ok {
+			configs = append(configs, config)
+		}
+	}
+
+	defaultMap := common.MapStr{}
+	for _, word := range words {
+		defaultMap[word] = raw[word]
+	}
+
+	if len(defaultMap) != 0 {
+		configs = append(configs, defaultMap)
+	}
+	return configs
 }

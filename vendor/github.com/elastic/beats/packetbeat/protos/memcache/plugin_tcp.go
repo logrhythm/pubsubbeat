@@ -22,13 +22,12 @@ package memcache
 import (
 	"time"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
 
-	"github.com/elastic/beats/packetbeat/procs"
-	"github.com/elastic/beats/packetbeat/protos"
-	"github.com/elastic/beats/packetbeat/protos/applayer"
-	"github.com/elastic/beats/packetbeat/protos/tcp"
+	"github.com/elastic/beats/v7/packetbeat/protos"
+	"github.com/elastic/beats/v7/packetbeat/protos/applayer"
+	"github.com/elastic/beats/v7/packetbeat/protos/tcp"
 )
 
 type tcpMemcache struct {
@@ -60,8 +59,6 @@ type messageList struct {
 	head *message
 	tail *message
 }
-
-const defaultTCPTransDuration uint = 200
 
 func ensureMemcacheConnection(private protos.ProtocolData) *tcpConnectionData {
 	if private == nil {
@@ -155,7 +152,7 @@ func (mc *memcache) memcacheParseTCP(
 		debug("stream(%p) try to content", stream)
 		msg, err := stream.parse(pkt.Ts)
 		if err != nil {
-			// parsing error, drop tcp stream and retry with next segement
+			// parsing error, drop tcp stream and retry with next segment
 			debug("Ignore Memcache message, drop tcp stream: %v", err)
 			mc.pushAllTCPTrans(conn)
 			tcpConn.drop(dir)
@@ -191,7 +188,7 @@ func (mc *memcache) onTCPMessage(
 ) error {
 	msg.Tuple = *tuple
 	msg.Transport = applayer.TransportTCP
-	msg.CmdlineTuple = procs.ProcWatcher.FindProcessesTupleTCP(tuple)
+	msg.CmdlineTuple = mc.watcher.FindProcessesTupleTCP(tuple)
 
 	if msg.IsRequest {
 		return mc.onTCPRequest(conn, tuple, dir, msg)
@@ -375,7 +372,7 @@ func (mc *memcache) GapInStream(
 		parser.state == parseStateIncompleteData
 	if inData {
 		if msg == nil {
-			logp.WTF("parser message is nil on data load")
+			logp.NewLogger("memcache").DPanic("parser message is nil on data load")
 			return private, true
 		}
 

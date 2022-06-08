@@ -21,9 +21,9 @@ import (
 	"github.com/dop251/goja"
 	"github.com/pkg/errors"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/processors"
-	"github.com/elastic/beats/libbeat/processors/script/javascript"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/processors"
+	"github.com/elastic/beats/v7/libbeat/processors/script/javascript"
 )
 
 // chainBuilder builds a new processor chain.
@@ -42,7 +42,7 @@ func newChainBuilder(runtime *goja.Runtime) func(call goja.ConstructorCall) *goj
 		}
 
 		c := &chainBuilder{runtime: runtime, this: call.This}
-		for name, fn := range constructors {
+		for name, fn := range registry.Constructors() {
 			c.this.Set(name, c.makeBuilderFunc(fn))
 		}
 		call.This.Set("Add", c.Add)
@@ -83,7 +83,7 @@ func (b *chainBuilder) Add(call goja.FunctionCall) goja.Value {
 	case *beatProcessor:
 		b.procs = append(b.procs, v.p)
 	case func(goja.FunctionCall) goja.Value:
-		b.procs = append(b.procs, &jsProcessor{fn: v})
+		b.procs = append(b.procs, newJSProcessor(v))
 	default:
 		panic(b.runtime.NewGoError(errors.Errorf("arg0 must be a processor object, but got %T", a0.Export())))
 	}
@@ -98,9 +98,7 @@ func (b *chainBuilder) Build(call goja.FunctionCall) goja.Value {
 	}
 
 	p := &beatProcessor{b.runtime, &b.chain}
-	o := b.runtime.NewObject()
-	o.Set("Run", p.Run)
-	return o
+	return b.runtime.ToValue(p)
 }
 
 type gojaCall interface {
@@ -119,10 +117,14 @@ type jsProcessor struct {
 	call goja.FunctionCall
 }
 
+func newJSProcessor(fn jsFunction) *jsProcessor {
+	return &jsProcessor{fn: fn, call: goja.FunctionCall{Arguments: make([]goja.Value, 1)}}
+}
+
 func (p *jsProcessor) run(event javascript.Event) error {
-	p.call.Arguments = p.call.Arguments[0:]
-	p.call.Arguments = append(p.call.Arguments, event.JSObject())
+	p.call.Arguments[0] = event.JSObject()
 	p.fn(p.call)
+	p.call.Arguments[0] = nil
 	return nil
 }
 
@@ -149,6 +151,17 @@ func newNativeProcessor(constructor processors.Constructor, call gojaCall) (proc
 	if err != nil {
 		return nil, err
 	}
+
+	if closer, ok := p.(processors.Closer); ok {
+		closer.Close()
+		// Script processor doesn't support releasing resources of stateful processors,
+		// what can lead to leaks, so prevent use of these processors. They shouldn't
+		// be registered. If this error happens, a processor that needs to be closed is
+		// being registered, this should be avoided.
+		// See https://github.com/elastic/beats/pull/16349
+		return nil, errors.Errorf("stateful processor cannot be used in script processor, this is probably a bug: %s", p)
+	}
+
 	return &nativeProcessor{p}, nil
 }
 

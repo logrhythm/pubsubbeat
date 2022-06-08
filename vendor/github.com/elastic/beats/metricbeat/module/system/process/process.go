@@ -15,23 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// +build darwin freebsd linux windows
+//go:build darwin || freebsd || linux || windows || aix
+// +build darwin freebsd linux windows aix
 
 package process
 
 import (
-	"fmt"
+	"os"
 	"runtime"
 
 	"github.com/pkg/errors"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/libbeat/metric/system/process"
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/mb/parse"
-	"github.com/elastic/beats/metricbeat/module/system"
-	"github.com/elastic/gosigar/cgroup"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/metric/system/cgroup"
+	"github.com/elastic/beats/v7/libbeat/metric/system/process"
+	"github.com/elastic/beats/v7/libbeat/metric/system/resolve"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/parse"
 )
 
 var debugf = logp.MakeDebug("system.process")
@@ -58,109 +58,65 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 		return nil, err
 	}
 
+	sys := base.Module().(resolve.Resolver)
+	enableCgroups := false
+	if runtime.GOOS == "linux" {
+		if config.Cgroups == nil || *config.Cgroups {
+			enableCgroups = true
+			debugf("process cgroup data collection is enabled, using hostfs='%v'", sys.ResolveHostFS(""))
+		}
+	}
+
 	m := &MetricSet{
 		BaseMetricSet: base,
 		stats: &process.Stats{
-			Procs:        config.Procs,
-			EnvWhitelist: config.EnvWhitelist,
-			CpuTicks:     config.IncludeCPUTicks || (config.CPUTicks != nil && *config.CPUTicks),
-			CacheCmdLine: config.CacheCmdLine,
-			IncludeTop:   config.IncludeTop,
+			Procs:         config.Procs,
+			Hostfs:        sys,
+			EnvWhitelist:  config.EnvWhitelist,
+			CPUTicks:      config.IncludeCPUTicks || (config.CPUTicks != nil && *config.CPUTicks),
+			CacheCmdLine:  config.CacheCmdLine,
+			IncludeTop:    config.IncludeTop,
+			EnableCgroups: enableCgroups,
+			CgroupOpts: cgroup.ReaderOptions{
+				RootfsMountpoint:  sys,
+				IgnoreRootCgroups: true,
+			},
 		},
 		perCPU: config.IncludePerCPU,
 	}
+
+	// If hostfs is set, we may not want to force the hierarchy override, as the user could be expecting a custom path.
+	if !sys.IsSet() {
+		override, isset := os.LookupEnv("LIBBEAT_MONITORING_CGROUPS_HIERARCHY_OVERRIDE")
+		if isset {
+			m.stats.CgroupOpts.CgroupsHierarchyOverride = override
+		}
+	}
+
 	err := m.stats.Init()
 	if err != nil {
 		return nil, err
 	}
-
-	if runtime.GOOS == "linux" {
-		systemModule, ok := base.Module().(*system.Module)
-		if !ok {
-			return nil, fmt.Errorf("unexpected module type")
-		}
-
-		if config.Cgroups == nil || *config.Cgroups {
-			debugf("process cgroup data collection is enabled, using hostfs='%v'", systemModule.HostFS)
-			m.cgroup, err = cgroup.NewReader(systemModule.HostFS, true)
-			if err != nil {
-				if err == cgroup.ErrCgroupsMissing {
-					logp.Warn("cgroup data collection will be disabled: %v", err)
-				} else {
-					return nil, errors.Wrap(err, "error initializing cgroup reader")
-				}
-			}
-		}
-	}
-
 	return m, nil
 }
 
 // Fetch fetches metrics for all processes. It iterates over each PID and
 // collects process metadata, CPU metrics, and memory metrics.
-func (m *MetricSet) Fetch(r mb.ReporterV2) {
-	procs, err := m.stats.Get()
+func (m *MetricSet) Fetch(r mb.ReporterV2) error {
+	procs, roots, err := m.stats.Get()
 	if err != nil {
-		r.Error(errors.Wrap(err, "process stats"))
-		return
+		return errors.Wrap(err, "process stats")
 	}
 
-	if m.cgroup != nil {
-		for _, proc := range procs {
-			pid, ok := proc["pid"].(int)
-			if !ok {
-				debugf("error converting pid to int for proc %+v", proc)
-				continue
-			}
-			stats, err := m.cgroup.GetStatsForProcess(pid)
-			if err != nil {
-				debugf("error getting cgroups stats for pid=%d, %v", pid, err)
-				continue
-			}
-
-			if statsMap := cgroupStatsToMap(stats, m.perCPU); statsMap != nil {
-				proc["cgroup"] = statsMap
-			}
+	for evtI := range procs {
+		isOpen := r.Event(mb.Event{
+			MetricSetFields: procs[evtI],
+			RootFields:      roots[evtI],
+		})
+		if !isOpen {
+			return nil
 		}
 	}
 
-	for _, proc := range procs {
-		rootFields := common.MapStr{
-			"process": common.MapStr{
-				"name": getAndRemove(proc, "name"),
-				"pid":  getAndRemove(proc, "pid"),
-				"ppid": getAndRemove(proc, "ppid"),
-				"pgid": getAndRemove(proc, "pgid"),
-			},
-			"user": common.MapStr{
-				"name": getAndRemove(proc, "username"),
-			},
-		}
-
-		if cwd := getAndRemove(proc, "cwd"); cwd != nil {
-			rootFields.Put("process.working_directory", cwd)
-		}
-
-		if exe := getAndRemove(proc, "exe"); exe != nil {
-			rootFields.Put("process.executable", exe)
-		}
-
-		if args := getAndRemove(proc, "args"); args != nil {
-			rootFields.Put("process.args", args)
-		}
-
-		e := mb.Event{
-			RootFields:      rootFields,
-			MetricSetFields: proc,
-		}
-		r.Event(e)
-	}
-}
-
-func getAndRemove(from common.MapStr, field string) interface{} {
-	if v, ok := from[field]; ok {
-		delete(from, field)
-		return v
-	}
 	return nil
 }

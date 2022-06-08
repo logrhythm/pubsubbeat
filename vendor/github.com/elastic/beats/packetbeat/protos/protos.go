@@ -24,10 +24,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/common/cfgwarn"
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common/cfgwarn"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/packetbeat/procs"
 )
 
 const (
@@ -78,7 +79,6 @@ type Protocols interface {
 	BpfFilter(withVlans bool, withICMP bool) string
 	GetTCP(proto Protocol) TCPPlugin
 	GetUDP(proto Protocol) UDPPlugin
-
 	GetAllTCP() map[Protocol]TCPPlugin
 	GetAllUDP() map[Protocol]UDPPlugin
 
@@ -92,11 +92,12 @@ type ProtocolsStruct struct {
 	udp map[Protocol]UDPPlugin
 }
 
-// Singleton of Protocols type.
-var Protos = ProtocolsStruct{
-	all: map[Protocol]protocolInstance{},
-	tcp: map[Protocol]TCPPlugin{},
-	udp: map[Protocol]UDPPlugin{},
+func NewProtocols() *ProtocolsStruct {
+	return &ProtocolsStruct{
+		all: map[Protocol]protocolInstance{},
+		tcp: map[Protocol]TCPPlugin{},
+		udp: map[Protocol]UDPPlugin{},
+	}
 }
 
 type protocolInstance struct {
@@ -111,6 +112,7 @@ type reporterFactory interface {
 func (s ProtocolsStruct) Init(
 	testMode bool,
 	pub reporterFactory,
+	watcher procs.ProcessesWatcher,
 	configs map[string]*common.Config,
 	listConfigs []*common.Config,
 ) error {
@@ -123,7 +125,7 @@ func (s ProtocolsStruct) Init(
 	}
 
 	for name, config := range configs {
-		if err := s.configureProtocol(testMode, pub, name, config); err != nil {
+		if err := s.configureProtocol(testMode, pub, watcher, name, config); err != nil {
 			return err
 		}
 	}
@@ -136,7 +138,7 @@ func (s ProtocolsStruct) Init(
 			return err
 		}
 
-		if err := s.configureProtocol(testMode, pub, module.Name, config); err != nil {
+		if err := s.configureProtocol(testMode, pub, watcher, module.Name, config); err != nil {
 			return err
 		}
 	}
@@ -147,6 +149,7 @@ func (s ProtocolsStruct) Init(
 func (s ProtocolsStruct) configureProtocol(
 	testMode bool,
 	pub reporterFactory,
+	watcher procs.ProcessesWatcher,
 	name string,
 	config *common.Config,
 ) error {
@@ -182,7 +185,7 @@ func (s ProtocolsStruct) configureProtocol(
 		}
 	}
 
-	inst, err := plugin(testMode, results, config)
+	inst, err := plugin(testMode, results, watcher, config)
 	if err != nil {
 		logp.Err("Failed to register protocol plugin: %v", err)
 		return err

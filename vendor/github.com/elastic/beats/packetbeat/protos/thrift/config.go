@@ -18,8 +18,8 @@
 package thrift
 
 import (
-	"github.com/elastic/beats/packetbeat/config"
-	"github.com/elastic/beats/packetbeat/protos"
+	"github.com/elastic/beats/v7/packetbeat/config"
+	"github.com/elastic/beats/v7/packetbeat/protos"
 )
 
 type thriftConfig struct {
@@ -34,16 +34,14 @@ type thriftConfig struct {
 	IdlFiles               []string `config:"idl_files"`
 }
 
-var (
-	defaultConfig = thriftConfig{
-		ProtocolCommon: config.ProtocolCommon{
-			TransactionTimeout: protos.DefaultTransactionExpiration,
-		},
-		StringMaxSize:          200,
-		CollectionMaxSize:      15,
-		DropAfterNStructFields: 500,
-		TransportType:          "socket",
-		ProtocolType:           "binary",
-		CaptureReply:           true,
-	}
-)
+var defaultConfig = thriftConfig{
+	ProtocolCommon: config.ProtocolCommon{
+		TransactionTimeout: protos.DefaultTransactionExpiration,
+	},
+	StringMaxSize:          200,
+	CollectionMaxSize:      15,
+	DropAfterNStructFields: 500,
+	TransportType:          "socket",
+	ProtocolType:           "binary",
+	CaptureReply:           true,
+}

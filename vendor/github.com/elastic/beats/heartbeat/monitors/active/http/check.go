@@ -18,79 +18,98 @@
 package http
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
-	"strings"
 
-	pkgerrors "github.com/pkg/errors"
-
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/common/match"
-	"github.com/elastic/beats/libbeat/conditions"
+	"github.com/elastic/beats/v7/heartbeat/reason"
+	"github.com/elastic/beats/v7/libbeat/common/match"
 )
 
-type RespCheck func(*http.Response) error
+// multiValidator combines multiple validations of each type into a single easy to use object.
+type multiValidator struct {
+	respValidators []respValidator
+	bodyValidators []bodyValidator
+}
+
+func (rv multiValidator) wantsBody() bool {
+	return len(rv.bodyValidators) > 0
+}
+
+func (rv multiValidator) validate(resp *http.Response, body string) reason.Reason {
+	for _, respValidator := range rv.respValidators {
+		if err := respValidator(resp); err != nil {
+			return reason.ValidateFailed(err)
+		}
+	}
+
+	for _, bodyValidator := range rv.bodyValidators {
+		if err := bodyValidator(resp, body); err != nil {
+			return reason.ValidateFailed(err)
+		}
+	}
+
+	return nil
+}
+
+// respValidator is used for validating using only the non-body fields of the *http.Response.
+// Accessing the body of the response in such a validator should not be done due, use bodyValidator
+// for those purposes instead.
+type respValidator func(*http.Response) error
+
+// bodyValidator lets you validate a stringified version of the body along with other metadata in
+// *http.Response.
+type bodyValidator func(*http.Response, string) error
 
 var (
-	errBodyMismatch = errors.New("body mismatch")
+	errBodyPositiveMismatch  = errors.New("only positive pattern mismatch")
+	errBodyNegativeMismatch  = errors.New("only negative pattern mismatch")
+	errBodyNoValidCheckType  = errors.New("no valid check type under check.body, only 'positive' or 'negative' is expected")
+	errBodyNoValidCheckParam = errors.New("no valid check parameters under check.body")
+	errBodyIllegalBody       = errors.New("unsupported content under check.body")
 )
 
-func makeValidateResponse(config *responseParameters) (RespCheck, error) {
-	var checks []RespCheck
+func makeValidateResponse(config *responseParameters) (multiValidator, error) {
+	var respValidators []respValidator
+	var bodyValidators []bodyValidator
 
-	if config.Status > 0 {
-		checks = append(checks, checkStatus(config.Status))
+	if len(config.Status) > 0 {
+		respValidators = append(respValidators, checkStatus(config.Status))
 	} else {
-		checks = append(checks, checkStatusOK)
+		respValidators = append(respValidators, checkStatusOK)
 	}
 
 	if len(config.RecvHeaders) > 0 {
-		checks = append(checks, checkHeaders(config.RecvHeaders))
+		respValidators = append(respValidators, checkHeaders(config.RecvHeaders))
 	}
 
-	if len(config.RecvBody) > 0 {
-		checks = append(checks, checkBody(config.RecvBody))
+	if config.RecvBody != nil {
+		pm, nm, err := parseBody(config.RecvBody)
+		if err != nil {
+			bodyValidators = append(bodyValidators, func(response *http.Response, body string) error {
+				return err
+			})
+		}
+		bodyValidators = append(bodyValidators, checkBody(pm, nm))
 	}
 
 	if len(config.RecvJSON) > 0 {
-		jsonChecks, err := checkJSON(config.RecvJSON)
+		jsonChecks, err := checkJson(config.RecvJSON)
 		if err != nil {
-			return nil, err
+			return multiValidator{}, fmt.Errorf("could not load JSON check: %w", err)
 		}
-		checks = append(checks, jsonChecks)
+		bodyValidators = append(bodyValidators, jsonChecks)
 	}
 
-	return checkAll(checks...), nil
+	return multiValidator{respValidators, bodyValidators}, nil
 }
 
-func checkOK(_ *http.Response) error { return nil }
-
-// TODO: collect all errors into on error message.
-func checkAll(checks ...RespCheck) RespCheck {
-	switch len(checks) {
-	case 0:
-		return checkOK
-	case 1:
-		return checks[0]
-	}
-
+func checkStatus(status []uint16) respValidator {
 	return func(r *http.Response) error {
-		for _, check := range checks {
-			if err := check(r); err != nil {
-				return err
+		for _, v := range status {
+			if r.StatusCode == int(v) {
+				return nil
 			}
-		}
-		return nil
-	}
-}
-
-func checkStatus(status uint16) RespCheck {
-	return func(r *http.Response) error {
-		if r.StatusCode == int(status) {
-			return nil
 		}
 		return fmt.Errorf("received status code %v expecting %v", r.StatusCode, status)
 	}
@@ -103,7 +122,7 @@ func checkStatusOK(r *http.Response) error {
 	return nil
 }
 
-func checkHeaders(headers map[string]string) RespCheck {
+func checkHeaders(headers map[string]string) respValidator {
 	return func(r *http.Response) error {
 		for k, v := range headers {
 			value := r.Header.Get(k)
@@ -115,63 +134,80 @@ func checkHeaders(headers map[string]string) RespCheck {
 	}
 }
 
-func checkBody(body []match.Matcher) RespCheck {
-	return func(r *http.Response) error {
-		content, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			return err
+func parseBody(b interface{}) (positiveMatch, negativeMatch []match.Matcher, err error) {
+	// run through this code block if there is only string
+	if pat, ok := b.(string); ok {
+		return append(positiveMatch, match.MustCompile(pat)), negativeMatch, nil
+	}
+
+	// run through this code block if there is no positive or negative keyword in response body
+	// in this case, there's only plain body
+	if p, ok := b.([]interface{}); ok {
+		for _, pp := range p {
+			if pat, ok := pp.(string); ok {
+				positiveMatch = append(positiveMatch, match.MustCompile(pat))
+			}
 		}
-		for _, m := range body {
-			if m.Match(content) {
+		return positiveMatch, negativeMatch, nil
+	}
+
+	// run through this part if there exists positive/negative keyword in response body
+	// in this case, there will be 3 possibilities: positive + negative / positive / negative
+	if m, ok := b.(map[string]interface{}); ok {
+		for checkType, v := range m {
+			if checkType != "positive" && checkType != "negative" {
+				return positiveMatch, negativeMatch, errBodyNoValidCheckType
+			}
+			if params, ok := v.([]interface{}); ok {
+				for _, param := range params {
+					if pat, ok := param.(string); ok {
+						if checkType == "positive" {
+							positiveMatch = append(positiveMatch, match.MustCompile(pat))
+						} else if checkType == "negative" {
+							negativeMatch = append(negativeMatch, match.MustCompile(pat))
+						}
+					}
+				}
+			}
+		}
+		return positiveMatch, negativeMatch, nil
+	}
+	return positiveMatch, negativeMatch, errBodyIllegalBody
+}
+
+/* checkBody accepts 2 check types:
+1. positive
+2. negative
+So, there are 4 kinds of scenarios:
+1. none of check types
+2. only positive
+3. only negative
+4. positive and negative both here
+*/
+func checkBody(positiveMatch, negativeMatch []match.Matcher) bodyValidator {
+	// in case there's both valid positive and negative regex pattern
+	return func(r *http.Response, body string) error {
+		if len(positiveMatch) == 0 && len(negativeMatch) == 0 {
+			return errBodyNoValidCheckParam
+		}
+		// positive match loop
+		for _, pattern := range positiveMatch {
+			// return immediately if there is no negative match
+			if pattern.MatchString(body) && len(negativeMatch) == 0 {
 				return nil
 			}
 		}
-		return errBodyMismatch
-	}
-}
-
-func checkJSON(checks []*jsonResponseCheck) (RespCheck, error) {
-	type compiledCheck struct {
-		description string
-		condition   conditions.Condition
-	}
-
-	var compiledChecks []compiledCheck
-
-	for _, check := range checks {
-		cond, err := conditions.NewCondition(check.Condition)
-		if err != nil {
-			return nil, err
-		}
-		compiledChecks = append(compiledChecks, compiledCheck{check.Description, cond})
-	}
-
-	return func(r *http.Response) error {
-		decoded := &common.MapStr{}
-		err := json.NewDecoder(r.Body).Decode(decoded)
-
-		if err != nil {
-			body, _ := ioutil.ReadAll(r.Body)
-			return pkgerrors.Wrapf(err, "could not parse JSON for body check with condition. Source: %s", body)
+		// return immediately if there is no negative match
+		if len(negativeMatch) == 0 {
+			return errBodyPositiveMismatch
 		}
 
-		var errorDescs []string
-		for _, compiledCheck := range compiledChecks {
-			ok := compiledCheck.condition.Check(decoded)
-			if !ok {
-				errorDescs = append(errorDescs, compiledCheck.description)
+		// negative match loop
+		for _, pattern := range negativeMatch {
+			if pattern.MatchString(body) {
+				return errBodyNegativeMismatch
 			}
 		}
-
-		if len(errorDescs) > 0 {
-			return fmt.Errorf(
-				"JSON body did not match %d conditions '%s' for monitor. Received JSON %+v",
-				len(errorDescs),
-				strings.Join(errorDescs, ","),
-				decoded,
-			)
-		}
-
 		return nil
-	}, nil
+	}
 }

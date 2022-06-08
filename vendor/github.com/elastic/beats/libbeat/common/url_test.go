@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package common
@@ -25,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetUrl(t *testing.T) {
@@ -80,7 +82,7 @@ func TestGetUrl(t *testing.T) {
 
 	for input, output := range inputOutput {
 		urlNew, err := MakeURL("", "", input, 9200)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, output, urlNew, fmt.Sprintf("input: %v", input))
 	}
 
@@ -93,7 +95,7 @@ func TestGetUrl(t *testing.T) {
 
 	for input, output := range inputOutputWithDefaults {
 		urlNew, err := MakeURL("https", "/hello", input, 9200)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, output, urlNew)
 	}
 }
@@ -110,7 +112,59 @@ func TestURLParamsEncode(t *testing.T) {
 	for input, output := range inputOutputWithParams {
 		urlNew, err := MakeURL("", "", input, 5601)
 		urlWithParams := EncodeURLParams(urlNew, params)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, output, urlWithParams)
+	}
+}
+
+func TestParseURL(t *testing.T) {
+	tests := map[string]struct {
+		input           string
+		hints           []ParseHint
+		expected        string
+		errorAssertFunc require.ErrorAssertionFunc
+	}{
+		"http": {
+			"http://host:1234/path",
+			nil,
+			"http://host:1234/path",
+			require.NoError,
+		},
+		"https": {
+			"https://host:1234/path",
+			nil,
+			"https://host:1234/path",
+			require.NoError,
+		},
+		"no_scheme": {
+			"host:1234/path",
+			nil,
+			"http://host:1234/path",
+			require.NoError,
+		},
+		"default_scheme_https": {
+			"host:1234/path",
+			[]ParseHint{WithDefaultScheme("https")},
+			"https://host:1234/path",
+			require.NoError,
+		},
+		"invalid": {
+			"foobar:port",
+			nil,
+			"",
+			require.Error,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			u, err := ParseURL(test.input, test.hints...)
+			test.errorAssertFunc(t, err)
+			if test.expected != "" {
+				require.Equal(t, test.expected, u.String())
+			} else {
+				require.Nil(t, u)
+			}
+		})
 	}
 }

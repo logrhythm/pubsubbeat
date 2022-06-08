@@ -20,7 +20,7 @@ package icmp
 import (
 	"time"
 
-	"github.com/elastic/beats/packetbeat/protos"
+	"github.com/elastic/beats/v7/packetbeat/protos"
 )
 
 type icmpConfig struct {
@@ -29,8 +29,6 @@ type icmpConfig struct {
 	TransactionTimeout time.Duration `config:"transaction_timeout"`
 }
 
-var (
-	defaultConfig = icmpConfig{
-		TransactionTimeout: protos.DefaultTransactionExpiration,
-	}
-)
+var defaultConfig = icmpConfig{
+	TransactionTimeout: protos.DefaultTransactionExpiration,
+}

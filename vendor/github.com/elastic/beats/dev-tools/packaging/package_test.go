@@ -23,6 +23,7 @@ package dev_tools
 import (
 	"archive/tar"
 	"archive/zip"
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
@@ -37,7 +38,7 @@ import (
 	"testing"
 
 	"github.com/blakesmith/ar"
-	"github.com/cavaliercoder/go-rpm"
+	rpm "github.com/cavaliercoder/go-rpm"
 )
 
 const (
@@ -48,21 +49,25 @@ const (
 )
 
 var (
-	configFilePattern      = regexp.MustCompile(`.*beat\.yml|apm-server\.yml`)
+	configFilePattern      = regexp.MustCompile(`/(\w+beat\.yml|apm-server\.yml|elastic-agent\.yml)$`)
 	manifestFilePattern    = regexp.MustCompile(`manifest.yml`)
 	modulesDirPattern      = regexp.MustCompile(`module/.+`)
 	modulesDDirPattern     = regexp.MustCompile(`modules.d/$`)
 	modulesDFilePattern    = regexp.MustCompile(`modules.d/.+`)
 	monitorsDFilePattern   = regexp.MustCompile(`monitors.d/.+`)
 	systemdUnitFilePattern = regexp.MustCompile(`/lib/systemd/system/.*\.service`)
+
+	licenseFiles = []string{"LICENSE.txt", "NOTICE.txt"}
 )
 
 var (
-	files     = flag.String("files", "../build/distributions/*/*", "filepath glob containing package files")
-	modules   = flag.Bool("modules", false, "check modules folder contents")
-	modulesd  = flag.Bool("modules.d", false, "check modules.d folder contents")
-	monitorsd = flag.Bool("monitors.d", false, "check monitors.d folder contents")
-	rootOwner = flag.Bool("root-owner", false, "expect root to own package files")
+	files             = flag.String("files", "../build/distributions/*/*", "filepath glob containing package files")
+	modules           = flag.Bool("modules", false, "check modules folder contents")
+	minModules        = flag.Int("min-modules", 4, "minimum number of modules to expect in modules folder")
+	modulesd          = flag.Bool("modules.d", false, "check modules.d folder contents")
+	monitorsd         = flag.Bool("monitors.d", false, "check monitors.d folder contents")
+	rootOwner         = flag.Bool("root-owner", false, "expect root to own package files")
+	rootUserContainer = flag.Bool("root-user-container", false, "expect root in container user")
 )
 
 func TestRPM(t *testing.T) {
@@ -105,7 +110,7 @@ func TestDocker(t *testing.T) {
 // Sub-tests
 
 func checkRPM(t *testing.T, file string) {
-	p, err := readRPM(file)
+	p, rpmPkg, err := readRPM(file)
 	if err != nil {
 		t.Error(err)
 		return
@@ -120,7 +125,10 @@ func checkRPM(t *testing.T, file string) {
 	checkModulesPresent(t, "/usr/share", p)
 	checkModulesDPresent(t, "/etc/", p)
 	checkMonitorsDPresent(t, "/etc", p)
+	checkLicensesPresent(t, "/usr/share", p)
 	checkSystemdUnitPermissions(t, p)
+	ensureNoBuildIDLinks(t, p)
+	checkRPMDigestTypeSHA256(t, rpmPkg)
 }
 
 func checkDeb(t *testing.T, file string, buf *bytes.Buffer) {
@@ -138,6 +146,7 @@ func checkDeb(t *testing.T, file string, buf *bytes.Buffer) {
 	checkModulesPresent(t, "./usr/share", p)
 	checkModulesDPresent(t, "./etc/", p)
 	checkMonitorsDPresent(t, "./etc/", p)
+	checkLicensesPresent(t, "./usr/share", p)
 	checkModulesOwner(t, p, true)
 	checkModulesPermissions(t, p)
 	checkSystemdUnitPermissions(t, p)
@@ -157,10 +166,11 @@ func checkTar(t *testing.T, file string) {
 	checkModulesDPresent(t, "", p)
 	checkModulesPermissions(t, p)
 	checkModulesOwner(t, p, true)
+	checkLicensesPresent(t, "", p)
 }
 
 func checkZip(t *testing.T, file string) {
-	p, err := readZip(file)
+	p, err := readZip(t, file, checkNpcapNotices)
 	if err != nil {
 		t.Error(err)
 		return
@@ -171,29 +181,82 @@ func checkZip(t *testing.T, file string) {
 	checkModulesPresent(t, "", p)
 	checkModulesDPresent(t, "", p)
 	checkModulesPermissions(t, p)
+	checkLicensesPresent(t, "", p)
+}
+
+const (
+	npcapSettings   = "Windows Npcap installation settings"
+	npcapGrant      = `Insecure.Com LLC \(“The Nmap Project”\) has granted Elasticsearch`
+	npcapLicense    = `Dependency : Npcap \(https://nmap.org/npcap/\)`
+	libpcapLicense  = `Dependency : Libpcap \(http://www.tcpdump.org/\)`
+	winpcapLicense  = `Dependency : Winpcap \(https://www.winpcap.org/\)`
+	radiotapLicense = `Dependency : ieee80211_radiotap.h Header File`
+)
+
+// This reflects the order that the licenses and notices appear in the relevant files.
+var npcapLicensePattern = regexp.MustCompile(
+	"(?s)" + npcapLicense +
+		".*" + libpcapLicense +
+		".*" + winpcapLicense +
+		".*" + radiotapLicense,
+)
+
+func checkNpcapNotices(pkg, file string, contents io.Reader) error {
+	if !strings.Contains(pkg, "packetbeat") {
+		return nil
+	}
+
+	wantNotices := strings.Contains(pkg, "windows") && !strings.Contains(pkg, "oss")
+
+	// If the packetbeat README.md is made to be generated
+	// conditionally then it should also be checked here.
+	pkg = filepath.Base(pkg)
+	file, err := filepath.Rel(pkg[:len(pkg)-len(filepath.Ext(pkg))], file)
+	if err != nil {
+		return err
+	}
+	switch file {
+	case "NOTICE.txt":
+		if npcapLicensePattern.MatchReader(bufio.NewReader(contents)) != wantNotices {
+			if wantNotices {
+				return fmt.Errorf("Npcap license section not found in %s file in %s", file, pkg)
+			}
+			return fmt.Errorf("unexpected Npcap license section found in %s file in %s", file, pkg)
+		}
+	}
+	return nil
 }
 
 func checkDocker(t *testing.T, file string) {
 	p, info, err := readDocker(file)
 	if err != nil {
-		t.Error(err)
+		t.Errorf("error reading file %v: %v", file, err)
 		return
 	}
 
 	checkDockerEntryPoint(t, p, info)
+	checkDockerLabels(t, p, info, file)
+	checkDockerUser(t, p, info, *rootUserContainer)
+	checkConfigPermissionsWithMode(t, p, os.FileMode(0644))
+	checkManifestPermissionsWithMode(t, p, os.FileMode(0644))
 	checkModulesPresent(t, "", p)
 	checkModulesDPresent(t, "", p)
+	checkLicensesPresent(t, "licenses/", p)
 }
 
 // Verify that the main configuration file is installed with a 0600 file mode.
 func checkConfigPermissions(t *testing.T, p *packageFile) {
+	checkConfigPermissionsWithMode(t, p, expectedConfigMode)
+}
+
+func checkConfigPermissionsWithMode(t *testing.T, p *packageFile, expectedMode os.FileMode) {
 	t.Run(p.Name+" config file permissions", func(t *testing.T) {
 		for _, entry := range p.Contents {
 			if configFilePattern.MatchString(entry.File) {
 				mode := entry.Mode.Perm()
-				if expectedConfigMode != mode {
+				if expectedMode != mode {
 					t.Errorf("file %v has wrong permissions: expected=%v actual=%v",
-						entry.File, expectedConfigMode, mode)
+						entry.File, expectedMode, mode)
 				}
 				return
 			}
@@ -229,13 +292,17 @@ func checkConfigOwner(t *testing.T, p *packageFile, expectRoot bool) {
 
 // Verify that the modules manifest.yml files are installed with a 0644 file mode.
 func checkManifestPermissions(t *testing.T, p *packageFile) {
+	checkManifestPermissionsWithMode(t, p, expectedManifestMode)
+}
+
+func checkManifestPermissionsWithMode(t *testing.T, p *packageFile, expectedMode os.FileMode) {
 	t.Run(p.Name+" manifest file permissions", func(t *testing.T) {
 		for _, entry := range p.Contents {
 			if manifestFilePattern.MatchString(entry.File) {
 				mode := entry.Mode.Perm()
-				if expectedManifestMode != mode {
+				if expectedMode != mode {
 					t.Errorf("file %v has wrong permissions: expected=%v actual=%v",
-						entry.File, expectedManifestMode, mode)
+						entry.File, expectedMode, mode)
 				}
 			}
 		}
@@ -326,7 +393,7 @@ func checkMonitorsDPresent(t *testing.T, prefix string, p *packageFile) {
 
 func checkModules(t *testing.T, name, prefix string, r *regexp.Regexp, p *packageFile) {
 	t.Run(fmt.Sprintf("%s %s contents", p.Name, name), func(t *testing.T) {
-		minExpectedModules := 4
+		minExpectedModules := *minModules
 		total := 0
 		for _, entry := range p.Contents {
 			if strings.HasPrefix(entry.File, prefix) && r.MatchString(entry.File) {
@@ -358,6 +425,22 @@ func checkMonitors(t *testing.T, name, prefix string, r *regexp.Regexp, p *packa
 	})
 }
 
+func checkLicensesPresent(t *testing.T, prefix string, p *packageFile) {
+	for _, licenseFile := range licenseFiles {
+		t.Run("License file "+licenseFile, func(t *testing.T) {
+			for _, entry := range p.Contents {
+				if strings.HasPrefix(entry.File, prefix) && strings.HasSuffix(entry.File, "/"+licenseFile) {
+					return
+				}
+			}
+			if prefix != "" {
+				t.Fatalf("not found under %s", prefix)
+			}
+			t.Fatal("not found")
+		})
+	}
+}
+
 func checkDockerEntryPoint(t *testing.T, p *packageFile, info *dockerInfo) {
 	expectedMode := os.FileMode(0755)
 
@@ -378,6 +461,74 @@ func checkDockerEntryPoint(t *testing.T, p *packageFile, info *dockerInfo) {
 			}
 		} else {
 			t.Fatal("TODO: check if binary is in $PATH")
+		}
+	})
+}
+
+func checkDockerLabels(t *testing.T, p *packageFile, info *dockerInfo, file string) {
+	vendor := info.Config.Labels["org.label-schema.vendor"]
+	if vendor != "Elastic" {
+		return
+	}
+
+	t.Run(fmt.Sprintf("%s license labels", p.Name), func(t *testing.T) {
+		expectedLicense := "Elastic License"
+		ossPrefix := strings.Join([]string{
+			info.Config.Labels["org.label-schema.name"],
+			"oss",
+			info.Config.Labels["org.label-schema.version"],
+		}, "-")
+		if strings.HasPrefix(filepath.Base(file), ossPrefix) {
+			expectedLicense = "ASL 2.0"
+		}
+		licenseLabels := []string{
+			"license",
+			"org.label-schema.license",
+		}
+		for _, licenseLabel := range licenseLabels {
+			if license, present := info.Config.Labels[licenseLabel]; !present || license != expectedLicense {
+				t.Errorf("unexpected license label %s: %s", licenseLabel, license)
+			}
+		}
+	})
+
+	t.Run(fmt.Sprintf("%s required labels", p.Name), func(t *testing.T) {
+		// From https://redhat-connect.gitbook.io/partner-guide-for-red-hat-openshift-and-container/program-on-boarding/technical-prerequisites
+		requiredLabels := []string{"name", "vendor", "version", "release", "summary", "description"}
+		for _, label := range requiredLabels {
+			if value, present := info.Config.Labels[label]; !present || value == "" {
+				t.Errorf("missing required label %s", label)
+			}
+		}
+	})
+}
+
+func checkDockerUser(t *testing.T, p *packageFile, info *dockerInfo, expectRoot bool) {
+	t.Run(fmt.Sprintf("%s user", p.Name), func(t *testing.T) {
+		if expectRoot != (info.Config.User == "root") {
+			t.Errorf("unexpected docker user: %s", info.Config.User)
+		}
+	})
+}
+
+// ensureNoBuildIDLinks checks for regressions related to
+// https://github.com/elastic/beats/issues/12956.
+func ensureNoBuildIDLinks(t *testing.T, p *packageFile) {
+	t.Run(fmt.Sprintf("%s no build_id links", p.Name), func(t *testing.T) {
+		for name := range p.Contents {
+			if strings.Contains(name, "/usr/lib/.build-id") {
+				t.Error("found unexpected /usr/lib/.build-id in package")
+			}
+		}
+	})
+}
+
+// checkRPMDigestTypeSHA256 verifies that the RPM contains sha256 digests.
+// https://github.com/elastic/beats/issues/23670
+func checkRPMDigestTypeSHA256(t *testing.T, rpmPkg *rpm.PackageFile) {
+	t.Run("rpm_digest_type_is_sha256", func(t *testing.T) {
+		if rpmPkg.ChecksumType() != "sha256" {
+			t.Errorf("expected SHA256 digest type but got %v", rpmPkg.ChecksumType())
 		}
 	})
 }
@@ -408,14 +559,13 @@ func getFiles(t *testing.T, pattern *regexp.Regexp) []string {
 			files = append(files, f)
 		}
 	}
-
 	return files
 }
 
-func readRPM(rpmFile string) (*packageFile, error) {
+func readRPM(rpmFile string) (*packageFile, *rpm.PackageFile, error) {
 	p, err := rpm.OpenPackageFile(rpmFile)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	contents := p.Files()
@@ -434,7 +584,7 @@ func readRPM(rpmFile string) (*packageFile, error) {
 		pf.Contents[file.Name()] = pe
 	}
 
-	return pf, nil
+	return pf, p, nil
 }
 
 // readDeb reads the data.tar.gz file from the .deb.
@@ -517,7 +667,11 @@ func readTarContents(tarName string, data io.Reader) (*packageFile, error) {
 	return p, nil
 }
 
-func readZip(zipFile string) (*packageFile, error) {
+// inspector is a file contents inspector. It vets the contents of the file
+// within a package for a requirement and returns an error if it is not met.
+type inspector func(pkg, file string, contents io.Reader) error
+
+func readZip(t *testing.T, zipFile string, inspectors ...inspector) (*packageFile, error) {
 	r, err := zip.OpenReader(zipFile)
 	if err != nil {
 		return nil, err
@@ -529,6 +683,18 @@ func readZip(zipFile string) (*packageFile, error) {
 		p.Contents[f.Name] = packageEntry{
 			File: f.Name,
 			Mode: f.Mode(),
+		}
+		for _, inspect := range inspectors {
+			r, err := f.Open()
+			if err != nil {
+				t.Errorf("failed to open %s in %s: %v", f.Name, zipFile, err)
+				break
+			}
+			err = inspect(zipFile, f.Name, r)
+			if err != nil {
+				t.Error(err)
+			}
+			r.Close()
 		}
 	}
 
@@ -602,6 +768,12 @@ func readDocker(dockerFile string) (*packageFile, *dockerInfo, error) {
 			if strings.HasPrefix("/"+name, workingDir) || "/"+name == entrypoint {
 				p.Contents[name] = entry
 			}
+			// Add also licenses
+			for _, licenseFile := range licenseFiles {
+				if strings.Contains(name, licenseFile) {
+					p.Contents[name] = entry
+				}
+			}
 		}
 	}
 
@@ -628,7 +800,6 @@ func readDockerManifest(r io.Reader) (*dockerManifest, error) {
 	err = json.Unmarshal(data, &manifests)
 	if err != nil {
 		return nil, err
-
 	}
 
 	if len(manifests) != 1 {
@@ -640,8 +811,10 @@ func readDockerManifest(r io.Reader) (*dockerManifest, error) {
 
 type dockerInfo struct {
 	Config struct {
-		WorkingDir string
 		Entrypoint []string
+		Labels     map[string]string
+		User       string
+		WorkingDir string
 	} `json:"config"`
 }
 

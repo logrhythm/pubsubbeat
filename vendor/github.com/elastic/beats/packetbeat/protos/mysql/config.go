@@ -20,8 +20,8 @@ package mysql
 import (
 	"time"
 
-	"github.com/elastic/beats/packetbeat/config"
-	"github.com/elastic/beats/packetbeat/protos"
+	"github.com/elastic/beats/v7/packetbeat/config"
+	"github.com/elastic/beats/v7/packetbeat/protos"
 )
 
 type mysqlConfig struct {
@@ -31,13 +31,11 @@ type mysqlConfig struct {
 	StatementTimeout      time.Duration `config:"statement_timeout"`
 }
 
-var (
-	defaultConfig = mysqlConfig{
-		ProtocolCommon: config.ProtocolCommon{
-			TransactionTimeout: protos.DefaultTransactionExpiration,
-		},
-		MaxRowLength:     1024,
-		MaxRows:          10,
-		StatementTimeout: 3600 * time.Second,
-	}
-)
+var defaultConfig = mysqlConfig{
+	ProtocolCommon: config.ProtocolCommon{
+		TransactionTimeout: protos.DefaultTransactionExpiration,
+	},
+	MaxRowLength:     1024,
+	MaxRows:          10,
+	StatementTimeout: 3600 * time.Second,
+}

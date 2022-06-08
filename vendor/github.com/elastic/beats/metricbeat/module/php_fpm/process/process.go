@@ -20,10 +20,10 @@ package process
 import (
 	"net/url"
 
-	"github.com/elastic/beats/metricbeat/helper"
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/mb/parse"
-	"github.com/elastic/beats/metricbeat/module/php_fpm"
+	"github.com/elastic/beats/v7/metricbeat/helper"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/parse"
+	"github.com/elastic/beats/v7/metricbeat/module/php_fpm"
 )
 
 // init registers the MetricSet with the central registry as soon as the program
@@ -31,7 +31,9 @@ import (
 // the MetricSet for each host defined in the module's configuration. After the
 // MetricSet has been created then Fetch will begin to be called periodically.
 func init() {
-	mb.Registry.AddMetricSet("php_fpm", "process", New, php_fpm.HostParser)
+	mb.Registry.MustAddMetricSet("php_fpm", "process", New,
+		mb.WithHostParser(php_fpm.HostParser),
+	)
 }
 
 // MetricSet holds any configuration or state information. It must implement

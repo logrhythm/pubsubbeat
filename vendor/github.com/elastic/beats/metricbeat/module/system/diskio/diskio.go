@@ -15,14 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build (darwin && cgo) || freebsd || linux || windows
 // +build darwin,cgo freebsd linux windows
 
 package diskio
 
 import (
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/mb/parse"
+	"runtime"
+
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/metric/system/diskio"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/parse"
 
 	"github.com/pkg/errors"
 )
@@ -36,8 +40,15 @@ func init() {
 // MetricSet for fetching system disk IO metrics.
 type MetricSet struct {
 	mb.BaseMetricSet
-	statistics     *DiskIOStat
+	statistics     *diskio.IOStat
 	includeDevices []string
+	prevCounters   diskCounter
+}
+
+// diskCounter stores previous disk counter values for calculating gauges in next collection
+type diskCounter struct {
+	prevDiskReadBytes  uint64
+	prevDiskWriteBytes uint64
 }
 
 // New is a mb.MetricSetFactory that returns a new MetricSet.
@@ -52,17 +63,17 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 
 	return &MetricSet{
 		BaseMetricSet:  base,
-		statistics:     NewDiskIOStat(),
+		statistics:     diskio.NewDiskIOStat(),
 		includeDevices: config.IncludeDevices,
+		prevCounters:   diskCounter{},
 	}, nil
 }
 
 // Fetch fetches disk IO metrics from the OS.
-func (m *MetricSet) Fetch(r mb.ReporterV2) {
-	stats, err := IOCounters(m.includeDevices...)
+func (m *MetricSet) Fetch(r mb.ReporterV2) error {
+	stats, err := diskio.IOCounters(m.includeDevices...)
 	if err != nil {
-		r.Error(errors.Wrap(err, "disk io counters"))
-		return
+		return errors.Wrap(err, "disk io counters")
 	}
 
 	// Sample the current cpu counter
@@ -71,6 +82,7 @@ func (m *MetricSet) Fetch(r mb.ReporterV2) {
 	// Store the last cpu counter when finished
 	defer m.statistics.CloseSampling()
 
+	var diskReadBytes, diskWriteBytes uint64
 	for _, counters := range stats {
 		event := common.MapStr{
 			"name": counters.Name,
@@ -84,52 +96,50 @@ func (m *MetricSet) Fetch(r mb.ReporterV2) {
 				"time":  counters.WriteTime,
 				"bytes": counters.WriteBytes,
 			},
-			"io": common.MapStr{
-				"time": counters.IoTime,
-			},
 		}
-		var extraMetrics DiskIOMetric
-		err := m.statistics.CalIOStatistics(&extraMetrics, counters)
-		if err == nil {
-			event["iostat"] = common.MapStr{
-				"read": common.MapStr{
-					"request": common.MapStr{
-						"merges_per_sec": extraMetrics.ReadRequestMergeCountPerSec,
-						"per_sec":        extraMetrics.ReadRequestCountPerSec,
-					},
-					"per_sec": common.MapStr{
-						"bytes": extraMetrics.ReadBytesPerSec,
-					},
-					"await": extraMetrics.AvgReadAwaitTime,
-				},
-				"write": common.MapStr{
-					"request": common.MapStr{
-						"merges_per_sec": extraMetrics.WriteRequestMergeCountPerSec,
-						"per_sec":        extraMetrics.WriteRequestCountPerSec,
-					},
-					"per_sec": common.MapStr{
-						"bytes": extraMetrics.WriteBytesPerSec,
-					},
-					"await": extraMetrics.AvgWriteAwaitTime,
-				},
-				"queue": common.MapStr{
-					"avg_size": extraMetrics.AvgQueueSize,
-				},
-				"request": common.MapStr{
-					"avg_size": extraMetrics.AvgRequestSize,
-				},
-				"await":        extraMetrics.AvgAwaitTime,
-				"service_time": extraMetrics.AvgServiceTime,
-				"busy":         extraMetrics.BusyPct,
-			}
+
+		// Add linux-only ops in progress
+		if runtime.GOOS == "linux" {
+			event.Put("io.ops", counters.IopsInProgress)
+		}
+
+		// accumulate values from all interfaces
+		diskReadBytes += counters.ReadBytes
+		diskWriteBytes += counters.WriteBytes
+
+		if runtime.GOOS != "windows" {
+			event.Put("io.time", counters.IoTime)
 		}
 
 		if counters.SerialNumber != "" {
 			event["serial_number"] = counters.SerialNumber
 		}
 
-		r.Event(mb.Event{
+		isOpen := r.Event(mb.Event{
 			MetricSetFields: event,
 		})
+		if !isOpen {
+			return nil
+		}
 	}
+
+	if m.prevCounters != (diskCounter{}) {
+		// convert network metrics from counters to gauges
+		r.Event(mb.Event{
+			RootFields: common.MapStr{
+				"host": common.MapStr{
+					"disk": common.MapStr{
+						"read.bytes":  diskReadBytes - m.prevCounters.prevDiskReadBytes,
+						"write.bytes": diskWriteBytes - m.prevCounters.prevDiskWriteBytes,
+					},
+				},
+			},
+		})
+	}
+
+	// update prevCounters
+	m.prevCounters.prevDiskReadBytes = diskReadBytes
+	m.prevCounters.prevDiskWriteBytes = diskWriteBytes
+
+	return nil
 }

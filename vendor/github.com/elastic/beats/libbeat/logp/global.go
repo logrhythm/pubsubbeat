@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !nologpglobal
+// +build !nologpglobal
+
 package logp
 
 import (
@@ -29,12 +32,6 @@ func MakeDebug(selector string) func(string, ...interface{}) {
 	return func(format string, v ...interface{}) {
 		globalLogger().Named(selector).Debug(fmt.Sprintf(format, v...))
 	}
-}
-
-// HasSelector returns true if the given selector was explicitly set.
-func HasSelector(selector string) bool {
-	_, found := loadLogger().selectors[selector]
-	return found
 }
 
 // IsDebug returns true if the given selector would be logged.

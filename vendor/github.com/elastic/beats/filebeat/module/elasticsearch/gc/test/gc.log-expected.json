@@ -1,12 +1,14 @@
 [
     {
         "@timestamp": "2018-06-13T07:44:22.647Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 0,
@@ -16,14 +18,16 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:22.647Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
+            "coops",
             "gc",
-            "heap",
-            "coops"
+            "heap"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 70,
@@ -33,12 +37,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:22.725Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 201,
@@ -48,12 +54,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:22.725Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 290,
@@ -63,12 +71,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:22.813Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 458,
@@ -78,12 +88,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:22.813Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 547,
@@ -93,12 +105,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:22.836Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 715,
@@ -108,12 +122,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:22.836Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 804,
@@ -123,12 +139,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:23.016Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 972,
@@ -138,12 +156,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:23.017Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 1061,
@@ -153,12 +173,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:23.059Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 1229,
@@ -168,12 +190,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:23.060Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 1318,
@@ -183,12 +207,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:23.072Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 1486,
@@ -198,12 +224,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:23.072Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 1575,
@@ -213,12 +241,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:23.105Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 1743,
@@ -228,12 +258,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:23.105Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 1832,
@@ -243,12 +275,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:23.245Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 2000,
@@ -258,12 +292,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:23.245Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 2089,
@@ -273,12 +309,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:23.526Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 2257,
@@ -288,12 +326,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:23.526Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 2346,
@@ -303,12 +343,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:23.550Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 2514,
@@ -318,12 +360,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:23.551Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 2603,
@@ -333,12 +377,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:23.768Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 2771,
@@ -348,12 +394,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:23.768Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 2860,
@@ -363,12 +411,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:23.804Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 3028,
@@ -378,12 +428,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:23.804Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 3117,
@@ -393,12 +445,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:23.820Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 3285,
@@ -408,12 +462,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:23.820Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 3374,
@@ -423,12 +479,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:23.838Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 3542,
@@ -438,12 +496,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:23.838Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 3631,
@@ -453,12 +513,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:23.868Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 3799,
@@ -468,12 +530,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:23.868Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 3888,
@@ -483,12 +547,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.091Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 4056,
@@ -498,12 +564,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.092Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 4145,
@@ -513,12 +581,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.112Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 4313,
@@ -528,12 +598,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.112Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 4402,
@@ -543,12 +615,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.126Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 4570,
@@ -558,12 +632,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.126Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 4659,
@@ -573,12 +649,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.210Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 4827,
@@ -588,12 +666,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.210Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 4916,
@@ -603,12 +683,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.330Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 5084,
@@ -618,13 +700,15 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.330Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc",
             "start"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 5173,
@@ -634,13 +718,15 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.330Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc",
             "task"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 5265,
@@ -650,13 +736,15 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.343Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
-            "gc",
-            "age"
+            "age",
+            "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 5360,
@@ -666,13 +754,15 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.343Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
-            "gc",
-            "age"
+            "age",
+            "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 5491,
@@ -682,13 +772,15 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.343Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
-            "gc",
-            "age"
+            "age",
+            "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 5595,
@@ -698,15 +790,17 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.343Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc",
             "heap"
         ],
         "elasticsearch.gc.young_gen.size_kb": "314560",
         "elasticsearch.gc.young_gen.used_kb": "17562",
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 5700,
@@ -716,13 +810,15 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.343Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc",
             "heap"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 5792,
@@ -732,13 +828,15 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.343Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc",
             "metaspace"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 5872,
@@ -748,12 +846,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.343Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 5967,
@@ -763,13 +863,15 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.343Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
-            "gc",
-            "cpu"
+            "cpu",
+            "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 6085,
@@ -779,12 +881,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.343Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 6176,
@@ -794,12 +898,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.344Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 6344,
@@ -809,13 +915,15 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.344Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc",
             "start"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 6433,
@@ -825,12 +933,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.346Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 6511,
@@ -840,13 +950,15 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.347Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
-            "gc",
-            "cpu"
+            "cpu",
+            "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 6612,
@@ -856,12 +968,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.347Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 6703,
@@ -871,12 +985,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.347Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 6871,
@@ -886,13 +1002,15 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.347Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc",
             "task"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 6946,
@@ -902,12 +1020,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.348Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 7038,
@@ -917,13 +1037,15 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.348Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
-            "gc",
-            "cpu"
+            "cpu",
+            "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 7121,
@@ -933,12 +1055,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.348Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 7212,
@@ -948,12 +1072,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.350Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 7291,
@@ -963,13 +1089,15 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.350Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
-            "gc",
-            "cpu"
+            "cpu",
+            "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 7378,
@@ -979,12 +1107,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.350Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 7469,
@@ -994,12 +1124,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.595Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 7558,
@@ -1009,12 +1141,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.595Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 7647,
@@ -1024,12 +1158,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.595Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 7815,
@@ -1039,13 +1175,15 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.595Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
-            "gc",
-            "cpu"
+            "cpu",
+            "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 7914,
@@ -1055,12 +1193,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.595Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 8005,
@@ -1070,13 +1210,15 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.595Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc",
             "start"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 8094,
@@ -1086,12 +1228,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.618Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 8166,
@@ -1101,13 +1245,15 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.618Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
-            "gc",
-            "cpu"
+            "cpu",
+            "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 8264,
@@ -1117,12 +1263,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.618Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 8355,
@@ -1132,12 +1280,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.618Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 8523,
@@ -1147,12 +1297,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.618Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 8599,
@@ -1162,13 +1314,15 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.618Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
-            "gc",
-            "cpu"
+            "cpu",
+            "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 8683,
@@ -1178,12 +1332,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.618Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 8774,
@@ -1193,12 +1349,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.619Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 8850,
@@ -1208,13 +1366,15 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.619Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
-            "gc",
-            "cpu"
+            "cpu",
+            "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 8934,
@@ -1224,15 +1384,17 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.619Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.old_gen.size_kb": "699072",
         "elasticsearch.gc.old_gen.used_kb": "0",
         "elasticsearch.gc.tags": [
             "gc",
             "heap"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 9025,
@@ -1242,12 +1404,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.763Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 9105,
@@ -1257,12 +1421,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.763Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 9194,
@@ -1272,12 +1438,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.777Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 9362,
@@ -1287,12 +1455,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.777Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 9451,
@@ -1302,12 +1472,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.784Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 9619,
@@ -1317,12 +1489,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.784Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 9708,
@@ -1332,12 +1506,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.808Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 9876,
@@ -1347,12 +1523,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:24.808Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 9965,
@@ -1362,12 +1540,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:25.072Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 10133,
@@ -1377,12 +1557,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:25.074Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 10222,
@@ -1392,12 +1574,14 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:25.139Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "safepoint"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 10390,
@@ -1407,13 +1591,15 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:25.139Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc",
             "start"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 10479,
@@ -1423,13 +1609,15 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:25.139Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc",
             "task"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 10571,
@@ -1439,13 +1627,15 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:25.167Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
-            "gc",
-            "age"
+            "age",
+            "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 10666,
@@ -1455,13 +1645,15 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:25.167Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
-            "gc",
-            "age"
+            "age",
+            "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 10797,
@@ -1471,13 +1663,15 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:25.167Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
-            "gc",
-            "age"
+            "age",
+            "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 10901,
@@ -1487,13 +1681,15 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:25.167Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
-            "gc",
-            "age"
+            "age",
+            "gc"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 11006,
@@ -1503,15 +1699,17 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:25.167Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc",
             "heap"
         ],
         "elasticsearch.gc.young_gen.size_kb": "314560",
         "elasticsearch.gc.young_gen.used_kb": "25722",
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 11111,
@@ -1521,13 +1719,15 @@
     },
     {
         "@timestamp": "2018-06-13T07:44:25.167Z",
-        "ecs.version": "1.0.0",
         "elasticsearch.gc.tags": [
             "gc",
             "heap"
         ],
+        "event.category": "database",
         "event.dataset": "elasticsearch.gc",
+        "event.kind": "metric",
         "event.module": "elasticsearch",
+        "event.type": "info",
         "fileset.name": "gc",
         "input.type": "log",
         "log.offset": 11203,

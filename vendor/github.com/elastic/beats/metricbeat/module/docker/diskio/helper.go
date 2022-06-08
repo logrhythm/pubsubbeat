@@ -18,13 +18,15 @@
 package diskio
 
 import (
+	"strings"
 	"time"
 
 	"github.com/docker/docker/api/types"
 
-	"github.com/elastic/beats/metricbeat/module/docker"
+	"github.com/elastic/beats/v7/metricbeat/module/docker"
 )
 
+// BlkioStats contains all formatted blkio stats
 type BlkioStats struct {
 	Time      time.Time
 	Container *docker.Container
@@ -34,6 +36,9 @@ type BlkioStats struct {
 
 	serviced      BlkioRaw
 	servicedBytes BlkioRaw
+	servicedTime  BlkioRaw
+	waitTime      BlkioRaw
+	queued        BlkioRaw
 }
 
 // Add adds blkio stats
@@ -46,6 +51,7 @@ func (s *BlkioStats) Add(o *BlkioStats) {
 	s.servicedBytes.Add(&o.servicedBytes)
 }
 
+// BlkioRaw sums raw Blkio stats
 type BlkioRaw struct {
 	Time   time.Time
 	reads  uint64
@@ -72,13 +78,13 @@ func NewBlkioService() *BlkioService {
 	}
 }
 
-func (io *BlkioService) getBlkioStatsList(rawStats []docker.Stat, dedot bool) []BlkioStats {
+func (io *BlkioService) getBlkioStatsList(rawStats []docker.Stat, dedot bool, skipDev []uint64) []BlkioStats {
 	formattedStats := []BlkioStats{}
 
 	statsPerContainer := make(map[string]BlkioRaw)
-	for _, myRawStats := range rawStats {
-		stats := io.getBlkioStats(&myRawStats, dedot)
-		storageStats := io.getStorageStats(&myRawStats, dedot)
+	for i := range rawStats {
+		stats := io.getBlkioStats(&rawStats[i], dedot, skipDev)
+		storageStats := io.getStorageStats(&rawStats[i], dedot)
 		stats.Add(&storageStats)
 
 		oldStats, exist := io.lastStatsPerContainer[stats.Container.ID]
@@ -119,21 +125,35 @@ func (io *BlkioService) getStorageStats(myRawStats *docker.Stat, dedot bool) Blk
 
 // getBlkioStats collects diskio metrics from BlkioStats structures, that
 // are not populated in Windows
-func (io *BlkioService) getBlkioStats(myRawStat *docker.Stat, dedot bool) BlkioStats {
+func (io *BlkioService) getBlkioStats(myRawStat *docker.Stat, dedot bool, skipDev []uint64) BlkioStats {
 	return BlkioStats{
 		Time:      myRawStat.Stats.Read,
 		Container: docker.NewContainer(myRawStat.Container, dedot),
 
-		serviced: io.getNewStats(
+		serviced: getNewStats(
+			skipDev,
 			myRawStat.Stats.Read,
 			myRawStat.Stats.BlkioStats.IoServicedRecursive),
-		servicedBytes: io.getNewStats(
+		servicedBytes: getNewStats(
+			skipDev,
 			myRawStat.Stats.Read,
 			myRawStat.Stats.BlkioStats.IoServiceBytesRecursive),
+		servicedTime: getNewStats(
+			skipDev,
+			myRawStat.Stats.Read,
+			myRawStat.Stats.BlkioStats.IoServiceTimeRecursive),
+		waitTime: getNewStats(
+			skipDev,
+			myRawStat.Stats.Read,
+			myRawStat.Stats.BlkioStats.IoWaitTimeRecursive),
+		queued: getNewStats(
+			skipDev,
+			myRawStat.Stats.Read,
+			myRawStat.Stats.BlkioStats.IoQueuedRecursive),
 	}
 }
 
-func (io *BlkioService) getNewStats(time time.Time, blkioEntry []types.BlkioStatEntry) BlkioRaw {
+func getNewStats(skip []uint64, time time.Time, blkioEntry []types.BlkioStatEntry) BlkioRaw {
 	stats := BlkioRaw{
 		Time:   time,
 		reads:  0,
@@ -142,16 +162,33 @@ func (io *BlkioService) getNewStats(time time.Time, blkioEntry []types.BlkioStat
 	}
 
 	for _, myEntry := range blkioEntry {
-		switch myEntry.Op {
-		case "Write":
+
+		// certain devices, like software raid and device-mapper devices, will just control and re-report the disks
+		// under them in the hierarchy. We want to skip them, lest we merely duplicate the metrics.
+		if skipDev(myEntry.Major, skip) {
+			continue
+		}
+		// These op value strings can either be Capitalized or lowercase, depending on the platform.
+		switch strings.ToLower(myEntry.Op) {
+		case "write":
 			stats.writes += myEntry.Value
-		case "Read":
+		case "read":
 			stats.reads += myEntry.Value
-		case "Total":
+		case "total":
 			stats.totals += myEntry.Value
 		}
 	}
+
 	return stats
+}
+
+func skipDev(major uint64, skipList []uint64) bool {
+	for _, dev := range skipList {
+		if major == dev {
+			return true
+		}
+	}
+	return false
 }
 
 func (io *BlkioService) getReadPs(old *BlkioRaw, new *BlkioRaw) float64 {
@@ -174,5 +211,11 @@ func calculatePerSecond(duration time.Duration, old uint64, new uint64) float64 
 	if value < 0 {
 		value = 0
 	}
-	return value / duration.Seconds()
+
+	timeSec := duration.Seconds()
+	if timeSec == 0 {
+		return 0
+	}
+
+	return value / timeSec
 }

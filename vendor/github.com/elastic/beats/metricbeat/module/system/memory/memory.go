@@ -15,17 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// +build darwin freebsd linux openbsd windows
+//go:build darwin || freebsd || linux || openbsd || windows || aix
+// +build darwin freebsd linux openbsd windows aix
 
 package memory
 
 import (
-	"github.com/elastic/beats/libbeat/common"
-	mem "github.com/elastic/beats/libbeat/metric/system/memory"
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/mb/parse"
-
 	"github.com/pkg/errors"
+
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common/transform/typeconv"
+	"github.com/elastic/beats/v7/libbeat/metric/system/resolve"
+	metrics "github.com/elastic/beats/v7/metricbeat/internal/metrics/memory"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/parse"
 )
 
 func init() {
@@ -38,76 +41,31 @@ func init() {
 // MetricSet for fetching system memory metrics.
 type MetricSet struct {
 	mb.BaseMetricSet
+	mod resolve.Resolver
 }
 
 // New is a mb.MetricSetFactory that returns a memory.MetricSet.
 func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
-	return &MetricSet{base}, nil
+	sys := base.Module().(resolve.Resolver)
+	return &MetricSet{BaseMetricSet: base, mod: sys}, nil
 }
 
 // Fetch fetches memory metrics from the OS.
-func (m *MetricSet) Fetch(r mb.ReporterV2) {
-	memStat, err := mem.Get()
+func (m *MetricSet) Fetch(r mb.ReporterV2) error {
+
+	eventRaw, err := metrics.Get(m.mod)
 	if err != nil {
-		r.Error(errors.Wrap(err, "memory"))
-		return
+		return errors.Wrap(err, "error fetching memory metrics")
 	}
-	mem.AddMemPercentage(memStat)
 
-	swapStat, err := mem.GetSwap()
+	memory := common.MapStr{}
+	err = typeconv.Convert(&memory, &eventRaw)
 	if err != nil {
-		r.Error(errors.Wrap(err, "swap"))
-		return
+		return err
 	}
-	mem.AddSwapPercentage(swapStat)
-
-	memory := common.MapStr{
-		"total": memStat.Total,
-		"used": common.MapStr{
-			"bytes": memStat.Used,
-			"pct":   memStat.UsedPercent,
-		},
-		"free": memStat.Free,
-		"actual": common.MapStr{
-			"free": memStat.ActualFree,
-			"used": common.MapStr{
-				"pct":   memStat.ActualUsedPercent,
-				"bytes": memStat.ActualUsed,
-			},
-		},
-	}
-
-	swap := common.MapStr{
-		"total": swapStat.Total,
-		"used": common.MapStr{
-			"bytes": swapStat.Used,
-			"pct":   swapStat.UsedPercent,
-		},
-		"free": swapStat.Free,
-	}
-	memory["swap"] = swap
-
-	hugePagesStat, err := mem.GetHugeTLBPages()
-	if err != nil {
-		r.Error(errors.Wrap(err, "hugepages"))
-		return
-	}
-	if hugePagesStat != nil {
-		mem.AddHugeTLBPagesPercentage(hugePagesStat)
-		memory["hugepages"] = common.MapStr{
-			"total": hugePagesStat.Total,
-			"used": common.MapStr{
-				"bytes": hugePagesStat.TotalAllocatedSize,
-				"pct":   hugePagesStat.UsedPercent,
-			},
-			"free":         hugePagesStat.Free,
-			"reserved":     hugePagesStat.Reserved,
-			"surplus":      hugePagesStat.Surplus,
-			"default_size": hugePagesStat.DefaultSize,
-		}
-	}
-
 	r.Event(mb.Event{
 		MetricSetFields: memory,
 	})
+
+	return nil
 }

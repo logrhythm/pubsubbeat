@@ -2,7 +2,7 @@
 161209 14:18:50 [Note] Plugin 'FEDERATED' is disabled.
 161209 14:18:50 InnoDB: The InnoDB memory heap is disabled
 161209 14:18:50 InnoDB: Mutexes and rw_locks use GCC atomic builtins
-161209 14:18:50 InnoDB: Compressed tables use zlib 1.2.3.4
+161209 14:18:50 InnoDB: Compressed tables use zlib 1.128.3.4
 161209 14:18:50 InnoDB: Initializing buffer pool, size = 128.0M
 161209 14:18:50 InnoDB: Completed initialization of buffer pool
 InnoDB: The first specified data file ./ibdata1 did not exist:
@@ -28,7 +28,7 @@ InnoDB: Foreign key constraint system tables created
 161209 14:18:52 [Note] Plugin 'FEDERATED' is disabled.
 161209 14:18:52 InnoDB: The InnoDB memory heap is disabled
 161209 14:18:52 InnoDB: Mutexes and rw_locks use GCC atomic builtins
-161209 14:18:52 InnoDB: Compressed tables use zlib 1.2.3.4
+161209 14:18:52 InnoDB: Compressed tables use zlib 1.128.3.4
 161209 14:18:52 InnoDB: Initializing buffer pool, size = 128.0M
 161209 14:18:52 InnoDB: Completed initialization of buffer pool
 161209 14:18:52 InnoDB: highest supported file format is Barracuda.
@@ -45,7 +45,7 @@ ERROR: 1064  You have an error in your SQL syntax; check the manual that corresp
 161209 14:18:53 [Note] Plugin 'FEDERATED' is disabled.
 161209 14:18:53 InnoDB: The InnoDB memory heap is disabled
 161209 14:18:53 InnoDB: Mutexes and rw_locks use GCC atomic builtins
-161209 14:18:53 InnoDB: Compressed tables use zlib 1.2.3.4
+161209 14:18:53 InnoDB: Compressed tables use zlib 1.128.3.4
 161209 14:18:53 InnoDB: Initializing buffer pool, size = 128.0M
 161209 14:18:53 InnoDB: Completed initialization of buffer pool
 161209 14:18:53 InnoDB: highest supported file format is Barracuda.
@@ -62,7 +62,7 @@ ERROR: 1064  You have an error in your SQL syntax; check the manual that corresp
 161209 14:18:56 [Note] Plugin 'FEDERATED' is disabled.
 161209 14:18:56 InnoDB: The InnoDB memory heap is disabled
 161209 14:18:56 InnoDB: Mutexes and rw_locks use GCC atomic builtins
-161209 14:18:56 InnoDB: Compressed tables use zlib 1.2.3.4
+161209 14:18:56 InnoDB: Compressed tables use zlib 1.128.3.4
 161209 14:18:56 InnoDB: Initializing buffer pool, size = 128.0M
 161209 14:18:56 InnoDB: Completed initialization of buffer pool
 161209 14:18:57 InnoDB: highest supported file format is Barracuda.
@@ -85,7 +85,7 @@ Version: '5.5.53-0ubuntu0.12.04.1'  socket: '/var/run/mysqld/mysqld.sock'  port:
 161209 14:37:57 [Note] Plugin 'FEDERATED' is disabled.
 161209 14:37:57 InnoDB: The InnoDB memory heap is disabled
 161209 14:37:57 InnoDB: Mutexes and rw_locks use GCC atomic builtins
-161209 14:37:57 InnoDB: Compressed tables use zlib 1.2.3.4
+161209 14:37:57 InnoDB: Compressed tables use zlib 1.128.3.4
 161209 14:37:57 InnoDB: Initializing buffer pool, size = 128.0M
 161209 14:37:57 InnoDB: Completed initialization of buffer pool
 161209 14:37:57 InnoDB: highest supported file format is Barracuda.
@@ -97,24 +97,11 @@ Version: '5.5.53-0ubuntu0.12.04.1'  socket: '/var/run/mysqld/mysqld.sock'  port:
 161209 14:37:58 [Note] Event Scheduler: Loaded 0 events
 161209 14:37:58 [Note] /usr/sbin/mysqld: ready for connections.
 Version: '5.5.53-0ubuntu0.12.04.1-log'  socket: '/var/run/mysqld/mysqld.sock'  port: 3306  (Ubuntu)
-vagrant@precise32:~$ cat /var/log/mysql.log | grep phisically
-vagrant@precise32:~$ cat /var/log/mysql.log | grep physi
-vagrant@precise32:~$ cat /var/log/mysql.log | physically
-physically: command not found
-vagrant@precise32:~$ cat /var/log/mysql.log | grep physically
-vagrant@precise32:~$ less /var/log/mysql.
-mysql.err  mysql.log
-vagrant@precise32:~$ less /var/log/mysql.err
-vagrant@precise32:~$ less /var/log/mysql.log
-vagrant@precise32:~$ less /var/log/mysql/
-error.log       mysql-slow.log
-vagrant@precise32:~$ less /var/log/mysql/error.log
-vagrant@precise32:~$ cat /var/log/mysql/error.log
 161209 14:18:50 [Warning] Using unique option prefix myisam-recover instead of myisam-recover-options is deprecated and will be removed in a future release. Please use the full name instead.
 161209 14:18:50 [Note] Plugin 'FEDERATED' is disabled.
 161209 14:18:50 InnoDB: The InnoDB memory heap is disabled
 161209 14:18:50 InnoDB: Mutexes and rw_locks use GCC atomic builtins
-161209 14:18:50 InnoDB: Compressed tables use zlib 1.2.3.4
+161209 14:18:50 InnoDB: Compressed tables use zlib 1.128.3.4
 161209 14:18:50 InnoDB: Initializing buffer pool, size = 128.0M
 161209 14:18:50 InnoDB: Completed initialization of buffer pool
 InnoDB: The first specified data file ./ibdata1 did not exist:
@@ -140,7 +127,7 @@ InnoDB: Foreign key constraint system tables created
 161209 14:18:52 [Note] Plugin 'FEDERATED' is disabled.
 161209 14:18:52 InnoDB: The InnoDB memory heap is disabled
 161209 14:18:52 InnoDB: Mutexes and rw_locks use GCC atomic builtins
-161209 14:18:52 InnoDB: Compressed tables use zlib 1.2.3.4
+161209 14:18:52 InnoDB: Compressed tables use zlib 1.128.3.4
 161209 14:18:52 InnoDB: Initializing buffer pool, size = 128.0M
 161209 14:18:52 InnoDB: Completed initialization of buffer pool
 161209 14:18:52 InnoDB: highest supported file format is Barracuda.
@@ -157,7 +144,7 @@ ERROR: 1064  You have an error in your SQL syntax; check the manual that corresp
 161209 14:18:53 [Note] Plugin 'FEDERATED' is disabled.
 161209 14:18:53 InnoDB: The InnoDB memory heap is disabled
 161209 14:18:53 InnoDB: Mutexes and rw_locks use GCC atomic builtins
-161209 14:18:53 InnoDB: Compressed tables use zlib 1.2.3.4
+161209 14:18:53 InnoDB: Compressed tables use zlib 1.128.3.4
 161209 14:18:53 InnoDB: Initializing buffer pool, size = 128.0M
 161209 14:18:53 InnoDB: Completed initialization of buffer pool
 161209 14:18:53 InnoDB: highest supported file format is Barracuda.
@@ -169,7 +156,7 @@ ERROR: 1064  You have an error in your SQL syntax; check the manual that corresp
 161209 14:18:55 [Note] Plugin 'FEDERATED' is disabled.
 161209 14:18:55 InnoDB: The InnoDB memory heap is disabled
 161209 14:18:55 InnoDB: Mutexes and rw_locks use GCC atomic builtins
-161209 14:18:55 InnoDB: Compressed tables use zlib 1.2.3.4
+161209 14:18:55 InnoDB: Compressed tables use zlib 1.128.3.4
 161209 14:18:55 InnoDB: Initializing buffer pool, size = 128.0M
 161209 14:18:55 InnoDB: Completed initialization of buffer pool
 161209 14:18:55 InnoDB: highest supported file format is Barracuda.
@@ -186,7 +173,7 @@ ERROR: 1050  Table 'plugin' already exists
 161209 14:18:56 [Note] Plugin 'FEDERATED' is disabled.
 161209 14:18:56 InnoDB: The InnoDB memory heap is disabled
 161209 14:18:56 InnoDB: Mutexes and rw_locks use GCC atomic builtins
-161209 14:18:56 InnoDB: Compressed tables use zlib 1.2.3.4
+161209 14:18:56 InnoDB: Compressed tables use zlib 1.128.3.4
 161209 14:18:56 InnoDB: Initializing buffer pool, size = 128.0M
 161209 14:18:56 InnoDB: Completed initialization of buffer pool
 161209 14:18:57 InnoDB: highest supported file format is Barracuda.
@@ -209,7 +196,7 @@ Version: '5.5.53-0ubuntu0.12.04.1'  socket: '/var/run/mysqld/mysqld.sock'  port:
 161209 14:37:57 [Note] Plugin 'FEDERATED' is disabled.
 161209 14:37:57 InnoDB: The InnoDB memory heap is disabled
 161209 14:37:57 InnoDB: Mutexes and rw_locks use GCC atomic builtins
-161209 14:37:57 InnoDB: Compressed tables use zlib 1.2.3.4
+161209 14:37:57 InnoDB: Compressed tables use zlib 1.128.3.4
 161209 14:37:57 InnoDB: Initializing buffer pool, size = 128.0M
 161209 14:37:57 InnoDB: Completed initialization of buffer pool
 161209 14:37:57 InnoDB: highest supported file format is Barracuda.

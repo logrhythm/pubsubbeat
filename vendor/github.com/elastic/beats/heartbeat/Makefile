@@ -8,13 +8,7 @@ TEST_ENVIRONMENT?=true
 
 # Collects all dependencies and then calls update
 .PHONY: collect
-collect: imports kibana
-
-# Generate imports for all monitors
-.PHONY: imports
-imports: python-env
-	@mkdir -p include
-	@${PYTHON_ENV}/bin/python ${ES_BEATS}/script/generate_imports.py --out monitors/defaults/default.go ${BEAT_PATH}
+collect: kibana
 
 # Collects all module dashboards
 .PHONY: kibana

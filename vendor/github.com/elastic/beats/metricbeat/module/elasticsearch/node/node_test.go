@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package node
@@ -26,23 +27,23 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	mbtest "github.com/elastic/beats/metricbeat/mb/testing"
-	"github.com/elastic/beats/metricbeat/module/elasticsearch"
+	mbtest "github.com/elastic/beats/v7/metricbeat/mb/testing"
+	"github.com/elastic/beats/v7/metricbeat/module/elasticsearch"
 )
 
 func TestFetch(t *testing.T) {
 
 	files, err := filepath.Glob("./_meta/test/node.*.json")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	// Makes sure glob matches at least 1 file
-	assert.True(t, len(files) > 0)
+	require.True(t, len(files) > 0)
 
 	for _, f := range files {
 		t.Run(f, func(t *testing.T) {
 			response, err := ioutil.ReadFile(f)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch r.RequestURI {

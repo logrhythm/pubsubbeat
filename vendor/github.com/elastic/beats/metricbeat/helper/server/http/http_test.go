@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package http
@@ -34,7 +35,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/metricbeat/helper/server"
+	"github.com/elastic/beats/v7/metricbeat/helper/server"
 )
 
 func TestHTTPServers(t *testing.T) {

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build linux
 // +build linux
 
 package socket
@@ -31,9 +32,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/elastic/beats/libbeat/common"
-	sock "github.com/elastic/beats/metricbeat/helper/socket"
-	mbtest "github.com/elastic/beats/metricbeat/mb/testing"
+	"github.com/elastic/beats/v7/libbeat/common"
+	sock "github.com/elastic/beats/v7/metricbeat/helper/socket"
+	mbtest "github.com/elastic/beats/v7/metricbeat/mb/testing"
+	_ "github.com/elastic/beats/v7/metricbeat/module/system"
 )
 
 func TestData(t *testing.T) {
@@ -49,11 +51,11 @@ func TestData(t *testing.T) {
 		path      string
 	}{
 		{sock.ListeningName, "."},
-		{sock.InboundName, "./_meta/data_inbound.json"},
-		{sock.OutboundName, "./_meta/data_outbound.json"},
+		{sock.IngressName, "./_meta/data_ingress.json"},
+		{sock.EgressName, "./_meta/data_egress.json"},
 	}
 
-	f := mbtest.NewReportingMetricSetV2(t, getConfig())
+	f := mbtest.NewReportingMetricSetV2Error(t, getConfig())
 
 	ln, err := net.Listen("tcp", ":0")
 	if err != nil {
@@ -69,7 +71,7 @@ func TestData(t *testing.T) {
 		c.Close()
 
 		t.Run(fmt.Sprintf("direction:%s", df.direction), func(t *testing.T) {
-			err = mbtest.WriteEventsReporterV2Cond(f, t, df.path, directionIs(df.direction))
+			err = mbtest.WriteEventsReporterV2ErrorCond(f, t, df.path, directionIs(df.direction))
 			if err != nil {
 				t.Fatal("write", err)
 			}
@@ -91,8 +93,8 @@ func TestFetch(t *testing.T) {
 		t.Fatal("failed to get port from addr", addr)
 	}
 
-	f := mbtest.NewReportingMetricSetV2(t, getConfig())
-	events, errs := mbtest.ReportingFetchV2(f)
+	f := mbtest.NewReportingMetricSetV2Error(t, getConfig())
+	events, errs := mbtest.ReportingFetchV2Error(f)
 
 	assert.Empty(t, errs)
 	if !assert.NotEmpty(t, events) {

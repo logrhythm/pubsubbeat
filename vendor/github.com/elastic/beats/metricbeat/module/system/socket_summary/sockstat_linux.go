@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build linux
 // +build linux
 
 package socket_summary
@@ -23,12 +24,12 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/pkg/errors"
+	"github.com/shirou/gopsutil/v3/net"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/metricbeat/module/system"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/metric/system/resolve"
 )
 
 // SockStat contains data from /proc/net/sockstat
@@ -60,12 +61,8 @@ type SockStat struct {
 }
 
 // applyEnhancements gets a list of platform-specific enhancements and apply them to our mapStr object.
-func applyEnhancements(data common.MapStr, m *MetricSet) (common.MapStr, error) {
-	systemModule, ok := m.BaseMetricSet.Module().(*system.Module)
-	if !ok {
-		return nil, errors.New("unexpected module type")
-	}
-	dir := filepath.Join(systemModule.HostFS, "/proc/net/sockstat")
+func applyEnhancements(data common.MapStr, sys resolve.Resolver) (common.MapStr, error) {
+	dir := sys.ResolveHostFS("/proc/net/sockstat")
 	pageSize := os.Getpagesize()
 
 	stat, err := parseSockstat(dir)
@@ -131,4 +128,10 @@ func parseSockstat(path string) (SockStat, error) {
 	}
 
 	return ss, nil
+}
+
+// connections gets connection information
+// The linux function doesn't query UIDs for performance
+func connections(kind string) ([]net.ConnectionStat, error) {
+	return net.ConnectionsWithoutUids(kind)
 }

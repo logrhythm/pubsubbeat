@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package publish
@@ -26,10 +27,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/packetbeat/pb"
-	"github.com/elastic/ecs/code/go/ecs"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/ecs"
+	"github.com/elastic/beats/v7/packetbeat/pb"
 )
 
 func testEvent() beat.Event {
@@ -46,7 +47,7 @@ func testEvent() beat.Event {
 // Test that FilterEvent detects events that do not contain the required fields
 // and returns error.
 func TestFilterEvent(t *testing.T) {
-	var testCases = []struct {
+	testCases := []struct {
 		f   func() beat.Event
 		err string
 	}{
@@ -92,7 +93,7 @@ func TestFilterEvent(t *testing.T) {
 }
 
 func TestPublish(t *testing.T) {
-	var srcIP, dstIP = "192.145.2.4", "192.145.2.5"
+	srcIP, dstIP := "192.145.2.4", "192.145.2.5"
 
 	event := func() *beat.Event {
 		return &beat.Event{
@@ -125,7 +126,7 @@ func TestPublish(t *testing.T) {
 		}
 
 		dir, _ := res.GetValue("network.direction")
-		assert.Equal(t, "inbound", dir)
+		assert.Equal(t, "ingress", dir)
 	})
 
 	t.Run("direction/outbound", func(t *testing.T) {
@@ -140,7 +141,7 @@ func TestPublish(t *testing.T) {
 		}
 
 		dir, _ := res.GetValue("network.direction")
-		assert.Equal(t, "outbound", dir)
+		assert.Equal(t, "egress", dir)
 	})
 
 	t.Run("direction/internal", func(t *testing.T) {
@@ -155,7 +156,7 @@ func TestPublish(t *testing.T) {
 		}
 
 		dir, _ := res.GetValue("network.direction")
-		assert.Equal(t, "internal", dir)
+		assert.Equal(t, "ingress", dir)
 	})
 
 	t.Run("direction/none", func(t *testing.T) {
@@ -170,7 +171,7 @@ func TestPublish(t *testing.T) {
 		}
 
 		dir, _ := res.GetValue("network.direction")
-		assert.Nil(t, dir)
+		assert.Equal(t, "unknown", dir)
 	})
 
 	t.Run("ignore_outgoing", func(t *testing.T) {

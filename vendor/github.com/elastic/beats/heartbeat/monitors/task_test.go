@@ -18,33 +18,41 @@
 package monitors
 
 import (
+	"context"
 	"testing"
+
+	"github.com/elastic/go-lookslike/validator"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/elastic/beats/heartbeat/eventext"
-	"github.com/elastic/beats/heartbeat/monitors/jobs"
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/common/mapval"
+	"github.com/elastic/go-lookslike"
+	"github.com/elastic/go-lookslike/testslike"
+
+	"github.com/elastic/beats/v7/heartbeat/eventext"
+	"github.com/elastic/beats/v7/heartbeat/monitors/jobs"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
 )
 
 func Test_runPublishJob(t *testing.T) {
-	simpleJob := func(event *beat.Event) (j []jobs.Job, e error) {
-		eventext.MergeEventFields(event, common.MapStr{"foo": "bar"})
-		return nil, nil
+	defineJob := func(fields common.MapStr) func(event *beat.Event) (j []jobs.Job, e error) {
+		return func(event *beat.Event) (j []jobs.Job, e error) {
+			eventext.MergeEventFields(event, fields)
+			return nil, nil
+		}
 	}
+	simpleJob := defineJob(common.MapStr{"foo": "bar"})
 
 	testCases := []struct {
 		name       string
 		job        jobs.Job
-		validators []mapval.Validator
+		validators []validator.Validator
 	}{
 		{
 			"simple",
 			simpleJob,
-			[]mapval.Validator{
-				mapval.MustCompile(mapval.Map{"foo": "bar"}),
+			[]validator.Validator{
+				lookslike.MustCompile(map[string]interface{}{"foo": "bar"}),
 			},
 		},
 		{
@@ -53,9 +61,24 @@ func Test_runPublishJob(t *testing.T) {
 				simpleJob(event)
 				return []jobs.Job{simpleJob}, nil
 			},
-			[]mapval.Validator{
-				mapval.MustCompile(mapval.Map{"foo": "bar"}),
-				mapval.MustCompile(mapval.Map{"foo": "bar"}),
+			[]validator.Validator{
+				lookslike.MustCompile(map[string]interface{}{"foo": "bar"}),
+				lookslike.MustCompile(map[string]interface{}{"foo": "bar"}),
+			},
+		},
+		{
+			"multiple conts",
+			func(event *beat.Event) (j []jobs.Job, e error) {
+				simpleJob(event)
+				return []jobs.Job{
+					defineJob(common.MapStr{"baz": "bot"}),
+					defineJob(common.MapStr{"blah": "blargh"}),
+				}, nil
+			},
+			[]validator.Validator{
+				lookslike.MustCompile(map[string]interface{}{"foo": "bar"}),
+				lookslike.MustCompile(map[string]interface{}{"baz": "bot"}),
+				lookslike.MustCompile(map[string]interface{}{"blah": "blargh"}),
 			},
 		},
 		{
@@ -64,8 +87,8 @@ func Test_runPublishJob(t *testing.T) {
 				eventext.CancelEvent(event)
 				return []jobs.Job{simpleJob}, nil
 			},
-			[]mapval.Validator{
-				mapval.MustCompile(mapval.Map{"foo": "bar"}),
+			[]validator.Validator{
+				lookslike.MustCompile(map[string]interface{}{"foo": "bar"}),
 			},
 		},
 	}
@@ -73,14 +96,18 @@ func Test_runPublishJob(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			client := &MockBeatClient{}
-			queue := runPublishJob(tc.job, client)
+			queue := runPublishJob(tc.job, &WrappedClient{
+				Publish: client.Publish,
+				Close:   client.Close,
+				wait:    func() {},
+			})
 			for {
 				if len(queue) == 0 {
 					break
 				}
 				tf := queue[0]
 				queue = queue[1:]
-				conts := tf()
+				conts := tf(context.Background())
 				for _, cont := range conts {
 					queue = append(queue, cont)
 				}
@@ -89,7 +116,7 @@ func Test_runPublishJob(t *testing.T) {
 
 			require.Len(t, client.publishes, len(tc.validators))
 			for idx, event := range client.publishes {
-				mapval.Test(t, tc.validators[idx], event.Fields)
+				testslike.Test(t, tc.validators[idx], event.Fields)
 			}
 		})
 	}

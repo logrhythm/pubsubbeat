@@ -22,10 +22,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/processors"
 )
 
 var fields = [1]string{"msg"}
@@ -33,6 +35,29 @@ var testConfig, _ = common.NewConfigFrom(map[string]interface{}{
 	"fields":       fields,
 	"processArray": false,
 })
+
+func TestDecodeJSONFieldsCheckConfig(t *testing.T) {
+	// All fields defined in config should be allowed.
+	cfg := common.MustNewConfigFrom(map[string]interface{}{
+		"decode_json_fields": &config{
+			// Rely on zero values for all fields that don't have validation.
+			MaxDepth: 1,
+		},
+	})
+	_, err := processors.New(processors.PluginConfig([]*common.Config{cfg}))
+	assert.NoError(t, err)
+
+	// Unknown fields should not be allowed.
+	cfg = common.MustNewConfigFrom(map[string]interface{}{
+		"decode_json_fields": map[string]interface{}{
+			"fields":     []string{"required"},
+			"extraneous": "field",
+		},
+	})
+	_, err = processors.New(processors.PluginConfig([]*common.Config{cfg}))
+	assert.Error(t, err)
+	assert.EqualError(t, err, "unexpected extraneous option in decode_json_fields")
+}
 
 func TestMissingKey(t *testing.T) {
 	input := common.MapStr{
@@ -92,6 +117,38 @@ func TestInvalidJSONMultiple(t *testing.T) {
 		"pipeline": "us1",
 	}
 	assert.Equal(t, expected.String(), actual.String())
+}
+
+func TestDocumentID(t *testing.T) {
+	log := logp.NewLogger("decode_json_fields_test")
+
+	input := common.MapStr{
+		"msg": `{"log": "message", "myid": "myDocumentID"}`,
+	}
+
+	config := common.MustNewConfigFrom(map[string]interface{}{
+		"fields":      []string{"msg"},
+		"document_id": "myid",
+	})
+
+	p, err := NewDecodeJSONFields(config)
+	if err != nil {
+		log.Error("Error initializing decode_json_fields")
+		t.Fatal(err)
+	}
+
+	actual, err := p.Run(&beat.Event{Fields: input})
+	require.NoError(t, err)
+
+	wantFields := common.MapStr{
+		"msg": map[string]interface{}{"log": "message"},
+	}
+	wantMeta := common.MapStr{
+		"_id": "myDocumentID",
+	}
+
+	assert.Equal(t, wantFields, actual.Fields)
+	assert.Equal(t, wantMeta, actual.Meta)
 }
 
 func TestValidJSONDepthOne(t *testing.T) {
@@ -198,6 +255,46 @@ func TestTargetRootOption(t *testing.T) {
 	}
 
 	assert.Equal(t, expected.String(), actual.String())
+}
+
+func TestTargetMetadata(t *testing.T) {
+	event := &beat.Event{
+		Fields: common.MapStr{
+			"msg":      "{\"log\":\"{\\\"level\\\":\\\"info\\\"}\",\"stream\":\"stderr\",\"count\":3}",
+			"pipeline": "us1",
+		},
+		Meta: common.MapStr{},
+	}
+
+	testConfig, _ = common.NewConfigFrom(map[string]interface{}{
+		"fields":        fields,
+		"process_array": false,
+		"max_depth":     2,
+		"target":        "@metadata.json",
+	})
+
+	log := logp.NewLogger("decode_json_fields_test")
+
+	p, err := NewDecodeJSONFields(testConfig)
+	if err != nil {
+		log.Error("Error initializing decode_json_fields")
+		t.Fatal(err)
+	}
+
+	actual, _ := p.Run(event)
+
+	expectedMeta := common.MapStr{
+		"json": map[string]interface{}{
+			"log": map[string]interface{}{
+				"level": "info",
+			},
+			"stream": "stderr",
+			"count":  int64(3),
+		},
+	}
+
+	assert.Equal(t, expectedMeta, actual.Meta)
+	assert.Equal(t, event.Fields, actual.Fields)
 }
 
 func TestNotJsonObjectOrArray(t *testing.T) {
@@ -333,12 +430,134 @@ func TestArrayWithInvalidArray(t *testing.T) {
 	assert.Equal(t, expected.String(), actual.String())
 }
 
+func TestAddErrKeyOption(t *testing.T) {
+	tests := []struct {
+		name           string
+		addErrOption   bool
+		expectedOutput common.MapStr
+	}{
+		{name: "With add_error_key option", addErrOption: true, expectedOutput: common.MapStr{
+			"error": common.MapStr{"message": "@timestamp not overwritten (parse error on {})", "type": "json"},
+			"msg":   "{\"@timestamp\":\"{}\"}",
+		}},
+		{name: "Without add_error_key option", addErrOption: false, expectedOutput: common.MapStr{
+			"msg": "{\"@timestamp\":\"{}\"}",
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			input := common.MapStr{
+				"msg": "{\"@timestamp\":\"{}\"}",
+			}
+
+			testConfig, _ = common.NewConfigFrom(map[string]interface{}{
+				"fields":         fields,
+				"add_error_key":  test.addErrOption,
+				"overwrite_keys": true,
+				"target":         "",
+			})
+			actual := getActualValue(t, testConfig, input)
+
+			assert.Equal(t, test.expectedOutput.String(), actual.String())
+
+		})
+	}
+}
+
+func TestExpandKeys(t *testing.T) {
+	testConfig := common.MustNewConfigFrom(map[string]interface{}{
+		"fields":      fields,
+		"expand_keys": true,
+		"target":      "",
+	})
+	input := common.MapStr{"msg": `{"a.b": {"c": "c"}, "a.b.d": "d"}`}
+	expected := common.MapStr{
+		"msg": `{"a.b": {"c": "c"}, "a.b.d": "d"}`,
+		"a": common.MapStr{
+			"b": map[string]interface{}{
+				"c": "c",
+				"d": "d",
+			},
+		},
+	}
+	actual := getActualValue(t, testConfig, input)
+	assert.Equal(t, expected, actual)
+}
+
+func TestExpandKeysError(t *testing.T) {
+	testConfig := common.MustNewConfigFrom(map[string]interface{}{
+		"fields":        fields,
+		"expand_keys":   true,
+		"add_error_key": true,
+		"target":        "",
+	})
+	input := common.MapStr{"msg": `{"a.b": "c", "a.b.c": "d"}`}
+	expected := common.MapStr{
+		"msg": `{"a.b": "c", "a.b.c": "d"}`,
+		"error": common.MapStr{
+			"message": "cannot expand ...",
+			"type":    "json",
+		},
+	}
+
+	actual := getActualValue(t, testConfig, input)
+	assert.Contains(t, actual, "error")
+	errorField := actual["error"].(common.MapStr)
+	assert.Contains(t, errorField, "message")
+
+	// The order in which keys are processed is not defined, so the error
+	// message is not defined. Apart from that, the outcome is the same.
+	assert.Regexp(t, `cannot expand ".*": .*`, errorField["message"])
+	errorField["message"] = "cannot expand ..."
+	assert.Equal(t, expected, actual)
+}
+
+func TestOverwriteMetadata(t *testing.T) {
+	testConfig := common.MustNewConfigFrom(map[string]interface{}{
+		"fields":         fields,
+		"target":         "",
+		"overwrite_keys": true,
+	})
+
+	input := common.MapStr{
+		"msg": "{\"@metadata\":{\"beat\":\"libbeat\"},\"msg\":\"overwrite metadata test\"}",
+	}
+
+	expected := common.MapStr{
+		"msg": "overwrite metadata test",
+	}
+	actual := getActualValue(t, testConfig, input)
+
+	assert.Equal(t, expected, actual)
+}
+
+func TestAddErrorToEventOnUnmarshalError(t *testing.T) {
+	testConfig := common.MustNewConfigFrom(map[string]interface{}{
+		"fields":        "message",
+		"add_error_key": true,
+	})
+
+	input := common.MapStr{
+		"message": "Broken JSON [[",
+	}
+
+	actual := getActualValue(t, testConfig, input)
+
+	errObj, ok := actual["error"].(common.MapStr)
+	require.True(t, ok, "'error' field not present or of invalid type")
+	require.NotNil(t, actual["error"])
+
+	assert.Equal(t, "message", errObj["field"])
+	assert.NotNil(t, errObj["data"])
+	assert.NotNil(t, errObj["message"])
+}
+
 func getActualValue(t *testing.T, config *common.Config, input common.MapStr) common.MapStr {
-	logp.TestingSetup()
+	log := logp.NewLogger("decode_json_fields_test")
 
 	p, err := NewDecodeJSONFields(config)
 	if err != nil {
-		logp.Err("Error initializing decode_json_fields")
+		log.Error("Error initializing decode_json_fields")
 		t.Fatal(err)
 	}
 

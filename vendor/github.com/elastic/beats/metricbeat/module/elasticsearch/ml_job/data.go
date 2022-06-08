@@ -23,11 +23,13 @@ import (
 	"github.com/joeshaw/multierror"
 	"github.com/pkg/errors"
 
-	"github.com/elastic/beats/libbeat/common"
-	s "github.com/elastic/beats/libbeat/common/schema"
-	c "github.com/elastic/beats/libbeat/common/schema/mapstriface"
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/module/elasticsearch"
+	"github.com/elastic/beats/v7/metricbeat/helper/elastic"
+
+	"github.com/elastic/beats/v7/libbeat/common"
+	s "github.com/elastic/beats/v7/libbeat/common/schema"
+	c "github.com/elastic/beats/v7/libbeat/common/schema/mapstriface"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/module/elasticsearch"
 )
 
 var (
@@ -38,6 +40,12 @@ var (
 			"processed_record_count": c.Int("processed_record_count"),
 			"invalid_date_count":     c.Int("invalid_date_count"),
 		}),
+		"model_size": c.Dict("model_size_stats", s.Schema{
+			"memory_status": c.Str("memory_status"),
+		}),
+		"forecasts_stats": c.Dict("forecasts_stats", s.Schema{
+			"total": c.Int("total"),
+		}),
 	}
 )
 
@@ -45,7 +53,7 @@ type jobsStruct struct {
 	Jobs []map[string]interface{} `json:"jobs"`
 }
 
-func eventsMapping(r mb.ReporterV2, info elasticsearch.Info, content []byte) error {
+func eventsMapping(r mb.ReporterV2, info elasticsearch.Info, content []byte, isXpack bool) error {
 
 	jobsData := &jobsStruct{}
 	err := json.Unmarshal(content, jobsData)
@@ -56,6 +64,15 @@ func eventsMapping(r mb.ReporterV2, info elasticsearch.Info, content []byte) err
 	var errs multierror.Errors
 	for _, job := range jobsData.Jobs {
 
+		if err := elastic.FixTimestampField(job, "data_counts.earliest_record_timestamp"); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if err := elastic.FixTimestampField(job, "data_counts.latest_record_timestamp"); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+
 		event := mb.Event{}
 
 		event.RootFields = common.MapStr{}
@@ -65,13 +82,23 @@ func eventsMapping(r mb.ReporterV2, info elasticsearch.Info, content []byte) err
 		event.ModuleFields.Put("cluster.name", info.ClusterName)
 		event.ModuleFields.Put("cluster.id", info.ClusterID)
 
-		event.MetricSetFields, err = schema.Apply(job)
-		if err != nil {
-			errs = append(errs, errors.Wrap(err, "failure applying ml job schema"))
-			continue
+		if node, exists := job["node"]; exists {
+			nodeHash := node.(map[string]interface{})
+			event.ModuleFields.Put("node.id", nodeHash["id"])
+			event.ModuleFields.Put("node.name", nodeHash["name"])
+		}
+
+		event.MetricSetFields, _ = schema.Apply(job)
+
+		// xpack.enabled in config using standalone metricbeat writes to `.monitoring` instead of `metricbeat-*`
+		// When using Agent, the index name is overwritten anyways.
+		if isXpack {
+			index := elastic.MakeXPackMonitoringIndexName(elastic.Elasticsearch)
+			event.Index = index
 		}
 
 		r.Event(event)
 	}
+
 	return errs.Err()
 }

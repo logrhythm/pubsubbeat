@@ -18,11 +18,13 @@
 package pipeline
 
 import (
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/common/reload"
-	"github.com/elastic/beats/libbeat/outputs"
-	"github.com/elastic/beats/libbeat/publisher/queue"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common/reload"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/outputs"
+	"github.com/elastic/beats/v7/libbeat/publisher"
+	"github.com/elastic/beats/v7/libbeat/publisher/queue"
 )
 
 // outputController manages the pipelines output capabilities, like:
@@ -34,23 +36,23 @@ type outputController struct {
 	monitors Monitors
 	observer outputObserver
 
-	queue queue.Queue
+	workQueue chan publisher.Batch
 
-	retryer  *retryer
 	consumer *eventConsumer
 	out      *outputGroup
 }
 
 // outputGroup configures a group of load balanced outputs with shared work queue.
 type outputGroup struct {
-	workQueue workQueue
+	// workQueue is a channel that receives event batches that
+	// are ready to send. Each output worker in outputs reads from
+	// workQueue for events to send.
+	workQueue chan publisher.Batch
 	outputs   []outputWorker
 
 	batchSize  int
 	timeToLive int // event lifetime
 }
-
-type workQueue chan *Batch
 
 // outputWorker instances pass events from the shared workQueue to the outputs.Client
 // instances.
@@ -62,87 +64,64 @@ func newOutputController(
 	beat beat.Info,
 	monitors Monitors,
 	observer outputObserver,
-	b queue.Queue,
+	queue queue.Queue,
 ) *outputController {
-	c := &outputController{
-		beat:     beat,
-		monitors: monitors,
-		observer: observer,
-		queue:    b,
+	return &outputController{
+		beat:      beat,
+		monitors:  monitors,
+		observer:  observer,
+		workQueue: make(chan publisher.Batch),
+		consumer:  newEventConsumer(monitors.Logger, queue, observer),
 	}
-
-	ctx := &batchContext{}
-	c.consumer = newEventConsumer(monitors.Logger, b, ctx)
-	c.retryer = newRetryer(monitors.Logger, observer, nil, c.consumer)
-	ctx.observer = observer
-	ctx.retryer = c.retryer
-
-	c.consumer.sigContinue()
-
-	return c
 }
 
 func (c *outputController) Close() error {
-	c.consumer.sigPause()
+	c.consumer.close()
+	close(c.workQueue)
 
 	if c.out != nil {
 		for _, out := range c.out.outputs {
 			out.Close()
 		}
-		close(c.out.workQueue)
 	}
-
-	c.consumer.close()
-	c.retryer.close()
-
 	return nil
 }
 
 func (c *outputController) Set(outGrp outputs.Group) {
-	// create new outputGroup with shared work queue
-	clients := outGrp.Clients
-	queue := makeWorkQueue()
-	worker := make([]outputWorker, len(clients))
-	for i, client := range clients {
-		worker[i] = makeClientWorker(c.observer, queue, client)
-	}
-	grp := &outputGroup{
-		workQueue:  queue,
-		outputs:    worker,
-		timeToLive: outGrp.Retry + 1,
-		batchSize:  outGrp.BatchSize,
-	}
+	// Set consumer to empty target to pause it while we reload
+	c.consumer.setTarget(consumerTarget{})
 
-	// update consumer and retryer
-	c.consumer.sigPause()
-	if c.out != nil {
-		for range c.out.outputs {
-			c.retryer.sigOutputRemoved()
-		}
-	}
-	c.retryer.updOutput(queue)
-	for range clients {
-		c.retryer.sigOutputAdded()
-	}
-	c.consumer.updOutput(grp)
-
-	// close old group, so events are send to new workQueue via retryer
+	// Close old outputWorkers, so they send their remaining events
+	// back to eventConsumer's retry channel
 	if c.out != nil {
 		for _, w := range c.out.outputs {
 			w.Close()
 		}
 	}
 
+	// create new output group with the shared work queue
+	clients := outGrp.Clients
+	worker := make([]outputWorker, len(clients))
+	for i, client := range clients {
+		logger := logp.NewLogger("publisher_pipeline_output")
+		worker[i] = makeClientWorker(c.observer, c.workQueue, client, logger, c.monitors.Tracer)
+	}
+	grp := &outputGroup{
+		workQueue:  c.workQueue,
+		outputs:    worker,
+		timeToLive: outGrp.Retry + 1,
+		batchSize:  outGrp.BatchSize,
+	}
+
 	c.out = grp
 
-	// restart consumer (potentially blocked by retryer)
-	c.consumer.sigContinue()
-
-	c.observer.updateOutputGroup()
-}
-
-func makeWorkQueue() workQueue {
-	return workQueue(make(chan *Batch, 0))
+	// Resume consumer targeting the new work queue
+	c.consumer.setTarget(
+		consumerTarget{
+			ch:         c.workQueue,
+			batchSize:  grp.batchSize,
+			timeToLive: grp.timeToLive,
+		})
 }
 
 // Reload the output

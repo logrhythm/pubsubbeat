@@ -20,14 +20,14 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/url"
 	"path/filepath"
 	"time"
 
-	"github.com/elastic/beats/libbeat/dashboards"
-	"github.com/elastic/beats/libbeat/kibana"
+	"github.com/elastic/beats/v7/libbeat/common/transport/httpcommon"
+	"github.com/elastic/beats/v7/libbeat/dashboards"
+	"github.com/elastic/beats/v7/libbeat/kibana"
 )
 
 var (
@@ -43,7 +43,8 @@ func main() {
 	kibanaURL := flag.String("kibana", "http://localhost:5601", "Kibana URL")
 	spaceID := flag.String("space-id", "", "Space ID")
 	dashboard := flag.String("dashboard", "", "Dashboard ID")
-	fileOutput := flag.String("output", "output.json", "Output file")
+	fileOutput := flag.String("output", "", "Output NDJSON file, when exporting dashboards for Beats, please use -folder instead")
+	folderOutput := flag.String("folder", "", "Output folder to save all assets to more human friendly JSON format")
 	ymlFile := flag.String("yml", "", "Path to the module.yml file containing the dashboards")
 	flag.BoolVar(&indexPattern, "indexPattern", false, "include index-pattern in output")
 	flag.BoolVar(&quiet, "quiet", false, "be quiet")
@@ -51,25 +52,34 @@ func main() {
 	flag.Parse()
 	log.SetFlags(0)
 
+	if len(*fileOutput) > 0 {
+		log.Fatalf("-output is configured, please use -folder flag instead to get the expected formatting of assets")
+	}
+
 	u, err := url.Parse(*kibanaURL)
 	if err != nil {
 		log.Fatalf("Error parsing Kibana URL: %v", err)
 	}
 
 	var user, pass string
+	user = "beats"
+	pass = "testing"
 	if u.User != nil {
 		user = u.User.Username()
 		pass, _ = u.User.Password()
 	}
+	transport := httpcommon.DefaultHTTPTransportSettings()
+	transport.Timeout = kibanaTimeout
+
 	client, err := kibana.NewClientWithConfig(&kibana.ClientConfig{
-		Protocol: u.Scheme,
-		Host:     u.Host,
-		Username: user,
-		Password: pass,
-		Path:     u.Path,
-		SpaceID:  *spaceID,
-		Timeout:  kibanaTimeout,
-	})
+		Protocol:  u.Scheme,
+		Host:      u.Host,
+		Username:  user,
+		Password:  pass,
+		Path:      u.Path,
+		SpaceID:   *spaceID,
+		Transport: transport,
+	}, "Beat Development Tools")
 	if err != nil {
 		log.Fatalf("Error while connecting to Kibana: %v", err)
 	}
@@ -78,22 +88,26 @@ func main() {
 		flag.Usage()
 		log.Fatalf("Please specify a dashboard ID (-dashboard) or a manifest file (-yml)")
 	}
+	if len(*folderOutput) == 0 {
+		log.Fatalf("Please specify a target folder using -folder flag")
+	}
 
 	if len(*ymlFile) > 0 {
 		err = exportDashboardsFromYML(client, *ymlFile)
 		if err != nil {
 			log.Fatalf("Failed to export dashboards from YML file: %v", err)
 		}
+		log.Println("Done exporting dashboards from", *ymlFile)
 		return
 	}
 
 	if len(*dashboard) > 0 {
-		err = exportSingleDashboard(client, *dashboard, *fileOutput)
+		err = exportSingleDashboard(client, *dashboard, *folderOutput)
 		if err != nil {
 			log.Fatalf("Failed to export the dashboard: %v", err)
 		}
 		if !quiet {
-			log.Printf("The dashboard %s was exported under '%s'\n", *dashboard, *fileOutput)
+			log.Printf("The dashboard %s was exported to '%s'\n", *dashboard, *folderOutput)
 		}
 		return
 	}
@@ -115,15 +129,11 @@ func exportDashboardsFromYML(client *kibana.Client, ymlFile string) error {
 	return nil
 }
 
-func exportSingleDashboard(client *kibana.Client, dashboard, output string) error {
+func exportSingleDashboard(client *kibana.Client, dashboard, folder string) error {
 	result, err := dashboards.Export(client, dashboard)
 	if err != nil {
 		return fmt.Errorf("failed to export the dashboard: %+v", err)
 	}
 	result = dashboards.DecodeExported(result)
-	err = ioutil.WriteFile(output, []byte(result.StringToPrint()), dashboards.OutputPermission)
-	if err != nil {
-		return fmt.Errorf("failed to save the dashboards: %+v", err)
-	}
-	return nil
+	return dashboards.SaveToFolder(result, folder, client.GetVersion())
 }

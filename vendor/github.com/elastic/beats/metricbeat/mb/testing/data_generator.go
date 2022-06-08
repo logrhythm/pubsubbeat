@@ -19,7 +19,6 @@ package testing
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -27,65 +26,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/metricbeat/mb"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/testing/flags"
 )
-
-var (
-	// Use `go test -data` to update files.
-	dataFlag = flag.Bool("data", false, "Write updated data.json files")
-)
-
-// WriteEvent fetches a single event writes the output to a ./_meta/data.json
-// file.
-func WriteEvent(f mb.EventFetcher, t testing.TB) error {
-	if !*dataFlag {
-		t.Skip("skip data generation tests")
-	}
-
-	event, err := f.Fetch()
-	if err != nil {
-		return err
-	}
-
-	fullEvent := CreateFullEvent(f, event)
-	WriteEventToDataJSON(t, fullEvent, ".")
-	return nil
-}
-
-// WriteEvents fetches events and writes the first event to a ./_meta/data.json
-// file.
-func WriteEvents(f mb.EventsFetcher, t testing.TB) error {
-	return WriteEventsCond(f, t, nil)
-
-}
-
-// WriteEventsCond fetches events and writes the first event that matches the condition
-// to a ./_meta/data.json file.
-func WriteEventsCond(f mb.EventsFetcher, t testing.TB, cond func(e common.MapStr) bool) error {
-	if !*dataFlag {
-		t.Skip("skip data generation tests")
-	}
-
-	events, err := f.Fetch()
-	if err != nil {
-		return err
-	}
-
-	if len(events) == 0 {
-		return fmt.Errorf("no events were generated")
-	}
-
-	event, err := SelectEvent(events, cond)
-	if err != nil {
-		return err
-	}
-
-	fullEvent := CreateFullEvent(f, event)
-	WriteEventToDataJSON(t, fullEvent, "")
-	return nil
-}
 
 // WriteEventsReporterV2 fetches events and writes the first event to a ./_meta/data.json
 // file.
@@ -99,10 +44,16 @@ func WriteEventsReporterV2Error(f mb.ReportingMetricSetV2Error, t testing.TB, pa
 	return WriteEventsReporterV2ErrorCond(f, t, path, nil)
 }
 
+// WriteEventsReporterV2WithContext fetches events and writes the first event to a ./_meta/data.json
+// file.
+func WriteEventsReporterV2WithContext(f mb.ReportingMetricSetV2WithContext, t testing.TB, path string) error {
+	return WriteEventsReporterV2WithContextCond(f, t, path, nil)
+}
+
 // WriteEventsReporterV2Cond fetches events and writes the first event that matches
 // the condition to a file.
 func WriteEventsReporterV2Cond(f mb.ReportingMetricSetV2, t testing.TB, path string, cond func(common.MapStr) bool) error {
-	if !*dataFlag {
+	if !*flags.DataFlag {
 		t.Skip("skip data generation tests")
 	}
 
@@ -117,11 +68,26 @@ func WriteEventsReporterV2Cond(f mb.ReportingMetricSetV2, t testing.TB, path str
 // WriteEventsReporterV2ErrorCond fetches events and writes the first event that matches
 // the condition to a file.
 func WriteEventsReporterV2ErrorCond(f mb.ReportingMetricSetV2Error, t testing.TB, path string, cond func(common.MapStr) bool) error {
-	if !*dataFlag {
+	if !*flags.DataFlag {
 		t.Skip("skip data generation tests")
 	}
 
 	events, errs := ReportingFetchV2Error(f)
+	if len(errs) > 0 {
+		return errs[0]
+	}
+
+	return writeEvent(events, f, t, path, cond)
+}
+
+// WriteEventsReporterV2WithContextCond fetches events and writes the first event that matches
+// the condition to a file.
+func WriteEventsReporterV2WithContextCond(f mb.ReportingMetricSetV2WithContext, t testing.TB, path string, cond func(common.MapStr) bool) error {
+	if !*flags.DataFlag {
+		t.Skip("skip data generation tests")
+	}
+
+	events, errs := ReportingFetchV2WithContext(f)
 	if len(errs) > 0 {
 		return errs[0]
 	}
@@ -168,11 +134,25 @@ func StandardizeEvent(ms mb.MetricSet, e mb.Event, modifiers ...mb.EventModifier
 	e.Timestamp = startTime
 	e.Took = 115 * time.Microsecond
 	e.Host = ms.Host()
+	e.Period = 10 * time.Second
 	if e.Namespace == "" {
 		e.Namespace = ms.Registration().Namespace
 	}
 
 	fullEvent := e.BeatEvent(ms.Module().Name(), ms.Name(), modifiers...)
+
+	// Run processors if defined for the metricset, it can happen for light metricsets
+	// with processors in the manifest.
+	processors, err := mb.Registry.ProcessorsForMetricSet(ms.Module().Name(), ms.Name())
+	if err == nil && processors != nil {
+		enriched, err := processors.Run(&fullEvent)
+		if err != nil {
+			panic(err)
+		}
+		if enriched != nil {
+			fullEvent = *enriched
+		}
+	}
 
 	return fullEvent
 }
@@ -181,7 +161,7 @@ func StandardizeEvent(ms mb.MetricSet, e mb.Event, modifiers ...mb.EventModifier
 // a ./_meta/data.json file. If the -data CLI flag is unset or false then the
 // method is a no-op.
 func WriteEventToDataJSON(t testing.TB, fullEvent beat.Event, postfixPath string) {
-	if !*dataFlag {
+	if !*flags.DataFlag {
 		return
 	}
 

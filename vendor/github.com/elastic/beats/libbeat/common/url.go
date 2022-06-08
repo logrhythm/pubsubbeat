@@ -46,7 +46,10 @@ func MakeURL(defaultScheme string, defaultPath string, rawURL string, defaultPor
 
 	scheme := addr.Scheme
 	host := addr.Host
-	port := strconv.Itoa(defaultPort)
+	port := ""
+	if defaultPort > 0 {
+		port = strconv.Itoa(defaultPort)
+	}
 
 	if host == "" {
 		host = "localhost"
@@ -71,7 +74,10 @@ func MakeURL(defaultScheme string, defaultPath string, rawURL string, defaultPor
 
 	// reconstruct url
 	addr.Scheme = scheme
-	addr.Host = host + ":" + port
+	addr.Host = host
+	if port != "" {
+		addr.Host += ":" + port
+	}
 
 	return addr.String(), nil
 }
@@ -82,4 +88,34 @@ func EncodeURLParams(url string, params url.Values) string {
 	}
 
 	return strings.Join([]string{url, "?", params.Encode()}, "")
+}
+
+type ParseHint func(raw string) string
+
+// ParseURL tries to parse a URL and return the parsed result.
+func ParseURL(raw string, hints ...ParseHint) (*url.URL, error) {
+	if raw == "" {
+		return nil, nil
+	}
+
+	if len(hints) == 0 {
+		hints = append(hints, WithDefaultScheme("http"))
+	}
+
+	if strings.Index(raw, "://") == -1 {
+		for _, hint := range hints {
+			raw = hint(raw)
+		}
+	}
+
+	return url.Parse(raw)
+}
+
+func WithDefaultScheme(scheme string) ParseHint {
+	return func(raw string) string {
+		if !strings.Contains(raw, "://") {
+			return scheme + "://" + raw
+		}
+		return raw
+	}
 }

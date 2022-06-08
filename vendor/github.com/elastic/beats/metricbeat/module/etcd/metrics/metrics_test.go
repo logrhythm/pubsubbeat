@@ -15,14 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// +build !integration
+// skipping tests on windows 32 bit versions, not supported
+//go:build !integration && !windows && !386
+// +build !integration,!windows,!386
 
 package metrics
 
 import (
 	"testing"
 
-	"github.com/elastic/beats/metricbeat/helper/prometheus/ptest"
+	"github.com/elastic/beats/v7/metricbeat/helper/prometheus/ptest"
+
+	mbtest "github.com/elastic/beats/v7/metricbeat/mb/testing"
+	_ "github.com/elastic/beats/v7/metricbeat/module/etcd"
 )
 
 const testFile = "_meta/test/metrics"
@@ -36,4 +41,8 @@ func TestEventMapping(t *testing.T) {
 			},
 		},
 	)
+}
+
+func TestData(t *testing.T) {
+	mbtest.TestDataFiles(t, "etcd", "metrics")
 }

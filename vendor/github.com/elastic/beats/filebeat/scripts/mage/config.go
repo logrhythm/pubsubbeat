@@ -18,54 +18,37 @@
 package mage
 
 import (
-	"github.com/elastic/beats/dev-tools/mage"
+	"github.com/magefile/mage/mg"
+
+	devtools "github.com/elastic/beats/v7/dev-tools/mage"
 )
 
-const modulesConfigYml = "build/config.modules.yml"
+const modulesConfigYml = "build/config.modules.yml.tmpl"
 
-func configFileParams(moduleDirs ...string) mage.ConfigFileParams {
+func configFileParams(moduleDirs ...string) devtools.ConfigFileParams {
 	collectModuleConfig := func() error {
-		return mage.GenerateModuleReferenceConfig(modulesConfigYml, moduleDirs...)
+		return devtools.GenerateModuleReferenceConfig(modulesConfigYml, moduleDirs...)
 	}
+	mg.Deps(collectModuleConfig)
 
-	return mage.ConfigFileParams{
-		ShortParts: []string{
-			mage.OSSBeatDir("_meta/common.p1.yml"),
-			mage.OSSBeatDir("_meta/common.p2.yml"),
-			mage.LibbeatDir("_meta/config.yml"),
-		},
-		ReferenceDeps: []interface{}{collectModuleConfig},
-		ReferenceParts: []string{
-			mage.OSSBeatDir("_meta/common.reference.p1.yml"),
-			modulesConfigYml,
-			mage.OSSBeatDir("_meta/common.reference.inputs.yml"),
-			mage.OSSBeatDir("_meta/common.reference.p2.yml"),
-			mage.LibbeatDir("_meta/config.reference.yml"),
-		},
-		DockerParts: []string{
-			mage.OSSBeatDir("_meta/beat.docker.yml"),
-			mage.LibbeatDir("_meta/config.docker.yml"),
-		},
+	p := devtools.DefaultConfigFileParams()
+	p.Templates = append(p.Templates, devtools.OSSBeatDir("_meta/config/*.tmpl"), modulesConfigYml)
+	p.ExtraVars = map[string]interface{}{
+		"UseKubernetesMetadataProcessor": true,
 	}
+	return p
 }
 
 // OSSConfigFileParams returns the default ConfigFileParams for generating
 // filebeat*.yml files.
-func OSSConfigFileParams(moduleDirs ...string) mage.ConfigFileParams {
-	return configFileParams(mage.OSSBeatDir("module"))
+func OSSConfigFileParams(moduleDirs ...string) devtools.ConfigFileParams {
+	return configFileParams(devtools.OSSBeatDir("module"))
 }
 
 // XPackConfigFileParams returns the default ConfigFileParams for generating
 // filebeat*.yml files.
-func XPackConfigFileParams() mage.ConfigFileParams {
-	args := configFileParams(mage.OSSBeatDir("module"), "module")
-	args.ReferenceParts = []string{
-		mage.OSSBeatDir("_meta/common.reference.p1.yml"),
-		modulesConfigYml,
-		mage.OSSBeatDir("_meta/common.reference.inputs.yml"),
-		"_meta/common.reference.inputs.yml", // Added only to X-Pack.
-		mage.OSSBeatDir("_meta/common.reference.p2.yml"),
-		mage.LibbeatDir("_meta/config.reference.yml"),
-	}
+func XPackConfigFileParams() devtools.ConfigFileParams {
+	args := configFileParams(devtools.OSSBeatDir("module"), "module")
+	args.Templates = append(args.Templates, "_meta/config/*.tmpl")
 	return args
 }

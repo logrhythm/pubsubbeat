@@ -20,7 +20,7 @@
 package kafka
 
 import (
-	"github.com/elastic/beats/libbeat/asset"
+	"github.com/elastic/beats/v7/libbeat/asset"
 )
 
 func init() {
@@ -30,7 +30,7 @@ func init() {
 }
 
 // AssetKafka returns asset data.
-// This is the base64 encoded gzipped contents of module/kafka.
+// This is the base64 encoded zlib format compressed contents of module/kafka.
 func AssetKafka() string {
-	return "eJykkjtuwzAQRHudYuDeOoCKNOkSpMsFFtZKJsQfyLUT3z6gGP8Y2paR7cQRZ55Gu8bEhw4TDRM1gCjR3GH1np5XDdBz3ATlRTnb4aUBgFmDcf1OcwMMinUfu1law5Lhs10aOXjuMAa3878nFc9rm0sr7cbTWc3spmGeDKvdCK0sx/ZCLBOvUnnP+ko5ZpNWFAvFk2xn0rZ2z6gxUGaTsONqnuEYaeQnE+u3buVVgzfOeGfZSjV64sOXC32h3ak7zevRErLluXoVU46yI4bgTFsH0RTLr/wHxBvtKXs+RSGBNvW/UO7cAgbgM9lB2RNDWsK2eLG2h4+aedTOIro/LUnGvdMTHu7smUz4u9yqhVjAR/aGpyBww5mubX4CAAD//40BKYM="
+	return "eJyskkFugzAQRfec4iv7cAAW3XTXqrtcYAQDsTAeZE/acvvK0ATi0oSo9Q5/9P7TePZoeSjQUt1SBqhRywV2r/F7lwEVh9KbXo24Ak8ZAIwZOqlOljOgNmyrUIzRHo46nnHx6NBzgcbLqf++WWFeY5YoK83lbg32K3A6k6yVBtY4DvkiTBuXraV0vTh2epWe+1sePsRXSXbDIp7nMxJ65NHIhNhjXIPaS5evi1gK4f8kXuidJuZDFnr0TGnVHzQOI2+EP+bhqeRVjXQlNkgAh4iDcReHuCN58uPamuDOC90bzya7H6+lk+6NOS29Og6BmnRas5nyZ7rdG7WAt4mNnrxC6tkuz74CAAD//xD+FUk="
 }

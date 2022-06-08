@@ -15,7 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// +build !windows
+//go:build !aix && !windows
+// +build !aix,!windows
 
 package file
 

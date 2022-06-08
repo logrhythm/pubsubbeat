@@ -43,6 +43,7 @@ import (
 	"path/filepath"
 )
 
+// Path tracks user-configurable path locations and directories
 type Path struct {
 	Home   string
 	Config string
@@ -55,10 +56,14 @@ type Path struct {
 type FileType string
 
 const (
-	Home   FileType = "home"
+	// Home is the "root" directory for the running beats instance
+	Home FileType = "home"
+	// Config is the path to the beat config
 	Config FileType = "config"
-	Data   FileType = "data"
-	Logs   FileType = "logs"
+	// Data is the path to the beat data directory
+	Data FileType = "data"
+	// Logs is the path to the beats logs directory
+	Logs FileType = "logs"
 )
 
 // Paths is the Path singleton on which the top level functions from this
@@ -80,9 +85,9 @@ func (paths *Path) InitPaths(cfg *Path) error {
 	}
 
 	// make sure the data path exists
-	err = os.MkdirAll(paths.Data, 0750)
+	err = os.MkdirAll(paths.Data, 0770)
 	if err != nil {
-		return fmt.Errorf("Failed to create data path %s: %v", paths.Data, err)
+		return fmt.Errorf("failed to create data path %s: %w", paths.Data, err)
 	}
 
 	return nil
@@ -122,7 +127,7 @@ func (paths *Path) initPaths(cfg *Path) error {
 // folders. For example, Resolve(Home, "test") returns an absolute
 // path for "test" in the home path.
 func (paths *Path) Resolve(fileType FileType, path string) string {
-	// absolute paths are not changed
+	// absolute paths are not changed for non-hostfs file types, since hostfs is a little odd
 	if filepath.IsAbs(path) {
 		return path
 	}

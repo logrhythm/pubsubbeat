@@ -24,8 +24,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/mapping"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/mapping"
 )
 
 var (
@@ -205,6 +205,8 @@ func TestTransformTypes(t *testing.T) {
 		{commonField: mapping.Field{Type: "string"}, expected: nil},
 		{commonField: mapping.Field{Type: "date"}, expected: "date"},
 		{commonField: mapping.Field{Type: "geo_point"}, expected: "geo_point"},
+		{commonField: mapping.Field{Type: "ip"}, expected: "ip"},
+		{commonField: mapping.Field{Type: "ip_range"}, expected: "ip_range"},
 		{commonField: mapping.Field{Type: "invalid"}, expected: nil},
 	}
 	for idx, test := range tests {

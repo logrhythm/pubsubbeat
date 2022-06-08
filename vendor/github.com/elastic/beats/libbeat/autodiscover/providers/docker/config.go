@@ -15,14 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build linux || darwin || windows
+// +build linux darwin windows
+
 package docker
 
 import (
 	"time"
 
-	"github.com/elastic/beats/libbeat/autodiscover/template"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/common/docker"
+	"github.com/elastic/beats/v7/libbeat/autodiscover/template"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common/docker"
 )
 
 // Config for docker autodiscover provider
@@ -30,21 +33,23 @@ type Config struct {
 	Host           string                  `config:"host"`
 	TLS            *docker.TLSConfig       `config:"ssl"`
 	Prefix         string                  `config:"prefix"`
-	HintsEnabled   bool                    `config:"hints.enabled"`
-	DefaultDisable bool                    `config:"default.disable"`
+	Hints          *common.Config          `config:"hints"`
 	Builders       []*common.Config        `config:"builders"`
 	Appenders      []*common.Config        `config:"appenders"`
 	Templates      template.MapperSettings `config:"templates"`
 	Dedot          bool                    `config:"labels.dedot"`
-	CleanupTimeout time.Duration           `config:"cleanup_timeout"`
+	CleanupTimeout time.Duration           `config:"cleanup_timeout" validate:"positive"`
 }
+
+// Public variable, so specific beats (as Filebeat) can set a different cleanup timeout if they need it.
+var DefaultCleanupTimeout time.Duration = 0
 
 func defaultConfig() *Config {
 	return &Config{
 		Host:           "unix:///var/run/docker.sock",
 		Prefix:         "co.elastic",
 		Dedot:          true,
-		CleanupTimeout: 60 * time.Second,
+		CleanupTimeout: DefaultCleanupTimeout,
 	}
 }
 

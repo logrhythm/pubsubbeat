@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from filebeat import BaseTest
 import os
@@ -22,14 +22,15 @@ class Test(BaseTest):
 
         proc = self.start_beat()
 
+        msg = "Harvester started"
         self.wait_until(
-            lambda: self.log_contains(
-                "Harvester started for file: -"),
-            max_timeout=10)
+            lambda: self.log_contains(msg),
+            max_timeout=10,
+            err_msg=f"did not find '{msg}' in the logs")
 
         iterations1 = 5
         for n in range(0, iterations1):
-            os.write(proc.stdin_write, "Hello World\n")
+            os.write(proc.stdin_write, b"Hello World\n")
 
         self.wait_until(
             lambda: self.output_has(lines=iterations1),
@@ -37,7 +38,7 @@ class Test(BaseTest):
 
         iterations2 = 10
         for n in range(0, iterations2):
-            os.write(proc.stdin_write, "Hello World\n")
+            os.write(proc.stdin_write, b"Hello World\n")
 
         self.wait_until(
             lambda: self.output_has(lines=iterations1 + iterations2),
@@ -64,13 +65,13 @@ class Test(BaseTest):
         args += ["-c", os.path.join(self.working_dir, "filebeat.yml"), "-e",
                  "-v", "-d", "*"]
         proc = Proc(args, os.path.join(self.working_dir, "filebeat.log"))
-        os.write(proc.stdin_write, "Hello World\n")
+        os.write(proc.stdin_write, b"Hello World\n")
 
         proc.start()
         self.wait_until(lambda: self.output_has(lines=1))
 
         # Continue writing after end was reached
-        os.write(proc.stdin_write, "Hello World2\n")
+        os.write(proc.stdin_write, b"Hello World2\n")
         os.close(proc.stdin_write)
 
         self.wait_until(lambda: self.output_has(lines=2))
@@ -102,4 +103,5 @@ class Test(BaseTest):
 
         filebeat = self.start_beat()
         filebeat.check_wait(exit_code=1)
-        assert self.log_contains("Exiting: stdin requires to be run in exclusive mode, configured inputs: stdin, udp")
+        msg = "Exiting: stdin requires to be run in exclusive mode, configured inputs: stdin, udp"
+        assert self.log_contains(msg), f"did not find '{msg}' in the logs"

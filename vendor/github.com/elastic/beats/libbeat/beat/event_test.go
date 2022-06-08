@@ -23,7 +23,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common"
 )
 
 func newEmptyEvent() *Event {
@@ -44,13 +44,175 @@ func TestEventPutGetTimestamp(t *testing.T) {
 	assert.Equal(t, ts, v)
 	assert.Equal(t, ts, evt.Timestamp)
 
-	// The @timestamp is also written into Fields.
-	assert.Equal(t, ts, evt.Fields["@timestamp"])
+	// The @timestamp is not written into Fields.
+	assert.Nil(t, evt.Fields["@timestamp"])
+}
+
+func TestDeepUpdate(t *testing.T) {
+	ts := time.Now()
+
+	cases := []struct {
+		name      string
+		event     *Event
+		update    common.MapStr
+		overwrite bool
+		expected  *Event
+	}{
+		{
+			name:     "does nothing if no update",
+			event:    &Event{},
+			update:   common.MapStr{},
+			expected: &Event{},
+		},
+		{
+			name:  "updates timestamp",
+			event: &Event{},
+			update: common.MapStr{
+				timestampFieldKey: ts,
+			},
+			overwrite: true,
+			expected: &Event{
+				Timestamp: ts,
+			},
+		},
+		{
+			name: "does not overwrite timestamp",
+			event: &Event{
+				Timestamp: ts,
+			},
+			update: common.MapStr{
+				timestampFieldKey: time.Now().Add(time.Hour),
+			},
+			overwrite: false,
+			expected: &Event{
+				Timestamp: ts,
+			},
+		},
+		{
+			name:  "initializes metadata if nil",
+			event: &Event{},
+			update: common.MapStr{
+				metadataFieldKey: common.MapStr{
+					"first":  "new",
+					"second": 42,
+				},
+			},
+			expected: &Event{
+				Meta: common.MapStr{
+					"first":  "new",
+					"second": 42,
+				},
+			},
+		},
+		{
+			name: "updates metadata but does not overwrite",
+			event: &Event{
+				Meta: common.MapStr{
+					"first": "initial",
+				},
+			},
+			update: common.MapStr{
+				metadataFieldKey: common.MapStr{
+					"first":  "new",
+					"second": 42,
+				},
+			},
+			overwrite: false,
+			expected: &Event{
+				Meta: common.MapStr{
+					"first":  "initial",
+					"second": 42,
+				},
+			},
+		},
+		{
+			name: "updates metadata and overwrites",
+			event: &Event{
+				Meta: common.MapStr{
+					"first": "initial",
+				},
+			},
+			update: common.MapStr{
+				metadataFieldKey: common.MapStr{
+					"first":  "new",
+					"second": 42,
+				},
+			},
+			overwrite: true,
+			expected: &Event{
+				Meta: common.MapStr{
+					"first":  "new",
+					"second": 42,
+				},
+			},
+		},
+		{
+			name: "updates fields but does not overwrite",
+			event: &Event{
+				Fields: common.MapStr{
+					"first": "initial",
+				},
+			},
+			update: common.MapStr{
+				"first":  "new",
+				"second": 42,
+			},
+			overwrite: false,
+			expected: &Event{
+				Fields: common.MapStr{
+					"first":  "initial",
+					"second": 42,
+				},
+			},
+		},
+		{
+			name: "updates metadata and overwrites",
+			event: &Event{
+				Fields: common.MapStr{
+					"first": "initial",
+				},
+			},
+			update: common.MapStr{
+				"first":  "new",
+				"second": 42,
+			},
+			overwrite: true,
+			expected: &Event{
+				Fields: common.MapStr{
+					"first":  "new",
+					"second": 42,
+				},
+			},
+		},
+		{
+			name:  "initializes fields if nil",
+			event: &Event{},
+			update: common.MapStr{
+				"first":  "new",
+				"second": 42,
+			},
+			expected: &Event{
+				Fields: common.MapStr{
+					"first":  "new",
+					"second": 42,
+				},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.event.deepUpdate(tc.update, tc.overwrite)
+			assert.Equal(t, tc.expected.Timestamp, tc.event.Timestamp)
+			assert.Equal(t, tc.expected.Fields, tc.event.Fields)
+			assert.Equal(t, tc.expected.Meta, tc.event.Meta)
+		})
+	}
 }
 
 func TestEventMetadata(t *testing.T) {
 	const id = "123"
-	newMeta := func() common.MapStr { return common.MapStr{"id": id} }
+	newMeta := func() common.MapStr { return common.MapStr{"_id": id} }
 
 	t.Run("put", func(t *testing.T) {
 		evt := newEmptyEvent()
@@ -75,7 +237,7 @@ func TestEventMetadata(t *testing.T) {
 	t.Run("put sub-key", func(t *testing.T) {
 		evt := newEmptyEvent()
 
-		evt.PutValue("@metadata.id", id)
+		evt.PutValue("@metadata._id", id)
 
 		assert.Equal(t, newMeta(), evt.Meta)
 		assert.Empty(t, evt.Fields)
@@ -85,7 +247,7 @@ func TestEventMetadata(t *testing.T) {
 		evt := newEmptyEvent()
 		evt.Meta = newMeta()
 
-		v, err := evt.GetValue("@metadata.id")
+		v, err := evt.GetValue("@metadata._id")
 
 		assert.NoError(t, err)
 		assert.Equal(t, id, v)
@@ -105,7 +267,7 @@ func TestEventMetadata(t *testing.T) {
 		evt := newEmptyEvent()
 		evt.Meta = newMeta()
 
-		err := evt.Delete("@metadata.id")
+		err := evt.Delete("@metadata._id")
 
 		assert.NoError(t, err)
 		assert.Empty(t, evt.Meta)

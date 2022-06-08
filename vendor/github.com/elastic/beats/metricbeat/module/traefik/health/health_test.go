@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package health
@@ -28,8 +29,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/common"
-	mbtest "github.com/elastic/beats/metricbeat/mb/testing"
+	"github.com/elastic/beats/v7/libbeat/common"
+	mbtest "github.com/elastic/beats/v7/metricbeat/mb/testing"
+
+	_ "github.com/elastic/beats/v7/metricbeat/module/traefik"
 )
 
 func TestFetchEventContents(t *testing.T) {
@@ -71,4 +74,8 @@ func TestFetchEventContents(t *testing.T) {
 	statusCodes := response["status_codes"].(common.MapStr)
 	assert.EqualValues(t, 17, statusCodes["200"])
 	assert.EqualValues(t, 1, statusCodes["404"])
+}
+
+func TestData(t *testing.T) {
+	mbtest.TestDataFiles(t, "traefik", "health")
 }

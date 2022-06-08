@@ -19,6 +19,7 @@ package mage
 
 import (
 	"fmt"
+	"go/build"
 	"log"
 	"os"
 	"path/filepath"
@@ -31,7 +32,8 @@ import (
 	"github.com/magefile/mage/sh"
 	"github.com/pkg/errors"
 
-	"github.com/elastic/beats/libbeat/common/file"
+	"github.com/elastic/beats/v7/dev-tools/mage/gotool"
+	"github.com/elastic/beats/v7/libbeat/common/file"
 )
 
 const defaultCrossBuildTarget = "golangCrossBuild"
@@ -41,14 +43,30 @@ const defaultCrossBuildTarget = "golangCrossBuild"
 // See NewPlatformList for details about platform filtering expressions.
 var Platforms = BuildPlatforms.Defaults()
 
+// SelectedPackageTypes is the list of package types. If empty, all packages types
+// are considered to be selected (see isPackageTypeSelected).
+var SelectedPackageTypes []PackageType
+
 func init() {
 	// Allow overriding via PLATFORMS.
 	if expression := os.Getenv("PLATFORMS"); len(expression) > 0 {
 		Platforms = NewPlatformList(expression)
 	}
+
+	// Allow overriding via PACKAGES.
+	if packageTypes := os.Getenv("PACKAGES"); len(packageTypes) > 0 {
+		for _, pkgtype := range strings.Split(packageTypes, ",") {
+			var p PackageType
+			err := p.UnmarshalText([]byte(pkgtype))
+			if err != nil {
+				continue
+			}
+			SelectedPackageTypes = append(SelectedPackageTypes, p)
+		}
+	}
 }
 
-// CrossBuildOption defines a option to the CrossBuild target.
+// CrossBuildOption defines an option to the CrossBuild target.
 type CrossBuildOption func(params *crossBuildParams)
 
 // ImageSelectorFunc returns the name of the builder image.
@@ -112,14 +130,9 @@ type crossBuildParams struct {
 
 // CrossBuild executes a given build target once for each target platform.
 func CrossBuild(options ...CrossBuildOption) error {
-	params := crossBuildParams{Platforms: Platforms, Target: defaultCrossBuildTarget, ImageSelector: crossBuildImage}
+	params := crossBuildParams{Platforms: Platforms, Target: defaultCrossBuildTarget, ImageSelector: CrossBuildImage}
 	for _, opt := range options {
 		opt(&params)
-	}
-
-	// Docker is required for this target.
-	if err := HaveDocker(); err != nil {
-		return err
 	}
 
 	if len(params.Platforms) == 0 {
@@ -127,7 +140,39 @@ func CrossBuild(options ...CrossBuildOption) error {
 		return nil
 	}
 
-	// Build the magefile for Linux so we can run it inside the container.
+	// AIX can't really be crossbuilt, due to cgo and various compiler shortcomings.
+	// If we have a singular AIX platform set, revert to a native build toolchain
+	if runtime.GOOS == "aix" {
+		for _, platform := range params.Platforms {
+			if platform.GOOS() == "aix" {
+				if len(params.Platforms) != 1 {
+					return errors.New("AIX cannot be crossbuilt with other platforms. Set PLATFORMS='aix/ppc64'")
+				} else {
+					// This is basically a short-out so we can attempt to build on AIX in a relatively generic way
+					log.Printf("Target is building for AIX, skipping normal crossbuild process")
+					args := DefaultBuildArgs()
+					args.OutputDir = filepath.Join("build", "golang-crossbuild")
+					args.Name += "-" + Platform.GOOS + "-" + Platform.Arch
+					return Build(args)
+				}
+			}
+		}
+		// If we're here, something isn't set.
+		return errors.New("Cannot crossbuild on AIX. Either run `mage build` or set PLATFORMS='aix/ppc64'")
+	}
+
+	// Docker is required for this target.
+	if err := HaveDocker(); err != nil {
+		return err
+	}
+
+	if CrossBuildMountModcache {
+		// Make sure the module dependencies are downloaded on the host,
+		// as they will be mounted into the container read-only.
+		mg.Deps(func() error { return gotool.Mod.Download() })
+	}
+
+	// Build the magefile for Linux, so we can run it inside the container.
 	mg.Deps(buildMage)
 
 	log.Println("crossBuild: Platform list =", params.Platforms)
@@ -139,7 +184,7 @@ func CrossBuild(options ...CrossBuildOption) error {
 		builder := GolangCrossBuilder{buildPlatform.Name, params.Target, params.InDir, params.ImageSelector}
 		if params.Serial {
 			if err := builder.Build(); err != nil {
-				return errors.Wrapf(err, "failed cross-building target=%v for platform=%v %v", params.ImageSelector,
+				return errors.Wrapf(err, "failed cross-building target=%s for platform=%s",
 					params.Target, buildPlatform.Name)
 			}
 		} else {
@@ -149,7 +194,47 @@ func CrossBuild(options ...CrossBuildOption) error {
 
 	// Each build runs in parallel.
 	Parallel(deps...)
+
+	// // It needs to run after all the builds, as it needs the darwin binaries.
+	// if err := assembleDarwinUniversal(params); err != nil {
+	// 	return err
+	// }
+
 	return nil
+}
+
+// assembleDarwinUniversal checks if darwin/amd64 and darwin/arm64 were build,
+// if so, it generates a darwin/universal binary that is the merge fo them two.
+func assembleDarwinUniversal(params crossBuildParams) error {
+	if !IsDarwinUniversal() {
+		return nil // nothing to do
+	}
+
+	fmt.Println("-----------------------------------------")
+	fmt.Println(">> assembleDarwinUniversal DEBUG")
+	out, err := sh.Output("pwd")
+	fmt.Println(">> assembleDarwinUniversal on:", out, err)
+	fmt.Println("-----------------------------------------")
+	out, err = sh.Output("ls", "build")
+	fmt.Println(">> assembleDarwinUniversal:", "ls", "build:", out, err)
+	fmt.Println("-----------------------------------------")
+	out, err = sh.Output("ls", "build/golang-crossbuild")
+	fmt.Println(">> assembleDarwinUniversal debug:", out, err)
+	fmt.Println("-----------------------------------------")
+	fmt.Println(">> assembleDarwinUniversal DEBUG END")
+	fmt.Println("-----------------------------------------")
+
+	builder := GolangCrossBuilder{
+		// the docker image for darwin/arm64 is the one capable of merging the binaries.
+		Platform:      "darwin/arm64",
+		Target:        "assembleDarwinUniversal",
+		InDir:         params.InDir,
+		ImageSelector: params.ImageSelector}
+	return errors.Wrapf(builder.Build(),
+		"failed merging darwin/amd64 and darwin/arm64 into darwin/universal target=%v for platform=%v",
+		builder.Target,
+		builder.Platform)
+
 }
 
 // CrossBuildXPack executes the 'golangCrossBuild' target in the Beat's
@@ -161,32 +246,47 @@ func CrossBuildXPack(options ...CrossBuildOption) error {
 	return CrossBuild(o...)
 }
 
-// buildMage pre-compiles the magefile to a binary using the native GOOS/GOARCH
-// values for Docker. It has the benefit of speeding up the build because the
+// buildMage pre-compiles the magefile to a binary using the GOARCH parameter.
+// It has the benefit of speeding up the build because the
 // mage -compile is done only once rather than in each Docker container.
 func buildMage() error {
-	return sh.Run("mage", "-f", "-goos=linux", "-goarch=amd64",
-		"-compile", CreateDir(filepath.Join("build", "mage-linux-amd64")))
+	arch := runtime.GOARCH
+	return sh.RunWith(map[string]string{"CGO_ENABLED": "0"}, "mage", "-f", "-goos=linux", "-goarch="+arch,
+		"-compile", CreateDir(filepath.Join("build", "mage-linux-"+arch)))
 }
 
-func crossBuildImage(platform string) (string, error) {
+func CrossBuildImage(platform string) (string, error) {
 	tagSuffix := "main"
 
 	switch {
-	case strings.HasPrefix(platform, "darwin"):
-		tagSuffix = "darwin"
-	case strings.HasPrefix(platform, "linux/arm"):
+	case platform == "darwin/amd64":
+		tagSuffix = "darwin-debian10"
+	case platform == "darwin/arm64":
+		tagSuffix = "darwin-arm64-debian10"
+	case platform == "darwin/universal":
+		tagSuffix = "darwin-arm64-debian10"
+	case platform == "linux/arm64":
 		tagSuffix = "arm"
+		// when it runs on a ARM64 host/worker.
+		if runtime.GOARCH == "arm64" {
+			tagSuffix = "base-arm-debian9"
+		}
+	case platform == "linux/armv5":
+		tagSuffix = "armel"
+	case platform == "linux/armv6":
+		tagSuffix = "armel"
+	case platform == "linux/armv7":
+		tagSuffix = "armhf"
 	case strings.HasPrefix(platform, "linux/mips"):
-		tagSuffix = "mips"
+		tagSuffix = "mips-debian10"
 	case strings.HasPrefix(platform, "linux/ppc"):
-		tagSuffix = "ppc"
+		tagSuffix = "ppc-debian10"
 	case platform == "linux/s390x":
-		tagSuffix = "s390x"
+		tagSuffix = "s390x-debian10"
 	case strings.HasPrefix(platform, "linux"):
 		// Use an older version of libc to gain greater OS compatibility.
-		// Debian 7 uses glibc 2.13.
-		tagSuffix = "main-debian7"
+		// Debian 8 uses glibc 2.19.
+		tagSuffix = "main-debian8"
 	}
 
 	goVersion, err := GoVersion()
@@ -215,7 +315,7 @@ func (b GolangCrossBuilder) Build() error {
 		return errors.Wrap(err, "failed to determine repo root and package sub dir")
 	}
 
-	mountPoint := filepath.ToSlash(filepath.Join("/go", "src", repoInfo.RootImportPath))
+	mountPoint := filepath.ToSlash(filepath.Join("/go", "src", repoInfo.CanonicalRootImportPath))
 	// use custom dir for build if given, subdir if not:
 	cwd := repoInfo.SubDir
 	if b.InDir != "" {
@@ -223,9 +323,10 @@ func (b GolangCrossBuilder) Build() error {
 	}
 	workDir := filepath.ToSlash(filepath.Join(mountPoint, cwd))
 
-	buildCmd, err := filepath.Rel(workDir, filepath.Join(mountPoint, repoInfo.SubDir, "build/mage-linux-amd64"))
+	builderArch := runtime.GOARCH
+	buildCmd, err := filepath.Rel(workDir, filepath.Join(mountPoint, repoInfo.SubDir, "build/mage-linux-"+builderArch))
 	if err != nil {
-		return errors.Wrap(err, "failed to determine mage-linux-amd64 relative path")
+		return errors.Wrap(err, "failed to determine mage-linux-"+builderArch+" relative path")
 	}
 
 	dockerRun := sh.RunCmd("docker", "run")
@@ -247,15 +348,27 @@ func (b GolangCrossBuilder) Build() error {
 	if versionQualified {
 		args = append(args, "--env", "VERSION_QUALIFIER="+versionQualifier)
 	}
+	if CrossBuildMountModcache {
+		// Mount $GOPATH/pkg/mod into the container, read-only.
+		hostDir := filepath.Join(build.Default.GOPATH, "pkg", "mod")
+		args = append(args, "-v", hostDir+":/go/pkg/mod:ro")
+	}
+
 	args = append(args,
 		"--rm",
+		"--env", "GOFLAGS=-mod=readonly",
 		"--env", "MAGEFILE_VERBOSE="+verbose,
 		"--env", "MAGEFILE_TIMEOUT="+EnvOr("MAGEFILE_TIMEOUT", ""),
+		"--env", fmt.Sprintf("SNAPSHOT=%v", Snapshot),
+		"--env", fmt.Sprintf("DEV=%v", DevBuild),
 		"-v", repoInfo.RootDir+":"+mountPoint,
 		"-w", workDir,
 		image,
+
+		// Arguments for docker crossbuild entrypoint. For details see
+		// https://github.com/elastic/golang-crossbuild/blob/main/go1.17/base/rootfs/entrypoint.go.
 		"--build-cmd", buildCmd+" "+b.Target,
-		"-p", b.Platform,
+		"--platforms", b.Platform,
 	)
 
 	return dockerRun(args...)
@@ -278,7 +391,10 @@ func DockerChown(path string) {
 // chownPaths will chown the file and all of the dirs specified in the path.
 func chownPaths(uid, gid int, path string) error {
 	start := time.Now()
-	defer log.Printf("chown took: %v", time.Now().Sub(start))
+	numFixed := 0
+	defer func() {
+		log.Printf("chown took: %v, changed %d files", time.Now().Sub(start), numFixed)
+	}()
 
 	return filepath.Walk(path, func(name string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -297,10 +413,10 @@ func chownPaths(uid, gid int, path string) error {
 			return nil
 		}
 
-		log.Printf("chown file: %v", name)
 		if err := os.Chown(name, uid, gid); err != nil {
 			return errors.Wrapf(err, "failed to chown path=%v", name)
 		}
+		numFixed++
 		return nil
 	})
 }

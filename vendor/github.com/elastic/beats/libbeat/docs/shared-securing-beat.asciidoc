@@ -1,46 +1,78 @@
 [id="securing-{beatname_lc}"]
-= Securing {beatname_uc}
+= Secure {beatname_uc}
 
 [partintro]
 
 --
+++++
+<titleabbrev>Secure</titleabbrev>
+++++
+
 The following topics provide information about securing the {beatname_uc}
-process and securing communication between {beatname_uc} and other products in
-the Elastic stack:
+process and connecting to a cluster that has {security-features} enabled.
+
+You can use role-based access control and optionally, API keys to grant {beatname_uc} users access to
+secured resources.
+
+* <<feature-roles>>
+* <<beats-api-keys>>.
+
+After privileged users have been created, use authentication to connect to a secured Elastic cluster.
 
 * <<securing-communication-elasticsearch>>
-ifndef::only-elasticsearch[]
+ifndef::no-output-logstash[]
 * <<configuring-ssl-logstash>>
-endif::only-elasticsearch[]
-* <<securing-beats>>
-ifndef::only-elasticsearch[]
-* <<linux-seccomp>>
-endif::only-elasticsearch[]
+endif::[]
 
+ifdef::apm-server[]
+For secure communication between APM Server and APM Agents, see <<secure-communication-agents>>.
+endif::[]
+
+ifndef::serverless[]
+ifndef::win_only[]
+On Linux, {beatname_uc} can take advantage of secure computing mode to restrict the
+system calls that a process can issue.
+
+* <<linux-seccomp>>
+endif::[]
+endif::[]
+
+// APM HTTPS information
 ifdef::beat-specific-security[]
 include::{beat-specific-security}[]
 endif::[]
 
-//sets block macro for https.asciidoc included in next section
-
 --
 
-[[securing-communication-elasticsearch]]
-== Secure communication with Elasticsearch
+// APM privileges
+ifdef::apm-server[]
+include::{docdir}/feature-roles.asciidoc[]
+endif::[]
 
+// Beat privileges
+ifndef::apm-server[]
+include::./security/users.asciidoc[]
+endif::[]
+
+// API Keys
+include::./security/api-keys.asciidoc[]
+
+// APM Agent security
+ifdef::apm-server[]
+include::{docdir}/secure-communication-agents.asciidoc[]
+endif::[]
+
+// Elasticsearch security
 include::./https.asciidoc[]
 
-//sets block macro for shared-ssl-logstash-config.asciidoc included in next section
-
-ifndef::only-elasticsearch[]
-[[configuring-ssl-logstash]]
-== Secure communication with Logstash by using SSL
-
+// Logstash security
+ifndef::no-output-logstash[]
 include::./shared-ssl-logstash-config.asciidoc[]
-endif::only-elasticsearch[]
+endif::[]
 
-include::./security/securing-beats.asciidoc[]
-
-ifndef::only-elasticsearch[]
+// Linux Seccomp
+ifndef::serverless[]
+ifndef::win_only[]
 include::./security/linux-seccomp.asciidoc[]
-endif::only-elasticsearch[]
+endif::[]
+endif::[]

@@ -22,7 +22,7 @@ import (
 
 	"github.com/Shopify/sarama"
 
-	"github.com/elastic/beats/libbeat/publisher"
+	"github.com/elastic/beats/v7/libbeat/publisher"
 )
 
 type message struct {
@@ -49,5 +49,9 @@ func (m *message) initProducerMessage() {
 		Key:       sarama.ByteEncoder(m.key),
 		Value:     sarama.ByteEncoder(m.value),
 		Timestamp: m.ts,
+	}
+
+	if m.ref != nil {
+		m.msg.Headers = m.ref.client.recordHeaders
 	}
 }

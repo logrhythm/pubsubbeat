@@ -19,13 +19,12 @@ package procs
 
 import (
 	"net"
-	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/packetbeat/protos/applayer"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/packetbeat/protos/applayer"
 	"github.com/elastic/go-sysinfo"
 )
 
@@ -60,7 +59,7 @@ type process struct {
 	expiration time.Time
 }
 
-// Allow the OS-dependant implementation to be replaced by a mock for testing
+// Allow the OS-dependent implementation to be replaced by a mock for testing
 type processWatcherImpl interface {
 	// GetLocalPortToPIDMapping returns the list of local port numbers and the PID
 	// that owns them.
@@ -82,8 +81,6 @@ type ProcessesWatcher struct {
 
 	impl processWatcherImpl
 }
-
-var ProcWatcher ProcessesWatcher
 
 func (proc *ProcessesWatcher) Init(config ProcsConfig) error {
 	return proc.initWithImpl(config, proc)
@@ -132,42 +129,33 @@ func (proc *ProcessesWatcher) FindProcessesTupleUDP(tuple *common.IPPortTuple) (
 
 // FindProcessesTuple looks up local process information for the source and
 // destination addresses of a tuple for the given transport protocol
-func (proc *ProcessesWatcher) FindProcessesTuple(tuple *common.IPPortTuple, transport applayer.Transport) (procTuple *common.ProcessTuple) {
-	procTuple = &common.ProcessTuple{}
-
+func (proc *ProcessesWatcher) FindProcessesTuple(tuple *common.IPPortTuple, transport applayer.Transport) *common.ProcessTuple {
+	var procTuple common.ProcessTuple
 	if !proc.enabled {
+		return &procTuple
+	}
+	proc.enrich(&procTuple.Src, tuple.SrcIP, tuple.SrcPort, transport)
+	proc.enrich(&procTuple.Dst, tuple.DstIP, tuple.DstPort, transport)
+	return &procTuple
+}
+
+func (proc *ProcessesWatcher) enrich(dst *common.Process, ip net.IP, port uint16, transport applayer.Transport) {
+	if !proc.isLocalIP(ip) {
 		return
 	}
-
-	if proc.isLocalIP(tuple.SrcIP) {
-		if p := proc.findProc(tuple.SrcIP, tuple.SrcPort, transport); p != nil {
-			procTuple.Src.PID = p.pid
-			procTuple.Src.PPID = p.ppid
-			procTuple.Src.Name = p.name
-			procTuple.Src.Args = p.args
-			procTuple.Src.Exe = p.exe
-			procTuple.Src.StartTime = p.startTime
-			if logp.IsDebug("procs") {
-				logp.Debug("procs", "Found process '%s' (pid=%d) for %s:%d/%s", p.name, p.pid, tuple.SrcIP, tuple.SrcPort, transport)
-			}
-		}
+	p := proc.findProc(ip, port, transport)
+	if p == nil {
+		return
 	}
-
-	if proc.isLocalIP(tuple.DstIP) {
-		if p := proc.findProc(tuple.DstIP, tuple.DstPort, transport); p != nil {
-			procTuple.Dst.PID = p.pid
-			procTuple.Dst.PPID = p.ppid
-			procTuple.Dst.Name = p.name
-			procTuple.Dst.Args = p.args
-			procTuple.Dst.Exe = p.exe
-			procTuple.Dst.StartTime = p.startTime
-			if logp.IsDebug("procs") {
-				logp.Debug("procs", "Found process '%s' (pid=%d) for %s:%d/%s", p.name, p.pid, tuple.DstIP, tuple.DstPort, transport)
-			}
-		}
+	dst.PID = p.pid
+	dst.PPID = p.ppid
+	dst.Name = p.name
+	dst.Args = p.args
+	dst.Exe = p.exe
+	dst.StartTime = p.startTime
+	if logp.IsDebug("procs") {
+		logp.Debug("procs", "Found process '%s' (pid=%d) for %s:%d/%s", p.name, p.pid, ip, port, transport)
 	}
-
-	return
 }
 
 func (proc *ProcessesWatcher) findProc(address net.IP, port uint16, transport applayer.Transport) *process {
@@ -200,7 +188,7 @@ func lookupMapping(address net.IP, port uint16, procMap map[endpoint]portProcMap
 	// This function takes the naive approach of giving precedence to the more
 	// specific address and then to INADDR_ANY.
 	if p, found = procMap[endpoint{address.String(), port}]; found {
-		return
+		return p, found
 	}
 
 	nullAddr := anyIPv4
@@ -208,14 +196,14 @@ func lookupMapping(address net.IP, port uint16, procMap map[endpoint]portProcMap
 		nullAddr = anyIPv6
 	}
 	p, found = procMap[endpoint{nullAddr, port}]
-	return
+	return p, found
 }
 
 func (proc *ProcessesWatcher) updateMap(transport applayer.Transport) {
 	if logp.HasSelector("procsdetailed") {
 		start := time.Now()
 		defer func() {
-			logp.Debug("procsdetailed", "updateMap() took %v", time.Now().Sub(start))
+			logp.Debug("procsdetailed", "updateMap() took %v", time.Since(start))
 		}()
 	}
 
@@ -318,15 +306,10 @@ func (proc *ProcessesWatcher) GetProcess(pid int) *process {
 		return nil
 	}
 
-	name := info.Name
-	if len(info.Args) > 0 {
-		// Workaround the 20 char limit on comm values on Linux.
-		name = filepath.Base(info.Args[0])
-	}
 	return &process{
 		pid:        info.PID,
 		ppid:       info.PPID,
-		name:       name,
+		name:       procName(info),
 		exe:        info.Exe,
 		cwd:        info.CWD,
 		args:       info.Args,

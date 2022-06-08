@@ -1,9 +1,12 @@
 [
     {
         "@timestamp": "2019-02-06T07:19:40.624Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "nats.log",
+        "event.kind": "event",
         "event.module": "nats",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "log",
         "input.type": "log",
         "log.level": "info",
@@ -14,9 +17,12 @@
     },
     {
         "@timestamp": "2019-02-06T07:19:40.624Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "nats.log",
+        "event.kind": "event",
         "event.module": "nats",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "log",
         "input.type": "log",
         "log.level": "info",
@@ -27,9 +33,12 @@
     },
     {
         "@timestamp": "2019-02-06T07:19:40.624Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "nats.log",
+        "event.kind": "event",
         "event.module": "nats",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "log",
         "input.type": "log",
         "log.level": "info",
@@ -40,9 +49,12 @@
     },
     {
         "@timestamp": "2019-02-06T07:19:40.624Z",
-        "ecs.version": "1.0.0",
         "event.dataset": "nats.log",
+        "event.kind": "event",
         "event.module": "nats",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "log",
         "input.type": "log",
         "log.level": "info",
@@ -55,9 +67,12 @@
         "@timestamp": "2019-02-06T07:20:08.508Z",
         "client.ip": "172.18.0.1",
         "client.port": "38630",
-        "ecs.version": "1.0.0",
         "event.dataset": "nats.log",
+        "event.kind": "event",
         "event.module": "nats",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "log",
         "input.type": "log",
         "log.level": "debug",
@@ -65,15 +80,21 @@
         "message": "Client connection created",
         "nats.log.client.id": "1",
         "process.pid": "1",
+        "related.ip": [
+            "172.18.0.1"
+        ],
         "service.type": "nats"
     },
     {
         "@timestamp": "2019-02-06T07:20:08.510Z",
         "client.ip": "172.18.0.1",
         "client.port": "38630",
-        "ecs.version": "1.0.0",
         "event.dataset": "nats.log",
+        "event.kind": "event",
         "event.module": "nats",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "log",
         "input.type": "log",
         "log.level": "trace",
@@ -83,15 +104,21 @@
         "nats.log.msg.type": "connection",
         "network.direction": "outbound",
         "process.pid": "1",
+        "related.ip": [
+            "172.18.0.1"
+        ],
         "service.type": "nats"
     },
     {
         "@timestamp": "2019-02-06T07:20:08.512Z",
         "client.ip": "172.18.0.1",
         "client.port": "38630",
-        "ecs.version": "1.0.0",
         "event.dataset": "nats.log",
+        "event.kind": "event",
         "event.module": "nats",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "log",
         "input.type": "log",
         "log.level": "trace",
@@ -102,15 +129,21 @@
         "nats.log.msg.type": "subscribe",
         "network.direction": "outbound",
         "process.pid": "1",
+        "related.ip": [
+            "172.18.0.1"
+        ],
         "service.type": "nats"
     },
     {
         "@timestamp": "2019-02-06T07:20:08.512Z",
         "client.ip": "172.18.0.1",
         "client.port": "38630",
-        "ecs.version": "1.0.0",
         "event.dataset": "nats.log",
+        "event.kind": "event",
         "event.module": "nats",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "log",
         "input.type": "log",
         "log.level": "trace",
@@ -119,15 +152,21 @@
         "nats.log.msg.type": "ping",
         "network.direction": "outbound",
         "process.pid": "1",
+        "related.ip": [
+            "172.18.0.1"
+        ],
         "service.type": "nats"
     },
     {
         "@timestamp": "2019-02-06T07:20:08.512Z",
         "client.ip": "172.18.0.1",
         "client.port": "38630",
-        "ecs.version": "1.0.0",
         "event.dataset": "nats.log",
+        "event.kind": "event",
         "event.module": "nats",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "log",
         "input.type": "log",
         "log.level": "trace",
@@ -136,15 +175,21 @@
         "nats.log.msg.type": "pong",
         "network.direction": "inbound",
         "process.pid": "1",
+        "related.ip": [
+            "172.18.0.1"
+        ],
         "service.type": "nats"
     },
     {
         "@timestamp": "2019-02-04T15:40:02.717Z",
         "client.ip": "50.39.246.116",
         "client.port": "62388",
-        "ecs.version": "1.0.0",
         "event.dataset": "nats.log",
+        "event.kind": "event",
         "event.module": "nats",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "log",
         "input.type": "log",
         "log.level": "trace",
@@ -156,15 +201,21 @@
         "nats.log.msg.type": "publish",
         "network.direction": "outbound",
         "process.pid": "1",
+        "related.ip": [
+            "50.39.246.116"
+        ],
         "service.type": "nats"
     },
     {
         "@timestamp": "2019-02-04T15:40:02.717Z",
         "client.ip": "50.39.246.116",
         "client.port": "62388",
-        "ecs.version": "1.0.0",
         "event.dataset": "nats.log",
+        "event.kind": "event",
         "event.module": "nats",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "log",
         "input.type": "log",
         "log.level": "trace",
@@ -173,15 +224,21 @@
         "nats.log.msg.type": "payload",
         "network.direction": "outbound",
         "process.pid": "1",
+        "related.ip": [
+            "50.39.246.116"
+        ],
         "service.type": "nats"
     },
     {
         "@timestamp": "2019-02-04T15:40:02.717Z",
         "client.ip": "192.168.176.11",
         "client.port": "36262",
-        "ecs.version": "1.0.0",
         "event.dataset": "nats.log",
+        "event.kind": "event",
         "event.module": "nats",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "log",
         "input.type": "log",
         "log.level": "trace",
@@ -194,15 +251,21 @@
         "nats.log.msg.type": "message",
         "network.direction": "inbound",
         "process.pid": "1",
+        "related.ip": [
+            "192.168.176.11"
+        ],
         "service.type": "nats"
     },
     {
         "@timestamp": "2019-02-04T15:40:02.718Z",
         "client.ip": "192.168.176.11",
         "client.port": "36262",
-        "ecs.version": "1.0.0",
         "event.dataset": "nats.log",
+        "event.kind": "event",
         "event.module": "nats",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "log",
         "input.type": "log",
         "log.level": "trace",
@@ -213,15 +276,21 @@
         "nats.log.msg.type": "publish",
         "network.direction": "outbound",
         "process.pid": "1",
+        "related.ip": [
+            "192.168.176.11"
+        ],
         "service.type": "nats"
     },
     {
         "@timestamp": "2019-02-04T15:40:02.718Z",
         "client.ip": "192.168.176.11",
         "client.port": "36262",
-        "ecs.version": "1.0.0",
         "event.dataset": "nats.log",
+        "event.kind": "event",
         "event.module": "nats",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "log",
         "input.type": "log",
         "log.level": "trace",
@@ -230,15 +299,21 @@
         "nats.log.msg.type": "payload",
         "network.direction": "outbound",
         "process.pid": "1",
+        "related.ip": [
+            "192.168.176.11"
+        ],
         "service.type": "nats"
     },
     {
         "@timestamp": "2019-02-04T15:40:02.718Z",
         "client.ip": "50.39.246.116",
         "client.port": "62388",
-        "ecs.version": "1.0.0",
         "event.dataset": "nats.log",
+        "event.kind": "event",
         "event.module": "nats",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "log",
         "input.type": "log",
         "log.level": "trace",
@@ -250,15 +325,21 @@
         "nats.log.msg.type": "message",
         "network.direction": "inbound",
         "process.pid": "1",
+        "related.ip": [
+            "50.39.246.116"
+        ],
         "service.type": "nats"
     },
     {
         "@timestamp": "2019-02-04T15:40:02.717Z",
         "client.ip": "50.39.246.116",
         "client.port": "62388",
-        "ecs.version": "1.0.0",
         "event.dataset": "nats.log",
+        "event.kind": "event",
         "event.module": "nats",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "log",
         "input.type": "log",
         "log.level": "trace",
@@ -269,15 +350,21 @@
         "nats.log.msg.type": "publish",
         "network.direction": "outbound",
         "process.pid": "1",
+        "related.ip": [
+            "50.39.246.116"
+        ],
         "service.type": "nats"
     },
     {
         "@timestamp": "2019-02-04T15:40:02.717Z",
         "client.ip": "192.168.176.11",
         "client.port": "36262",
-        "ecs.version": "1.0.0",
         "event.dataset": "nats.log",
+        "event.kind": "event",
         "event.module": "nats",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "log",
         "input.type": "log",
         "log.level": "trace",
@@ -289,15 +376,21 @@
         "nats.log.msg.type": "message",
         "network.direction": "inbound",
         "process.pid": "1",
+        "related.ip": [
+            "192.168.176.11"
+        ],
         "service.type": "nats"
     },
     {
         "@timestamp": "2019-02-16T07:20:08.512Z",
         "client.ip": "172.18.0.1",
         "client.port": "38630",
-        "ecs.version": "1.0.0",
         "event.dataset": "nats.log",
+        "event.kind": "event",
         "event.module": "nats",
+        "event.type": [
+            "info"
+        ],
         "fileset.name": "log",
         "input.type": "log",
         "log.level": "trace",
@@ -306,6 +399,9 @@
         "nats.log.msg.type": "acknowledge",
         "network.direction": "inbound",
         "process.pid": "1",
+        "related.ip": [
+            "172.18.0.1"
+        ],
         "service.type": "nats"
     }
 ]

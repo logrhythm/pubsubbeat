@@ -6,6 +6,37 @@
             "module": "kubernetes"
         },
         "kubernetes": {
+            "namespace": "default",
+            "statefulset": {
+                "created": 1511989697,
+                "generation": {
+                    "desired": 4,
+                    "observed": 2
+                },
+                "name": "mysql",
+                "replicas": {
+                    "desired": 5,
+                    "observed": 2,
+                    "ready": 2
+                }
+            }
+        },
+        "metricset": {
+            "name": "state_statefulset",
+            "period": 10000
+        },
+        "service": {
+            "address": "127.0.0.1:55555",
+            "type": "kubernetes"
+        }
+    },
+    {
+        "event": {
+            "dataset": "kubernetes.statefulset",
+            "duration": 115000,
+            "module": "kubernetes"
+        },
+        "kubernetes": {
             "namespace": "custom",
             "statefulset": {
                 "created": 1511999697,
@@ -16,12 +47,14 @@
                 "name": "mysql",
                 "replicas": {
                     "desired": 6,
-                    "observed": 3
+                    "observed": 3,
+                    "ready": 1
                 }
             }
         },
         "metricset": {
-            "name": "state_statefulset"
+            "name": "state_statefulset",
+            "period": 10000
         },
         "service": {
             "address": "127.0.0.1:55555",
@@ -45,41 +78,14 @@
                 "name": "elasticsearch",
                 "replicas": {
                     "desired": 4,
-                    "observed": 1
+                    "observed": 1,
+                    "ready": 1
                 }
             }
         },
         "metricset": {
-            "name": "state_statefulset"
-        },
-        "service": {
-            "address": "127.0.0.1:55555",
-            "type": "kubernetes"
-        }
-    },
-    {
-        "event": {
-            "dataset": "kubernetes.statefulset",
-            "duration": 115000,
-            "module": "kubernetes"
-        },
-        "kubernetes": {
-            "namespace": "default",
-            "statefulset": {
-                "created": 1511989697,
-                "generation": {
-                    "desired": 4,
-                    "observed": 2
-                },
-                "name": "mysql",
-                "replicas": {
-                    "desired": 5,
-                    "observed": 2
-                }
-            }
-        },
-        "metricset": {
-            "name": "state_statefulset"
+            "name": "state_statefulset",
+            "period": 10000
         },
         "service": {
             "address": "127.0.0.1:55555",

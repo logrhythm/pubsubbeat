@@ -18,8 +18,10 @@
 package file
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -27,33 +29,21 @@ import (
 	"github.com/pkg/errors"
 )
 
-// MaxBackupsLimit is the upper bound on the number of backup files. Any values
-// greater will result in an error.
-const MaxBackupsLimit = 1024
-
-// rotateReason is the reason why file rotation occurred.
-type rotateReason uint32
-
 const (
-	rotateReasonInitializing rotateReason = iota + 1
-	rotateReasonFileSize
-	rotateReasonManualTrigger
-	rotateReasonTimeInterval
+	// MaxBackupsLimit is the upper bound on the number of backup files. Any values
+	// greater will result in an error.
+	MaxBackupsLimit = 1024
+	DateFormat      = "20060102"
 )
 
-func (rr rotateReason) String() string {
-	switch rr {
-	case rotateReasonInitializing:
-		return "initializing"
-	case rotateReasonFileSize:
-		return "file size"
-	case rotateReasonManualTrigger:
-		return "manual trigger"
-	case rotateReasonTimeInterval:
-		return "time interval"
-	default:
-		return "unknown"
-	}
+// rotater is the interface responsible for rotating and finding files.
+type rotater interface {
+	// ActiveFile returns the path to the file that is actively written.
+	ActiveFile() string
+	// RotatedFiles returns the list of rotated files. The oldest comes first.
+	RotatedFiles() []string
+	// Rotate rotates the file.
+	Rotate(reason rotateReason, rotateTime time.Time) error
 }
 
 // Rotator is a io.WriteCloser that automatically rotates the file it is
@@ -61,18 +51,20 @@ func (rr rotateReason) String() string {
 // basis. It also purges the oldest rotated files when the maximum number of
 // backups is reached.
 type Rotator struct {
+	rot      rotater
+	triggers []trigger
+
 	filename        string
 	maxSizeBytes    uint
 	maxBackups      uint
+	interval        time.Duration
 	permissions     os.FileMode
 	log             Logger // Optional Logger (may be nil).
-	interval        time.Duration
 	rotateOnStartup bool
-	intervalRotator *intervalRotator // Optional, may be nil
 	redirectStderr  bool
+	clock           clock
 
 	file  *os.File
-	size  uint
 	mutex sync.Mutex
 }
 
@@ -141,15 +133,21 @@ func RedirectStderr(redirect bool) RotatorOption {
 	}
 }
 
+func WithClock(clock clock) RotatorOption {
+	return func(r *Rotator) {
+		r.clock = clock
+	}
+}
+
 // NewFileRotator returns a new Rotator.
 func NewFileRotator(filename string, options ...RotatorOption) (*Rotator, error) {
 	r := &Rotator{
-		filename:        filename,
 		maxSizeBytes:    10 * 1024 * 1024, // 10 MiB
 		maxBackups:      7,
 		permissions:     0600,
 		interval:        0,
 		rotateOnStartup: true,
+		clock:           &realClock{},
 	}
 
 	for _, opt := range options {
@@ -165,11 +163,19 @@ func NewFileRotator(filename string, options ...RotatorOption) (*Rotator, error)
 	if r.permissions > os.ModePerm {
 		return nil, errors.Errorf("file rotator permissions mask of %o is invalid", r.permissions)
 	}
-	var err error
-	r.intervalRotator, err = newIntervalRotator(r.interval)
-	if err != nil {
-		return nil, err
+
+	if r.interval != 0 && r.interval < time.Second {
+		return nil, errors.New("the minimum time interval for log rotation is 1 second")
 	}
+
+	r.rot = newDateRotater(r.log, filename, r.clock)
+
+	shouldRotateOnStart := r.rotateOnStartup
+	if _, err := os.Stat(r.rot.ActiveFile()); os.IsNotExist(err) {
+		shouldRotateOnStart = false
+	}
+
+	r.triggers = newTriggers(shouldRotateOnStart, r.interval, r.maxSizeBytes, r.clock)
 
 	if r.log != nil {
 		r.log.Debugw("Initialized file rotator",
@@ -177,7 +183,6 @@ func NewFileRotator(filename string, options ...RotatorOption) (*Rotator, error)
 			"max_size_bytes", r.maxSizeBytes,
 			"max_backups", r.maxBackups,
 			"permissions", r.permissions,
-			"interval", r.interval,
 		)
 	}
 
@@ -199,27 +204,133 @@ func (r *Rotator) Write(data []byte) (int, error) {
 
 	if r.file == nil {
 		if err := r.openNew(); err != nil {
-			return 0, err
+			return 0, errors.Wrap(err, "failed to open new log file for writing")
 		}
-	} else if r.intervalRotator != nil && r.intervalRotator.NewInterval() {
-		if err := r.rotate(rotateReasonTimeInterval); err != nil {
-			return 0, err
-		}
-		if err := r.openFile(); err != nil {
-			return 0, err
-		}
-	} else if r.size+dataLen > r.maxSizeBytes {
-		if err := r.rotate(rotateReasonFileSize); err != nil {
-			return 0, err
-		}
-		if err := r.openFile(); err != nil {
-			return 0, err
+	} else {
+		if reason, t := r.isRotationTriggered(dataLen); reason != rotateReasonNoRotate {
+			if err := r.rotateWithTime(reason, t); err != nil {
+				return 0, errors.Wrapf(err, "error file rotating files reason: %s", reason)
+			}
+
+			if err := r.openFile(); err != nil {
+				return 0, errors.Wrap(err, "failed to open existing log file for writing")
+			}
 		}
 	}
 
 	n, err := r.file.Write(data)
-	r.size += uint(n)
 	return n, errors.Wrap(err, "failed to write to file")
+}
+
+// openNew opens r's log file for the first time, creating it if it doesn't
+// exist.
+func (r *Rotator) openNew() error {
+	err := os.MkdirAll(r.dir(), r.dirMode())
+	if err != nil {
+		return errors.Wrap(err, "failed to make directories for new file")
+	}
+
+	_, err = os.Stat(r.rot.ActiveFile())
+	if err == nil {
+		// check if the file has to be rotated before writing to it
+		reason, t := r.isRotationTriggered(0)
+		if reason == rotateReasonNoRotate {
+			return r.appendToFile()
+		}
+		if err = r.rot.Rotate(reason, t); err != nil {
+			return errors.Wrap(err, "failed to rotate backups")
+		}
+		if err = r.purge(); err != nil {
+			return errors.Wrap(err, "failed to purge unnecessary rotated files")
+		}
+	}
+
+	return r.openFile()
+}
+
+// appendToFile opens an existing log file for appending. Unlike openFile it
+// does not call MkdirAll because it is an error for the file to not already
+// exist.
+func (r *Rotator) appendToFile() error {
+	var err error
+	r.file, err = os.OpenFile(r.rot.ActiveFile(), os.O_WRONLY|os.O_APPEND, r.permissions)
+	if err != nil {
+		return errors.Wrap(err, "failed to append to existing file")
+	}
+	if r.redirectStderr {
+		RedirectStandardError(r.file)
+	}
+	return nil
+}
+
+func (r *Rotator) openFile() error {
+	err := os.MkdirAll(r.dir(), r.dirMode())
+	if err != nil {
+		return errors.Wrap(err, "failed to make directories for new file")
+	}
+
+	r.file, err = os.OpenFile(r.rot.ActiveFile(), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, r.permissions)
+	if err != nil {
+		return errors.Wrap(err, fmt.Sprintf("failed to open new file '%s'", r.rot.ActiveFile()))
+	}
+	if r.redirectStderr {
+		RedirectStandardError(r.file)
+	}
+	return nil
+}
+
+func (r *Rotator) rotate(reason rotateReason) error {
+	return r.rotateWithTime(reason, r.clock.Now())
+}
+
+// rotateWithTime closes the actively written file, and rotates it along with exising
+// rotated files if needed. When it is done, unnecessary files are removed.
+func (r *Rotator) rotateWithTime(reason rotateReason, rotationTime time.Time) error {
+	if err := r.closeFile(); err != nil {
+		return errors.Wrap(err, "error file closing current file")
+	}
+
+	if err := r.rot.Rotate(reason, rotationTime); err != nil {
+		return errors.Wrap(err, "failed to rotate backups")
+	}
+
+	return r.purge()
+}
+
+func (r *Rotator) purge() error {
+	rotatedFiles := r.rot.RotatedFiles()
+	count := uint(len(rotatedFiles))
+	if count <= r.maxBackups {
+		return nil
+	}
+
+	purgeUntil := count - r.maxBackups
+	filesToPurge := rotatedFiles[:purgeUntil]
+	for _, name := range filesToPurge {
+		_, err := os.Stat(name)
+		switch {
+		case err == nil:
+			if err = os.Remove(name); err != nil {
+				return errors.Wrapf(err, "failed to delete %v during rotation", name)
+			}
+		case os.IsNotExist(err):
+			return nil
+		default:
+			return errors.Wrapf(err, "failed on %v during rotation", name)
+		}
+	}
+
+	return nil
+}
+
+func (r *Rotator) isRotationTriggered(dataLen uint) (rotateReason, time.Time) {
+	for _, t := range r.triggers {
+		reason := t.TriggerRotation(dataLen)
+		if reason != rotateReasonNoRotate {
+			return reason, r.clock.Now()
+		}
+	}
+	return rotateReasonNoRotate, time.Time{}
 }
 
 // Sync commits the current contents of the file to stable storage. Typically,
@@ -248,15 +359,8 @@ func (r *Rotator) Close() error {
 	return r.closeFile()
 }
 
-func (r *Rotator) backupName(n uint) string {
-	if n == 0 {
-		return r.filename
-	}
-	return r.filename + "." + strconv.Itoa(int(n))
-}
-
 func (r *Rotator) dir() string {
-	return filepath.Dir(r.filename)
+	return filepath.Dir(r.rot.ActiveFile())
 }
 
 func (r *Rotator) dirMode() os.FileMode {
@@ -270,209 +374,169 @@ func (r *Rotator) dirMode() os.FileMode {
 	return os.FileMode(mode)
 }
 
-// openNew opens r's log file for the first time, creating it if it doesn't
-// exist, and performing an initial rotation if r.rotateOnStartup is set.
-func (r *Rotator) openNew() error {
-	err := os.MkdirAll(r.dir(), r.dirMode())
-	if err != nil {
-		return errors.Wrap(err, "failed to make directories for new file")
-	}
-
-	_, err = os.Stat(r.filename)
-	if err == nil {
-		if !r.rotateOnStartup {
-			// If the file exists and rotateOnStartup is false, then we just want to
-			// append to the existing file.
-			return r.appendToFile()
-		}
-		if err = r.rotate(rotateReasonInitializing); err != nil {
-			return err
-		}
-	}
-
-	return r.openFile()
-}
-
-func (r *Rotator) openFile() error {
-	err := os.MkdirAll(r.dir(), r.dirMode())
-	if err != nil {
-		return errors.Wrap(err, "failed to make directories for new file")
-	}
-
-	r.file, err = os.OpenFile(r.filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, r.permissions)
-	if err != nil {
-		return errors.Wrap(err, "failed to open new file")
-	}
-	if r.redirectStderr {
-		RedirectStandardError(r.file)
-	}
-	return nil
-}
-
-// appendToFile opens an existing log file for appending. Unlike openFile it
-// does not call MkdirAll because it is an error for the file to not already
-// exist.
-func (r *Rotator) appendToFile() error {
-	var err error
-	r.file, err = os.OpenFile(r.filename, os.O_WRONLY|os.O_APPEND, r.permissions)
-	if err != nil {
-		return errors.Wrap(err, "failed to append to existing file")
-	}
-	if r.redirectStderr {
-		RedirectStandardError(r.file)
-	}
-	return nil
-}
-
 func (r *Rotator) closeFile() error {
 	if r.file == nil {
 		return nil
 	}
 	err := r.file.Close()
 	r.file = nil
-	r.size = 0
-	return err
+	return errors.Wrap(err, "failed to close active file")
 }
 
-func (r *Rotator) purgeOldBackups() error {
-	if r.intervalRotator != nil {
-		return r.purgeOldIntervalBackups()
+type dateRotator struct {
+	log             Logger
+	clock           clock
+	format          string
+	filenamePrefix  string
+	currentFilename string
+	extension       string
+
+	prefixLen    int
+	filenameLen  int
+	extensionLen int
+
+	// logOrderCache is used to cache log file meta information between rotations
+	logOrderCache map[string]logOrder
+}
+
+func newDateRotater(log Logger, filename string, clock clock) rotater {
+	d := &dateRotator{
+		log:            log,
+		clock:          clock,
+		filenamePrefix: filename + "-",
+		extension:      ".ndjson",
+		format:         DateFormat,
+		logOrderCache:  make(map[string]logOrder),
 	}
-	return r.purgeOldSizedBackups()
-}
+	d.prefixLen = len(d.filenamePrefix)
+	d.filenameLen = d.prefixLen + len(DateFormat)
+	d.extensionLen = len(d.extension)
 
-func (r *Rotator) purgeOldIntervalBackups() error {
-	files, err := filepath.Glob(r.filename + "*")
+	d.currentFilename = d.filenamePrefix + d.clock.Now().Format(d.format) + d.extension
+	files, err := filepath.Glob(d.filenamePrefix + "*" + d.extension)
 	if err != nil {
-		return errors.Wrap(err, "failed to list existing logs during rotation")
+		return d
 	}
 
-	if len(files) > int(r.maxBackups) {
-
-		// sort log filenames numerically
-		r.intervalRotator.SortIntervalLogs(files)
-
-		for i := len(files) - int(r.maxBackups) - 1; i >= 0; i-- {
-			f := files[i]
-			_, err := os.Stat(f)
-			switch {
-			case err == nil:
-				if err = os.Remove(f); err != nil {
-					return errors.Wrapf(err, "failed to delete %v during rotation", f)
-				}
-			case os.IsNotExist(err):
-				return errors.Wrapf(err, "failed to delete non-existent %v during rotation", f)
-			default:
-				return errors.Wrapf(err, "failed on %v during rotation", f)
-			}
+	// continue from last file
+	if len(files) != 0 {
+		if len(files) == 1 {
+			d.currentFilename = files[0]
+		} else {
+			d.SortModTimeLogs(files)
+			d.currentFilename = files[len(files)-1]
 		}
 	}
 
-	return nil
+	return d
 }
 
-func (r *Rotator) purgeOldSizedBackups() error {
-	for i := r.maxBackups; i < MaxBackupsLimit; i++ {
-		name := r.backupName(i + 1)
-
-		_, err := os.Stat(name)
-		switch {
-		case err == nil:
-			if err = os.Remove(name); err != nil {
-				return errors.Wrapf(err, "failed to delete %v during rotation", name)
-			}
-		case os.IsNotExist(err):
-			return nil
-		default:
-			return errors.Wrapf(err, "failed on %v during rotation", name)
-		}
-	}
-
-	return nil
+func (d *dateRotator) ActiveFile() string {
+	return d.currentFilename
 }
 
-func (r *Rotator) rotate(reason rotateReason) error {
-	if err := r.closeFile(); err != nil {
-		return errors.Wrap(err, "error file closing current file")
+func (d *dateRotator) Rotate(reason rotateReason, rotateTime time.Time) error {
+	if d.log != nil {
+		d.log.Debugw("Rotating file", "filename", d.currentFilename, "reason", reason)
 	}
 
-	var err error
-	if r.intervalRotator != nil {
-		// Interval and size rotation use different filename patterns, so we use
-		// rotateByInterval if interval rotation is enabled, even if this specific
-		// rotation is triggered by size.
-		err = r.rotateByInterval(reason)
-	} else {
-		err = r.rotateBySize(reason)
-	}
+	d.logOrderCache = make(map[string]logOrder, 0)
+
+	newFileNamePrefix := d.filenamePrefix + rotateTime.Format(d.format)
+	files, err := filepath.Glob(newFileNamePrefix + "*" + d.extension)
 	if err != nil {
-		return errors.Wrap(err, "failed to rotate backups")
+		return fmt.Errorf("failed to get possible files: %+v", err)
 	}
 
-	return r.purgeOldBackups()
-}
-
-func (r *Rotator) rotateByInterval(reason rotateReason) error {
-	fi, err := os.Stat(r.filename)
-	if os.IsNotExist(err) {
-		return nil
-	} else if err != nil {
-		return errors.Wrap(err, "failed to rotate backups")
-	}
-
-	logPrefix := r.intervalRotator.LogPrefix(r.filename, fi.ModTime())
-	files, err := filepath.Glob(logPrefix + "*")
-	if err != nil {
-		return errors.Wrap(err, "failed to list logs during rotation")
-	}
-
-	var targetFilename string
 	if len(files) == 0 {
-		targetFilename = logPrefix + "1"
-	} else {
-		r.intervalRotator.SortIntervalLogs(files)
-		lastLogIndex, _, err := IntervalLogIndex(files[len(files)-1])
-		if err != nil {
-			return errors.Wrap(err, "failed to locate last log index during rotation")
-		}
-		targetFilename = logPrefix + strconv.Itoa(int(lastLogIndex)+1)
+		d.currentFilename = newFileNamePrefix + d.extension
+		return nil
 	}
 
-	if err := os.Rename(r.filename, targetFilename); err != nil {
-		return errors.Wrap(err, "failed to rotate backups")
-	}
+	d.SortModTimeLogs(files)
+	order := d.OrderLog(files[len(files)-1])
 
-	if r.log != nil {
-		r.log.Debugw("Rotating file", "filename", r.filename, "reason", reason)
-	}
-
-	r.intervalRotator.Rotate()
+	d.currentFilename = newFileNamePrefix + "-" + strconv.Itoa(order.index+1) + d.extension
 
 	return nil
 }
 
-func (r *Rotator) rotateBySize(reason rotateReason) error {
-	for i := r.maxBackups + 1; i > 0; i-- {
-		old := r.backupName(i - 1)
-		older := r.backupName(i)
-
-		if _, err := os.Stat(old); os.IsNotExist(err) {
-			continue
-		} else if err != nil {
-			return errors.Wrap(err, "failed to rotate backups")
-		}
-
-		if err := os.Remove(older); err != nil && !os.IsNotExist(err) {
-			return errors.Wrap(err, "failed to rotate backups")
-		}
-		if err := os.Rename(old, older); err != nil {
-			return errors.Wrap(err, "failed to rotate backups")
-		} else if i == 1 {
-			// Log when rotation of the main file occurs.
-			if r.log != nil {
-				r.log.Debugw("Rotating file", "filename", old, "reason", reason)
-			}
+func (d *dateRotator) RotatedFiles() []string {
+	files, err := filepath.Glob(d.filenamePrefix + "*")
+	if err != nil {
+		if d.log != nil {
+			d.log.Debugw("failed to list existing logs: %+v", err)
 		}
 	}
-	return nil
+
+	for i, name := range files {
+		if name == d.ActiveFile() {
+			files = append(files[:i], files[i+1:]...)
+			break
+		}
+	}
+
+	d.SortModTimeLogs(files)
+	return files
+}
+
+// SortModTimeLogs puts newest file to the last
+func (d *dateRotator) SortModTimeLogs(strings []string) {
+	sort.Slice(
+		strings,
+		func(i, j int) bool {
+			return d.OrderLog(strings[i]).After(d.OrderLog(strings[j]))
+		},
+	)
+}
+
+// logOrder stores information required to sort log files
+// parsed out from the following format {filename}-{datetime}-{index}.ndjson
+type logOrder struct {
+	index    int
+	datetime time.Time
+}
+
+func (o logOrder) After(other logOrder) bool {
+	if o.datetime.Equal(other.datetime) {
+		return other.index > o.index
+	}
+	return !o.datetime.After(other.datetime)
+}
+
+func (d *dateRotator) OrderLog(filename string) logOrder {
+	if o, ok := d.logOrderCache[filename]; ok {
+		return o
+	}
+
+	var o logOrder
+	var err error
+
+	o.datetime, err = time.Parse(d.format, filename[d.prefixLen:d.filenameLen])
+	if err != nil {
+		return o
+	}
+
+	if d.isFilenameWithIndex(filename) {
+		o.index, err = d.filenameIndex(filename)
+		if err != nil {
+			return o
+		}
+	}
+
+	d.logOrderCache[filename] = o
+
+	return o
+}
+
+func (d *dateRotator) isFilenameWithIndex(filename string) bool {
+	return d.filenameLen+d.extensionLen < len(filename)
+}
+
+func (d *dateRotator) filenameIndex(filename string) (int, error) {
+	indexStr := filename[d.filenameLen+1 : len(filename)-d.extensionLen]
+	if len(indexStr) > 0 {
+		return strconv.Atoi(indexStr)
+	}
+	return 0, nil
 }

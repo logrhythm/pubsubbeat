@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package harvester
@@ -24,8 +25,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/common/match"
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/common/match"
+	"github.com/elastic/beats/v7/libbeat/logp"
 )
 
 // InitMatchers initializes a list of compiled regular expressions.
@@ -45,13 +46,13 @@ func InitMatchers(exprs ...string) ([]match.Matcher, error) {
 
 func TestMatchAnyRegexps(t *testing.T) {
 	matchers, err := InitMatchers("\\.gz$")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, MatchAny(matchers, "/var/log/log.gz"), true)
 }
 
 func TestExcludeLine(t *testing.T) {
 	regexp, err := InitMatchers("^DBG")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.True(t, MatchAny(regexp, "DBG: a debug message"))
 	assert.False(t, MatchAny(regexp, "ERR: an error message"))
 }
@@ -59,7 +60,7 @@ func TestExcludeLine(t *testing.T) {
 func TestIncludeLine(t *testing.T) {
 	regexp, err := InitMatchers("^ERR", "^WARN")
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.False(t, MatchAny(regexp, "DBG: a debug message"))
 	assert.True(t, MatchAny(regexp, "ERR: an error message"))
 	assert.True(t, MatchAny(regexp, "WARNING: a simple warning message"))
@@ -67,5 +68,5 @@ func TestIncludeLine(t *testing.T) {
 
 func TestInitRegexp(t *testing.T) {
 	_, err := InitMatchers("(((((")
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }

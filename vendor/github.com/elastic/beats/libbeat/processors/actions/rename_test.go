@@ -21,13 +21,16 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/elastic/beats/v7/libbeat/logp"
+
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
 )
 
 func TestRenameRun(t *testing.T) {
+	log := logp.NewLogger("rename_test")
 	var tests = []struct {
 		description   string
 		Fields        []fromTo
@@ -234,6 +237,7 @@ func TestRenameRun(t *testing.T) {
 					IgnoreMissing: test.IgnoreMissing,
 					FailOnError:   test.FailOnError,
 				},
+				logger: log,
 			}
 			event := &beat.Event{
 				Fields: test.Input,
@@ -241,9 +245,9 @@ func TestRenameRun(t *testing.T) {
 
 			newEvent, err := f.Run(event)
 			if !test.error {
-				assert.Nil(t, err)
+				assert.NoError(t, err)
 			} else {
-				assert.NotNil(t, err)
+				assert.Error(t, err)
 			}
 
 			assert.True(t, reflect.DeepEqual(newEvent.Fields, test.Output))
@@ -354,7 +358,7 @@ func TestRenameField(t *testing.T) {
 				},
 			}
 
-			err := f.renameField(test.From, test.To, test.Input)
+			err := f.renameField(test.From, test.To, &beat.Event{Fields: test.Input})
 			if err != nil {
 				assert.Equal(t, test.error, true)
 			}
@@ -362,4 +366,32 @@ func TestRenameField(t *testing.T) {
 			assert.True(t, reflect.DeepEqual(test.Input, test.Output))
 		})
 	}
+
+	t.Run("supports metadata as a target", func(t *testing.T) {
+		event := &beat.Event{
+			Meta: common.MapStr{
+				"a": "c",
+			},
+		}
+
+		expMeta := common.MapStr{
+			"b": "c",
+		}
+
+		f := &renameFields{
+			config: renameFieldsConfig{
+				Fields: []fromTo{
+					{
+						From: "@metadata.a",
+						To:   "@metadata.b",
+					},
+				},
+			},
+		}
+
+		newEvent, err := f.Run(event)
+		assert.NoError(t, err)
+		assert.Equal(t, expMeta, newEvent.Meta)
+		assert.Equal(t, event.Fields, newEvent.Fields)
+	})
 }

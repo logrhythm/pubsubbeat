@@ -18,13 +18,14 @@
 package container
 
 import (
-	"github.com/pkg/errors"
+	"fmt"
 
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/metricbeat/helper"
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/mb/parse"
-	"github.com/elastic/beats/metricbeat/module/kubernetes/util"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/metricbeat/helper"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/parse"
+	k8smod "github.com/elastic/beats/v7/metricbeat/module/kubernetes"
+	"github.com/elastic/beats/v7/metricbeat/module/kubernetes/util"
 )
 
 const (
@@ -37,8 +38,6 @@ var (
 		DefaultScheme: defaultScheme,
 		DefaultPath:   defaultPath,
 	}.Build()
-
-	logger = logp.NewLogger("kubernetes.container")
 )
 
 // init registers the MetricSet with the central registry.
@@ -58,6 +57,7 @@ type MetricSet struct {
 	mb.BaseMetricSet
 	http     *helper.HTTP
 	enricher util.Enricher
+	mod      k8smod.Module
 }
 
 // New create a new instance of the MetricSet
@@ -68,10 +68,15 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 	if err != nil {
 		return nil, err
 	}
+	mod, ok := base.Module().(k8smod.Module)
+	if !ok {
+		return nil, fmt.Errorf("must be child of kubernetes module")
+	}
 	return &MetricSet{
 		BaseMetricSet: base,
 		http:          http,
 		enricher:      util.NewContainerMetadataEnricher(base, true),
+		mod:           mod,
 	}, nil
 }
 
@@ -81,28 +86,47 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 func (m *MetricSet) Fetch(reporter mb.ReporterV2) {
 	m.enricher.Start()
 
-	body, err := m.http.FetchContent()
+	body, err := m.mod.GetKubeletStats(m.http)
 	if err != nil {
-		err = errors.Wrap(err, "error doing HTTP request to fetch 'container' Metricset data")
-		logger.Error(err)
+		m.Logger().Error(err)
 		reporter.Error(err)
 		return
 	}
 
 	events, err := eventMapping(body, util.PerfMetrics)
 	if err != nil {
-		logger.Error(err)
+		m.Logger().Error(err)
 		reporter.Error(err)
 		return
 	}
 
 	m.enricher.Enrich(events)
 
-	for _, e := range events {
-		reporter.Event(mb.Event{MetricSetFields: e})
-	}
+	for _, event := range events {
 
-	return
+		e, err := util.CreateEvent(event, "kubernetes.container")
+		if err != nil {
+			m.Logger().Error(err)
+		}
+		// Enrich event with container ECS fields
+		containerEcsFields := ecsfields(event)
+		if len(containerEcsFields) != 0 {
+			if e.RootFields != nil {
+				e.RootFields.DeepUpdate(common.MapStr{
+					"container": containerEcsFields,
+				})
+			} else {
+				e.RootFields = common.MapStr{
+					"container": containerEcsFields,
+				}
+			}
+		}
+
+		if reported := reporter.Event(e); !reported {
+			m.Logger().Debug("error trying to emit event")
+			return
+		}
+	}
 }
 
 // Close stops this metricset

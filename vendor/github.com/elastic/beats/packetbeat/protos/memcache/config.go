@@ -20,8 +20,8 @@ package memcache
 import (
 	"time"
 
-	"github.com/elastic/beats/packetbeat/config"
-	"github.com/elastic/beats/packetbeat/protos"
+	"github.com/elastic/beats/v7/packetbeat/config"
+	"github.com/elastic/beats/v7/packetbeat/protos"
 )
 
 type memcacheConfig struct {
@@ -32,11 +32,9 @@ type memcacheConfig struct {
 	ParseUnknown          bool
 }
 
-var (
-	defaultConfig = memcacheConfig{
-		ProtocolCommon: config.ProtocolCommon{
-			TransactionTimeout: protos.DefaultTransactionExpiration,
-		},
-		UDPTransactionTimeout: protos.DefaultTransactionExpiration,
-	}
-)
+var defaultConfig = memcacheConfig{
+	ProtocolCommon: config.ProtocolCommon{
+		TransactionTimeout: protos.DefaultTransactionExpiration,
+	},
+	UDPTransactionTimeout: protos.DefaultTransactionExpiration,
+}

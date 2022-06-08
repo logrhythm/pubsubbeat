@@ -15,17 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build darwin || freebsd || linux || openbsd || windows
 // +build darwin freebsd linux openbsd windows
 
 package fsstat
 
 import (
+	"runtime"
 	"strings"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/mb/parse"
-	"github.com/elastic/beats/metricbeat/module/system/filesystem"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/metric/system/resolve"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/parse"
+	"github.com/elastic/beats/v7/metricbeat/module/system/filesystem"
 
 	"github.com/pkg/errors"
 )
@@ -48,9 +51,9 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 	if err := base.Module().UnpackConfig(&config); err != nil {
 		return nil, err
 	}
-
+	sys := base.Module().(resolve.Resolver)
 	if config.IgnoreTypes == nil {
-		config.IgnoreTypes = filesystem.DefaultIgnoredTypes()
+		config.IgnoreTypes = filesystem.DefaultIgnoredTypes(sys)
 	}
 	if len(config.IgnoreTypes) > 0 {
 		base.Logger().Info("Ignoring filesystem types: %s", strings.Join(config.IgnoreTypes, ", "))
@@ -64,11 +67,10 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 
 // Fetch fetches filesystem metrics for all mounted filesystems and returns
 // a single event containing aggregated data.
-func (m *MetricSet) Fetch(r mb.ReporterV2) {
+func (m *MetricSet) Fetch(r mb.ReporterV2) error {
 	fss, err := filesystem.GetFileSystemList()
 	if err != nil {
-		r.Error(errors.Wrap(err, "filesystem list"))
-		return
+		return errors.Wrap(err, "filesystem list")
 	}
 
 	if len(m.config.IgnoreTypes) > 0 {
@@ -81,10 +83,10 @@ func (m *MetricSet) Fetch(r mb.ReporterV2) {
 	for _, fs := range fss {
 		stat, err := filesystem.GetFileSystemStat(fs)
 		if err != nil {
-			m.Logger().Debug("error fetching filesystem stats for '%s': %v", fs.DirName, err)
+			m.Logger().Debugf("error fetching filesystem stats for '%s': %v", fs.DirName, err)
 			continue
 		}
-		m.Logger().Debug("filesystem: %s total=%d, used=%d, free=%d", stat.Mount, stat.Total, stat.Used, stat.Free)
+		m.Logger().Debugf("filesystem: %s total=%d, used=%d, free=%d", fs.DirName, stat.Total, stat.Used, stat.Free)
 
 		totalFiles += stat.Files
 		totalSize += stat.Total
@@ -92,15 +94,24 @@ func (m *MetricSet) Fetch(r mb.ReporterV2) {
 		totalSizeUsed += stat.Used
 	}
 
-	r.Event(mb.Event{
-		MetricSetFields: common.MapStr{
-			"total_size": common.MapStr{
-				"free":  totalSizeFree,
-				"used":  totalSizeUsed,
-				"total": totalSize,
-			},
-			"count":       len(fss),
-			"total_files": totalFiles,
+	event := common.MapStr{
+		"total_size": common.MapStr{
+			"free":  totalSizeFree,
+			"used":  totalSizeUsed,
+			"total": totalSize,
 		},
+		"count":       len(fss),
+		"total_files": totalFiles,
+	}
+
+	//We don't get the `Files` field on Windows
+	if runtime.GOOS == "windows" {
+		event["total_files"] = totalFiles
+	}
+
+	r.Event(mb.Event{
+		MetricSetFields: event,
 	})
+
+	return nil
 }

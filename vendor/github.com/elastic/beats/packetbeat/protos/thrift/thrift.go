@@ -27,14 +27,14 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/libbeat/monitoring"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/monitoring"
 
-	"github.com/elastic/beats/packetbeat/pb"
-	"github.com/elastic/beats/packetbeat/procs"
-	"github.com/elastic/beats/packetbeat/protos"
-	"github.com/elastic/beats/packetbeat/protos/tcp"
+	"github.com/elastic/beats/v7/packetbeat/pb"
+	"github.com/elastic/beats/v7/packetbeat/procs"
+	"github.com/elastic/beats/v7/packetbeat/protos"
+	"github.com/elastic/beats/v7/packetbeat/protos/tcp"
 )
 
 type thriftPlugin struct {
@@ -57,6 +57,7 @@ type thriftPlugin struct {
 
 	publishQueue chan *thriftTransaction
 	results      protos.Reporter
+	watcher      procs.ProcessesWatcher
 	idl          *thriftIdl
 }
 
@@ -182,6 +183,7 @@ func init() {
 func New(
 	testMode bool,
 	results protos.Reporter,
+	watcher procs.ProcessesWatcher,
 	cfg *common.Config,
 ) (protos.Plugin, error) {
 	p := &thriftPlugin{}
@@ -192,7 +194,7 @@ func New(
 		}
 	}
 
-	if err := p.init(testMode, results, &config); err != nil {
+	if err := p.init(testMode, results, watcher, &config); err != nil {
 		return nil, err
 	}
 	return p, nil
@@ -201,6 +203,7 @@ func New(
 func (thrift *thriftPlugin) init(
 	testMode bool,
 	results protos.Reporter,
+	watcher procs.ProcessesWatcher,
 	config *thriftConfig,
 ) error {
 	thrift.InitDefaults()
@@ -218,6 +221,7 @@ func (thrift *thriftPlugin) init(
 	if !testMode {
 		thrift.publishQueue = make(chan *thriftTransaction, 1000)
 		thrift.results = results
+		thrift.watcher = watcher
 		go thrift.publishTransactions()
 	}
 
@@ -652,8 +656,8 @@ func (thrift *thriftPlugin) readStruct(data []byte) (value string, ok bool, comp
 }
 
 func (thrift *thriftPlugin) formatStruct(fields []thriftField, resolveNames bool,
-	fieldnames []*string) string {
-
+	fieldnames []*string,
+) string {
 	toJoin := []string{}
 	for i, field := range fields {
 		if i == thrift.collectionMaxSize {
@@ -742,7 +746,7 @@ func (thrift *thriftPlugin) readField(s *thriftStream) (ok bool, complete bool, 
 
 func (thrift *thriftPlugin) messageParser(s *thriftStream) (bool, bool) {
 	var ok, complete bool
-	var m = s.message
+	m := s.message
 
 	logp.Debug("thriftdetailed", "messageParser called parseState=%v offset=%v",
 		s.parseState, s.parseOffset)
@@ -856,7 +860,7 @@ func (stream *thriftStream) prepareForNewMessage(flush bool) {
 	} else {
 		stream.data = stream.data[stream.parseOffset:]
 	}
-	//logp.Debug("thrift", "remaining data: [%s]", stream.data)
+	// logp.Debug("thrift", "remaining data: [%s]", stream.data)
 	stream.parseOffset = 0
 	stream.message = nil
 	stream.parseState = thriftStartState
@@ -867,8 +871,8 @@ type thriftPrivateData struct {
 }
 
 func (thrift *thriftPlugin) messageComplete(tcptuple *common.TCPTuple, dir uint8,
-	stream *thriftStream, priv *thriftPrivateData) {
-
+	stream *thriftStream, priv *thriftPrivateData,
+) {
 	flush := false
 
 	if stream.message.isRequest {
@@ -894,7 +898,7 @@ func (thrift *thriftPlugin) messageComplete(tcptuple *common.TCPTuple, dir uint8
 	// all ok, go to next level
 	stream.message.tcpTuple = *tcptuple
 	stream.message.direction = dir
-	stream.message.cmdlineTuple = procs.ProcWatcher.FindProcessesTupleTCP(tcptuple.IPPort())
+	stream.message.cmdlineTuple = thrift.watcher.FindProcessesTupleTCP(tcptuple.IPPort())
 	if stream.message.frameSize == 0 {
 		stream.message.frameSize = uint32(stream.parseOffset - stream.message.start)
 	}
@@ -902,7 +906,6 @@ func (thrift *thriftPlugin) messageComplete(tcptuple *common.TCPTuple, dir uint8
 
 	// and reset message
 	stream.prepareForNewMessage(flush)
-
 }
 
 func (thrift *thriftPlugin) ConnectionTimeout() time.Duration {
@@ -910,8 +913,8 @@ func (thrift *thriftPlugin) ConnectionTimeout() time.Duration {
 }
 
 func (thrift *thriftPlugin) Parse(pkt *protos.Packet, tcptuple *common.TCPTuple, dir uint8,
-	private protos.ProtocolData) protos.ProtocolData {
-
+	private protos.ProtocolData,
+) protos.ProtocolData {
 	defer logp.Recover("ParseThrift exception")
 
 	priv := thriftPrivateData{}
@@ -1036,8 +1039,8 @@ func (thrift *thriftPlugin) receivedReply(msg *thriftMessage) {
 }
 
 func (thrift *thriftPlugin) ReceivedFin(tcptuple *common.TCPTuple, dir uint8,
-	private protos.ProtocolData) protos.ProtocolData {
-
+	private protos.ProtocolData,
+) protos.ProtocolData {
 	trans := thrift.getTransaction(tcptuple.Hashable())
 	if trans != nil {
 		if trans.request != nil && trans.reply == nil {
@@ -1051,8 +1054,8 @@ func (thrift *thriftPlugin) ReceivedFin(tcptuple *common.TCPTuple, dir uint8,
 }
 
 func (thrift *thriftPlugin) GapInStream(tcptuple *common.TCPTuple, dir uint8,
-	nbytes int, private protos.ProtocolData) (priv protos.ProtocolData, drop bool) {
-
+	nbytes int, private protos.ProtocolData) (priv protos.ProtocolData, drop bool,
+) {
 	defer logp.Recover("GapInStream(thrift) exception")
 	logp.Debug("thriftdetailed", "GapInStream called")
 

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package http
@@ -30,11 +31,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/packetbeat/protos"
-	"github.com/elastic/beats/packetbeat/publish"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/packetbeat/procs"
+	"github.com/elastic/beats/v7/packetbeat/protos"
+	"github.com/elastic/beats/v7/packetbeat/publish"
 )
 
 type testParser struct {
@@ -50,12 +52,8 @@ type eventStore struct {
 }
 
 func (e *eventStore) publish(event beat.Event) {
-	publish.MarshalPacketbeatFields(&event, nil)
+	publish.MarshalPacketbeatFields(&event, nil, nil)
 	e.events = append(e.events, event)
-}
-
-func (e *eventStore) empty() bool {
-	return len(e.events) == 0
 }
 
 func newTestParser(http *httpPlugin, payloads ...string) *testParser {
@@ -88,7 +86,7 @@ func httpModForTests(store *eventStore) *httpPlugin {
 		callback = store.publish
 	}
 
-	http, err := New(false, callback, common.NewConfig())
+	http, err := New(false, callback, procs.ProcessesWatcher{}, common.NewConfig())
 	if err != nil {
 		panic(err)
 	}
@@ -536,7 +534,7 @@ func TestHttpParser_RequestResponseBody(t *testing.T) {
 
 	tp.stream.PrepareForNewMessage()
 	tp.stream.message = &message{ts: time.Now()}
-	msg, ok, complete = tp.parse()
+	_, ok, complete = tp.parse()
 	assert.True(t, ok)
 	assert.True(t, complete)
 }
@@ -644,17 +642,23 @@ func TestEatBodyChunked(t *testing.T) {
 	st.data = append(st.data, msgs[1]...)
 	cont, ok, complete = parser.parseBodyChunkedStart(st, msg)
 	assert.True(t, cont)
+	assert.True(t, ok)
+	assert.False(t, complete)
 	assert.Equal(t, 3, msg.chunkedLength)
 	assert.Equal(t, 0, len(msg.body))
 	assert.Equal(t, stateBodyChunked, st.parseState)
 
 	cont, ok, complete = parser.parseBodyChunked(st, msg)
 	assert.True(t, cont)
+	assert.True(t, ok)
+	assert.False(t, complete)
 	assert.Equal(t, stateBodyChunkedStart, st.parseState)
 	assert.Equal(t, 3, msg.contentLength)
 
 	cont, ok, complete = parser.parseBodyChunkedStart(st, msg)
 	assert.True(t, cont)
+	assert.True(t, ok)
+	assert.False(t, complete)
 	assert.Equal(t, 3, msg.chunkedLength)
 	assert.Equal(t, 3, msg.contentLength)
 	assert.Equal(t, stateBodyChunked, st.parseState)
@@ -670,6 +674,8 @@ func TestEatBodyChunked(t *testing.T) {
 	st.data = append(st.data, msgs[2]...)
 	cont, ok, complete = parser.parseBodyChunked(st, msg)
 	assert.True(t, cont)
+	assert.True(t, ok)
+	assert.False(t, complete)
 	assert.Equal(t, 6, msg.contentLength)
 	assert.Equal(t, stateBodyChunkedStart, st.parseState)
 
@@ -727,7 +733,6 @@ func TestEatBodyChunkedWaitCRLF(t *testing.T) {
 	ok, complete = parser.parseBodyChunkedWaitFinalCRLF(st, msg)
 	if ok != true || complete != false {
 		t.Error("Wrong return values", ok, complete)
-
 	}
 	st.data = append(st.data, msgs[1]...)
 
@@ -767,7 +772,7 @@ func TestHttpParser_requestURIWithSpace(t *testing.T) {
 	assert.True(t, ok)
 	assert.True(t, complete)
 	path, params, err := http.extractParameters(msg)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "/test", path)
 	assert.Equal(t, string(msg.requestURI), "http://localhost:8080/test?password=two secret")
 	assert.False(t, strings.Contains(params, "two secret"))
@@ -802,7 +807,7 @@ func TestHttpParser_censorPasswordURL(t *testing.T) {
 	assert.True(t, ok)
 	assert.True(t, complete)
 	path, params, err := http.extractParameters(msg)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "/test", path)
 	assert.False(t, strings.Contains(params, "secret"))
 }
@@ -815,13 +820,12 @@ func TestHttpParser_censorPasswordPOST(t *testing.T) {
 	http.parserConfig.sendHeaders = true
 	http.parserConfig.sendAllHeaders = true
 
-	data1 :=
-		"POST /users/login HTTP/1.1\r\n" +
-			"HOST: www.example.com\r\n" +
-			"Content-Type: application/x-www-form-urlencoded\r\n" +
-			"Content-Length: 28\r\n" +
-			"\r\n" +
-			"username=ME&password=secret\r\n"
+	data1 := "POST /users/login HTTP/1.1\r\n" +
+		"HOST: www.example.com\r\n" +
+		"Content-Type: application/x-www-form-urlencoded\r\n" +
+		"Content-Length: 28\r\n" +
+		"\r\n" +
+		"username=ME&password=secret\r\n"
 	tp := newTestParser(http, data1)
 
 	msg, ok, complete := tp.parse()
@@ -829,7 +833,7 @@ func TestHttpParser_censorPasswordPOST(t *testing.T) {
 	assert.True(t, complete)
 
 	path, params, err := http.extractParameters(msg)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "/users/login", path)
 	assert.True(t, strings.Contains(params, "username=ME"))
 	assert.False(t, strings.Contains(params, "secret"))
@@ -920,6 +924,36 @@ func TestHttpParser_RedactAuthorization(t *testing.T) {
 	assert.True(t, proxyObscured)
 }
 
+func TestExtractBasicAuthUser(t *testing.T) {
+	logp.TestingSetup(logp.WithSelectors("http", "httpdetailed"))
+
+	http := httpModForTests(nil)
+	http.parserConfig.sendHeaders = true
+	http.parserConfig.sendAllHeaders = true
+
+	data := []byte("POST /services/ObjectControl?ID=client0 HTTP/1.1\r\n" +
+		"User-Agent: Mozilla/4.0 (compatible; MSIE 6.0; MS Web Services Client Protocol 2.0.50727.5472)\r\n" +
+		"Content-Type: text/xml; charset=utf-8\r\n" +
+		"SOAPAction: \"\"\r\n" +
+		"Authorization: Basic ZHVtbXk6NmQlc1AwOC1XemZ3Cg\r\n" +
+		"Proxy-Authorization: Basic cHJveHk6MWM3MGRjM2JhZDIwCg==\r\n" +
+		"Host: production.example.com\r\n" +
+		"Content-Length: 0\r\n" +
+		"Expect: 100-continue\r\n" +
+		"Accept-Encoding: gzip\r\n" +
+		"X-Forwarded-For: 10.216.89.132\r\n" +
+		"\r\n")
+
+	st := &stream{data: data, message: new(message)}
+
+	ok, _ := testParseStream(http, st, 0)
+
+	username := extractBasicAuthUser(st.message.headers)
+
+	assert.True(t, ok)
+	assert.Equal(t, "dummy", username)
+}
+
 func TestHttpParser_RedactAuthorization_raw(t *testing.T) {
 	http := httpModForTests(nil)
 	http.redactAuthorization = true
@@ -988,6 +1022,43 @@ func TestHttpParser_RedactAuthorization_Proxy_raw(t *testing.T) {
 	if rawMessageObscured < 0 {
 		t.Errorf("Failed to redact proxy-authorization header: " + string(msg[:]))
 	}
+}
+
+func TestHttpParser_RedactHeaders(t *testing.T) {
+	logp.TestingSetup(logp.WithSelectors("http", "httpdetailed"))
+
+	http := httpModForTests(nil)
+	http.redactAuthorization = true
+	http.parserConfig.sendHeaders = true
+	http.parserConfig.sendAllHeaders = true
+	http.redactHeaders = []string{"header-to-redact", "should-not-exist"}
+
+	data := []byte("POST /services/ObjectControl?ID=client0 HTTP/1.1\r\n" +
+		"User-Agent: Mozilla/4.0 (compatible; MSIE 6.0; MS Web Services Client Protocol 2.0.50727.5472)\r\n" +
+		"Content-Type: text/xml; charset=utf-8\r\n" +
+		"SOAPAction: \"\"\r\n" +
+		"Header-To-Redact: sensitive-value\r\n" +
+		"Host: production.example.com\r\n" +
+		"Content-Length: 0\r\n" +
+		"Expect: 100-continue\r\n" +
+		"Accept-Encoding: gzip\r\n" +
+		"X-Forwarded-For: 10.216.89.132\r\n" +
+		"\r\n")
+
+	st := &stream{data: data, message: new(message)}
+
+	ok, _ := testParseStream(http, st, 0)
+
+	http.hideHeaders(st.message)
+
+	assert.True(t, ok)
+	var redactedString common.NetString = []byte("REDACTED")
+	var expectedAcceptEncoding common.NetString = []byte("gzip")
+	assert.Equal(t, redactedString, st.message.headers["header-to-redact"])
+	assert.Equal(t, expectedAcceptEncoding, st.message.headers["accept-encoding"])
+
+	_, invalidHeaderExists := st.message.headers["should-not-exist"]
+	assert.False(t, invalidHeaderExists)
 }
 
 func Test_splitCookiesHeader(t *testing.T) {
@@ -1442,7 +1513,8 @@ func TestHTTP_Encodings(t *testing.T) {
 	gzipDeflateBody := string([]byte{
 		0x1f, 0x8b, 0x08, 0x00, 0x65, 0xdb, 0x6a, 0x5b, 0x00, 0x03, 0x3b, 0x7d,
 		0xe2, 0xbc, 0xe7, 0x13, 0x26, 0x06, 0x00, 0x95, 0xfa, 0x49, 0xbf, 0x07,
-		0x00, 0x00, 0x00})
+		0x00, 0x00, 0x00,
+	})
 
 	var store eventStore
 	http := httpModForTests(&store)
@@ -1657,6 +1729,175 @@ func TestHTTP_Decoding_disabled(t *testing.T) {
 	}
 
 	assert.Equal(t, deflateBody, body)
+}
+
+func TestHttpParser_hostHeader(t *testing.T) {
+	template := "HEAD /_cat/shards HTTP/1.1\r\n" +
+		"Host: %s\r\n" +
+		"\r\n"
+	var store eventStore
+	http := httpModForTests(&store)
+	for _, test := range []struct {
+		title, host string
+		port        uint16
+		expected    common.MapStr
+	}{
+		{
+			title: "domain alone",
+			host:  "elasticsearch",
+			expected: common.MapStr{
+				"destination.domain": "elasticsearch",
+				"url.full":           "http://elasticsearch/_cat/shards",
+			},
+		},
+		{
+			title: "domain with port",
+			port:  9200,
+			host:  "elasticsearch:9200",
+			expected: common.MapStr{
+				"destination.domain": "elasticsearch",
+				"url.full":           "http://elasticsearch:9200/_cat/shards",
+			},
+		},
+		{
+			title: "ipv4",
+			host:  "127.0.0.1",
+			expected: common.MapStr{
+				"destination.domain": nil,
+				"url.full":           "http://127.0.0.1/_cat/shards",
+			},
+		},
+		{
+			title: "ipv4 with port",
+			port:  9200,
+			host:  "127.0.0.1:9200",
+			expected: common.MapStr{
+				"destination.domain": nil,
+				"url.full":           "http://127.0.0.1:9200/_cat/shards",
+			},
+		},
+		{
+			title: "ipv6 unboxed",
+			host:  "fd00::42",
+			expected: common.MapStr{
+				"destination.domain": nil,
+				"url.full":           "http://[fd00::42]/_cat/shards",
+			},
+		},
+		{
+			title: "ipv6 boxed",
+			host:  "[fd00::42]",
+			expected: common.MapStr{
+				"destination.domain": nil,
+				"url.full":           "http://[fd00::42]/_cat/shards",
+			},
+		},
+		{
+			title: "ipv6 boxed with port",
+			port:  9200,
+			host:  "[::1]:9200",
+			expected: common.MapStr{
+				"destination.domain": nil,
+				"url.full":           "http://[::1]:9200/_cat/shards",
+			},
+		},
+		{
+			title: "non boxed ipv6",
+			// This one is now illegal but it seems at some point the RFC
+			// didn't enforce the brackets when the port was omitted.
+			host: "fd00::1234",
+			expected: common.MapStr{
+				"destination.domain": nil,
+				"url.full":           "http://[fd00::1234]/_cat/shards",
+			},
+		},
+		{
+			title: "non-matching port",
+			port:  80,
+			host:  "myhost:9200",
+			expected: common.MapStr{
+				"destination.domain": "myhost",
+				"url.full":           "http://myhost:9200/_cat/shards",
+				"error.message":      []string{"Unmatched request", "Host header port number mismatch"},
+			},
+		},
+	} {
+		t.Run(test.title, func(t *testing.T) {
+			request := fmt.Sprintf(template, test.host)
+			tcptuple := testCreateTCPTuple()
+			if test.port != 0 {
+				tcptuple.DstPort = test.port
+			}
+			packet := protos.Packet{Payload: []byte(request)}
+			private := protos.ProtocolData(&httpConnectionData{})
+			private = http.Parse(&packet, tcptuple, 1, private)
+			http.Expired(tcptuple, private)
+			trans := expectTransaction(t, &store)
+			if !assert.NotNil(t, trans) {
+				t.Fatal("nil transaction")
+			}
+			for field, expected := range test.expected {
+				actual, err := trans.GetValue(field)
+				assert.Equal(t, expected, actual, field)
+				if expected != nil {
+					assert.Nil(t, err, field)
+				} else {
+					assert.Equal(t, common.ErrKeyNotFound, err, field)
+				}
+			}
+		})
+	}
+}
+
+func TestHttpParser_Extension(t *testing.T) {
+	template := "HEAD %s HTTP/1.1\r\n" +
+		"Host: abc.com\r\n" +
+		"\r\n"
+	var store eventStore
+	http := httpModForTests(&store)
+	for _, test := range []struct {
+		title, path string
+		expected    common.MapStr
+	}{
+		{
+			title: "Zip Extension",
+			path:  "/files.zip",
+			expected: common.MapStr{
+				"url.full":      "http://abc.com/files.zip",
+				"url.extension": "zip",
+			},
+		},
+		{
+			title: "No Extension",
+			path:  "/files",
+			expected: common.MapStr{
+				"url.full":      "http://abc.com/files",
+				"url.extension": nil,
+			},
+		},
+	} {
+		t.Run(test.title, func(t *testing.T) {
+			request := fmt.Sprintf(template, test.path)
+			tcptuple := testCreateTCPTuple()
+			packet := protos.Packet{Payload: []byte(request)}
+			private := protos.ProtocolData(&httpConnectionData{})
+			private = http.Parse(&packet, tcptuple, 1, private)
+			http.Expired(tcptuple, private)
+			trans := expectTransaction(t, &store)
+			if !assert.NotNil(t, trans) {
+				t.Fatal("nil transaction")
+			}
+			for field, expected := range test.expected {
+				actual, err := trans.GetValue(field)
+				assert.Equal(t, expected, actual, field)
+				if expected != nil {
+					assert.Nil(t, err, field)
+				} else {
+					assert.Equal(t, common.ErrKeyNotFound, err, field)
+				}
+			}
+		})
+	}
 }
 
 func benchmarkHTTPMessage(b *testing.B, data []byte) {

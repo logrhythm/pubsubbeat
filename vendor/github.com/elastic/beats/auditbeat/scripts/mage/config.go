@@ -18,11 +18,10 @@
 package mage
 
 import (
+	"fmt"
 	"path/filepath"
 
-	"github.com/pkg/errors"
-
-	"github.com/elastic/beats/dev-tools/mage"
+	devtools "github.com/elastic/beats/v7/dev-tools/mage"
 )
 
 const (
@@ -31,8 +30,8 @@ const (
 )
 
 // OSSConfigFileParams returns the parameters for generating OSS config.
-func OSSConfigFileParams() mage.ConfigFileParams {
-	params, err := configFileParams(mage.OSSBeatDir())
+func OSSConfigFileParams() devtools.ConfigFileParams {
+	params, err := configFileParams(devtools.OSSBeatDir())
 	if err != nil {
 		panic(err)
 	}
@@ -40,48 +39,36 @@ func OSSConfigFileParams() mage.ConfigFileParams {
 }
 
 // XPackConfigFileParams returns the parameters for generating X-Pack config.
-func XPackConfigFileParams() mage.ConfigFileParams {
-	params, err := configFileParams(mage.OSSBeatDir(), mage.XPackBeatDir())
+func XPackConfigFileParams() devtools.ConfigFileParams {
+	params, err := configFileParams(devtools.OSSBeatDir(), devtools.XPackBeatDir())
 	if err != nil {
 		panic(err)
 	}
 	return params
 }
 
-func configFileParams(dirs ...string) (mage.ConfigFileParams, error) {
+func configFileParams(dirs ...string) (devtools.ConfigFileParams, error) {
 	var globs []string
 	for _, dir := range dirs {
 		globs = append(globs, filepath.Join(dir, configTemplateGlob))
 	}
 
-	configFiles, err := mage.FindFiles(globs...)
+	configFiles, err := devtools.FindFiles(globs...)
 	if err != nil {
-		return mage.ConfigFileParams{}, errors.Wrap(err, "failed to find config templates")
+		return devtools.ConfigFileParams{}, fmt.Errorf("failed to find config templates: %w", err)
 	}
 	if len(configFiles) == 0 {
-		return mage.ConfigFileParams{}, errors.Errorf("no config files found in %v", globs)
+		return devtools.ConfigFileParams{}, fmt.Errorf("no config files found in %v", globs)
 	}
+	devtools.MustFileConcat("build/config.modules.yml.tmpl", 0o644, configFiles...)
 
-	return mage.ConfigFileParams{
-		ShortParts: join(
-			mage.OSSBeatDir("_meta/common.p1.yml"),
-			configFiles,
-			mage.OSSBeatDir("_meta/common.p2.yml"),
-			mage.LibbeatDir("_meta/config.yml"),
-		),
-		ReferenceParts: join(
-			mage.OSSBeatDir("_meta/common.reference.yml"),
-			configFiles,
-			mage.LibbeatDir("_meta/config.reference.yml"),
-		),
-		DockerParts: []string{
-			mage.OSSBeatDir("_meta/beat.docker.yml"),
-			mage.LibbeatDir("_meta/config.docker.yml"),
-		},
-		ExtraVars: map[string]interface{}{
-			"ArchBits": archBits,
-		},
-	}, nil
+	p := devtools.DefaultConfigFileParams()
+	p.Templates = append(p.Templates, devtools.OSSBeatDir("_meta/config/*.tmpl"))
+	p.Templates = append(p.Templates, "build/config.modules.yml.tmpl")
+	p.ExtraVars = map[string]interface{}{
+		"ArchBits": archBits,
+	}
+	return p, nil
 }
 
 // archBits returns the number of bit width of the GOARCH architecture value.
@@ -94,17 +81,4 @@ func archBits(goarch string) int {
 	default:
 		return 64
 	}
-}
-
-func join(items ...interface{}) []string {
-	var out []string
-	for _, item := range items {
-		switch v := item.(type) {
-		case string:
-			out = append(out, v)
-		case []string:
-			out = append(out, v...)
-		}
-	}
-	return out
 }

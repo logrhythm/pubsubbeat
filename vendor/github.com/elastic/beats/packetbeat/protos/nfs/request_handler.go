@@ -23,11 +23,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/monitoring"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/monitoring"
 
-	"github.com/elastic/beats/packetbeat/pb"
-	"github.com/elastic/beats/packetbeat/protos/tcp"
+	"github.com/elastic/beats/v7/packetbeat/pb"
+	"github.com/elastic/beats/v7/packetbeat/protos/tcp"
 )
 
 const nfsProgramNumber = 100003
@@ -41,9 +41,7 @@ var acceptStatus = [...]string{
 	"system_err",
 }
 
-var (
-	unmatchedRequests = monitoring.NewInt(nil, "nfs.unmatched_requests")
-)
+var unmatchedRequests = monitoring.NewInt(nil, "nfs.unmatched_requests")
 
 // called by Cache, when re reply seen within expected time window
 func (r *rpc) handleExpiredPacket(nfs *nfs) {
@@ -79,7 +77,9 @@ func (r *rpc) handleCall(xid string, xdr *xdr, ts time.Time, tcptuple *common.TC
 
 	evt, pbf := pb.NewBeatEvent(ts)
 	pbf.SetSource(&src)
+	pbf.AddIP(src.IP)
 	pbf.SetDestination(&dst)
+	pbf.AddIP(dst.IP)
 	pbf.Source.Bytes = int64(xdr.size())
 	pbf.Event.Dataset = "nfs"
 	pbf.Event.Start = ts
@@ -102,6 +102,8 @@ func (r *rpc) handleCall(xid string, xdr *xdr, ts time.Time, tcptuple *common.TC
 		"xid": xid,
 	}
 
+	fields := evt.Fields
+
 	authFlavor := xdr.getUInt()
 	authOpaque := xdr.getDynamicOpaque()
 	switch authFlavor {
@@ -119,8 +121,14 @@ func (r *rpc) handleCall(xid string, xdr *xdr, ts time.Time, tcptuple *common.TC
 			pbf.Source.Domain = machine
 		}
 		cred["machinename"] = machine
+		fields["host.hostname"] = machine
+
 		cred["uid"] = credXdr.getUInt()
+		fields["user.id"] = cred["uid"]
+
 		cred["gid"] = credXdr.getUInt()
+		fields["group.id"] = cred["gid"]
+
 		cred["gids"] = credXdr.getUIntVector()
 		rpcInfo["cred"] = cred
 	case 6:
@@ -133,7 +141,6 @@ func (r *rpc) handleCall(xid string, xdr *xdr, ts time.Time, tcptuple *common.TC
 	xdr.getUInt()
 	xdr.getDynamicOpaque()
 
-	fields := evt.Fields
 	fields["status"] = common.OK_STATUS // all packages are OK for now
 	fields["type"] = pbf.Event.Dataset
 	fields["rpc"] = rpcInfo
@@ -143,7 +150,12 @@ func (r *rpc) handleCall(xid string, xdr *xdr, ts time.Time, tcptuple *common.TC
 		pbf:   pbf,
 		event: evt,
 	}
-	fields["nfs"] = nfs.getRequestInfo(xdr)
+	info := nfs.getRequestInfo(xdr)
+	fields["nfs"] = info
+
+	if opcode, ok := info["opcode"].(string); ok && opcode != "" {
+		pbf.Event.Action = "nfs." + opcode
+	}
 
 	// use xid+src ip to uniquely identify request
 	reqID := xid + tcptuple.SrcIP.String()
@@ -190,6 +202,8 @@ func (r *rpc) handleReply(xid string, xdr *xdr, ts time.Time, tcptuple *common.T
 		if status == 0 {
 			nfsInfo := fields["nfs"].(common.MapStr)
 			nfsInfo["status"] = nfs.getNFSReplyStatus(xdr)
+		} else {
+			nfs.pbf.Event.Outcome = "failure"
 		}
 		r.results(nfs.event)
 	}

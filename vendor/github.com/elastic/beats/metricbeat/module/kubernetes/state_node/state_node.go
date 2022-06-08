@@ -18,11 +18,14 @@
 package state_node
 
 import (
-	"github.com/elastic/beats/libbeat/common/kubernetes"
-	p "github.com/elastic/beats/metricbeat/helper/prometheus"
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/mb/parse"
-	"github.com/elastic/beats/metricbeat/module/kubernetes/util"
+	"fmt"
+
+	"github.com/elastic/beats/v7/libbeat/common/kubernetes"
+	p "github.com/elastic/beats/v7/metricbeat/helper/prometheus"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/parse"
+	k8smod "github.com/elastic/beats/v7/metricbeat/module/kubernetes"
+	"github.com/elastic/beats/v7/metricbeat/module/kubernetes/util"
 )
 
 const (
@@ -45,14 +48,32 @@ var (
 			"kube_node_status_allocatable_memory_bytes": p.Metric("memory.allocatable.bytes"),
 			"kube_node_status_capacity_cpu_cores":       p.Metric("cpu.capacity.cores"),
 			"kube_node_status_allocatable_cpu_cores":    p.Metric("cpu.allocatable.cores"),
-			"kube_node_spec_unschedulable":              p.BooleanMetric("status.unschedulable"),
-			"kube_node_status_ready":                    p.LabelMetric("status.ready", "condition"),
-			"kube_node_status_condition": p.LabelMetric("status.ready", "status",
-				p.OpFilter(map[string]string{
-					"condition": "Ready",
-				})),
+			"kube_node_status_capacity": p.Metric("", p.OpFilterMap(
+				"resource", map[string]string{
+					"pods":   "pod.capacity.total",
+					"cpu":    "cpu.capacity.cores",
+					"memory": "memory.capacity.bytes",
+				},
+			)),
+			"kube_node_status_allocatable": p.Metric("", p.OpFilterMap(
+				"resource", map[string]string{
+					"pods":   "pod.allocatable.total",
+					"cpu":    "cpu.allocatable.cores",
+					"memory": "memory.allocatable.bytes",
+				},
+			)),
+			"kube_node_spec_unschedulable": p.BooleanMetric("status.unschedulable"),
+			"kube_node_status_ready":       p.LabelMetric("status.ready", "condition"),
+			"kube_node_status_condition": p.LabelMetric("status", "status", p.OpFilterMap(
+				"condition", map[string]string{
+					"Ready":          "ready",
+					"MemoryPressure": "memory_pressure",
+					"DiskPressure":   "disk_pressure",
+					"OutOfDisk":      "out_of_disk",
+					"PIDPressure":    "pid_pressure",
+				},
+			)),
 		},
-
 		Labels: map[string]p.LabelMap{
 			"node": p.KeyLabel("name"),
 		},
@@ -62,9 +83,9 @@ var (
 // init registers the MetricSet with the central registry.
 // The New method will be called after the setup of the module and before starting to fetch data
 func init() {
-	if err := mb.Registry.AddMetricSet("kubernetes", "state_node", New, hostParser); err != nil {
-		panic(err)
-	}
+	mb.Registry.MustAddMetricSet("kubernetes", "state_node", New,
+		mb.WithHostParser(hostParser),
+	)
 }
 
 // MetricSet type defines all fields of the MetricSet
@@ -75,6 +96,7 @@ type MetricSet struct {
 	mb.BaseMetricSet
 	prometheus p.Prometheus
 	enricher   util.Enricher
+	mod        k8smod.Module
 }
 
 // New create a new instance of the MetricSet
@@ -85,11 +107,15 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	mod, ok := base.Module().(k8smod.Module)
+	if !ok {
+		return nil, fmt.Errorf("must be child of kubernetes module")
+	}
 	return &MetricSet{
 		BaseMetricSet: base,
 		prometheus:    prometheus,
 		enricher:      util.NewResourceMetadataEnricher(base, &kubernetes.Node{}, false),
+		mod:           mod,
 	}, nil
 }
 
@@ -99,7 +125,13 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 func (m *MetricSet) Fetch(reporter mb.ReporterV2) {
 	m.enricher.Start()
 
-	events, err := m.prometheus.GetProcessedMetrics(mapping)
+	families, err := m.mod.GetStateMetricsFamilies(m.prometheus)
+	if err != nil {
+		m.Logger().Error(err)
+		reporter.Error(err)
+		return
+	}
+	events, err := m.prometheus.ProcessMetrics(families, mapping)
 	if err != nil {
 		m.Logger().Error(err)
 		reporter.Error(err)
@@ -108,11 +140,19 @@ func (m *MetricSet) Fetch(reporter mb.ReporterV2) {
 
 	m.enricher.Enrich(events)
 	for _, event := range events {
-		reporter.Event(mb.Event{
-			MetricSetFields: event,
-			Namespace:       "kubernetes.node",
-		})
+
+		e, err := util.CreateEvent(event, "kubernetes.node")
+		if err != nil {
+			m.Logger().Error(err)
+		}
+
+		if reported := reporter.Event(e); !reported {
+			m.Logger().Debug("error trying to emit event")
+			return
+		}
 	}
+
+	return
 }
 
 // Close stops this metricset

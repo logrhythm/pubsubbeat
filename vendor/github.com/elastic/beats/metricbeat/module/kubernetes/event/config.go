@@ -18,17 +18,19 @@
 package event
 
 import (
-	"errors"
 	"time"
+
+	"github.com/elastic/beats/v7/libbeat/common/kubernetes"
 )
 
 type kubeEventsConfig struct {
-	InCluster        bool          `config:"in_cluster"`
-	KubeConfig       string        `config:"kube_config"`
-	Namespace        string        `config:"namespace"`
-	SyncPeriod       time.Duration `config:"sync_period"`
-	LabelsDedot      bool          `config:"labels.dedot"`
-	AnnotationsDedot bool          `config:"annotations.dedot"`
+	KubeConfig        string                       `config:"kube_config"`
+	KubeClientOptions kubernetes.KubeClientOptions `config:"kube_client_options"`
+	Namespace         string                       `config:"namespace"`
+	SyncPeriod        time.Duration                `config:"sync_period"`
+	LabelsDedot       bool                         `config:"labels.dedot"`
+	AnnotationsDedot  bool                         `config:"annotations.dedot"`
+	SkipOlder         bool                         `config:"skip_older"`
 }
 
 type Enabled struct {
@@ -37,16 +39,9 @@ type Enabled struct {
 
 func defaultKubernetesEventsConfig() kubeEventsConfig {
 	return kubeEventsConfig{
-		InCluster:        true,
-		SyncPeriod:       1 * time.Second,
+		SyncPeriod:       10 * time.Minute,
 		LabelsDedot:      true,
 		AnnotationsDedot: true,
+		SkipOlder:        true,
 	}
-}
-
-func (c kubeEventsConfig) Validate() error {
-	if !c.InCluster && c.KubeConfig == "" {
-		return errors.New("`kube_config` path can't be empty when in_cluster is set to false")
-	}
-	return nil
 }

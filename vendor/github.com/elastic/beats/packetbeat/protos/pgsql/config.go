@@ -18,8 +18,8 @@
 package pgsql
 
 import (
-	"github.com/elastic/beats/packetbeat/config"
-	"github.com/elastic/beats/packetbeat/protos"
+	"github.com/elastic/beats/v7/packetbeat/config"
+	"github.com/elastic/beats/v7/packetbeat/protos"
 )
 
 type pgsqlConfig struct {
@@ -28,12 +28,10 @@ type pgsqlConfig struct {
 	MaxRows               int `config:"max_rows"`
 }
 
-var (
-	defaultConfig = pgsqlConfig{
-		ProtocolCommon: config.ProtocolCommon{
-			TransactionTimeout: protos.DefaultTransactionExpiration,
-		},
-		MaxRowLength: 1024,
-		MaxRows:      10,
-	}
-)
+var defaultConfig = pgsqlConfig{
+	ProtocolCommon: config.ProtocolCommon{
+		TransactionTimeout: protos.DefaultTransactionExpiration,
+	},
+	MaxRowLength: 1024,
+	MaxRows:      10,
+}

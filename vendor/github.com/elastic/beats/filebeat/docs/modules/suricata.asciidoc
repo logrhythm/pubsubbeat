@@ -10,27 +10,21 @@ This file is generated! See scripts/docs_collector.py
 
 == Suricata module
 
+include::{libbeat-dir}/shared/integration-link.asciidoc[]
+
 This is a module to the Suricata IDS/IPS/NSM log. It parses logs that are in the
 https://suricata.readthedocs.io/en/latest/output/eve/eve-json-format.html[
 Suricata Eve JSON format].
 
 include::../include/what-happens.asciidoc[]
 
+include::../include/gs-link.asciidoc[]
+
 [float]
 === Compatibility
 
 This module has been developed against Suricata v4.0.4, but is expected to work
 with other versions of Suricata.
-
-include::../include/running-modules.asciidoc[]
-
-[float]
-=== Example dashboard
-
-This module comes with a sample dashboard. For example:
-
-[role="screenshot"]
-image::./images/kibana-suricata.png[]
 
 include::../include/configuring-intro.asciidoc[]
 
@@ -52,6 +46,32 @@ include::../include/config-option-intro.asciidoc[]
 ==== `eve` log fileset settings
 
 include::../include/var-paths.asciidoc[]
+
+*`var.tags`*::
+
+A list of tags to include in events. Including `forwarded` indicates that the
+events did not originate on this host and causes `host.name` to not be added to
+events. Defaults to `[suricata]`.
+
+`var.internal_networks`::
+
+A list of CIDR ranges describing the IP addresses that
+you consider internal. This is used in determining the value of
+`network.direction`. The values
+can be either a CIDR value or one of the named ranges supported by the
+<<condition-network, `network`>> condition. The default value is `[private]`
+which classifies RFC 1918 (IPv4) and RFC 4193 (IPv6) addresses as internal.
+
+[float]
+=== Example dashboard
+
+This module comes with sample dashboards. For example:
+
+[role="screenshot"]
+image::./images/filebeat-suricata-events.png[]
+
+[role="screenshot"]
+image::./images/filebeat-suricata-alerts.png[]
 
 :has-dashboards!:
 

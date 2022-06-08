@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build integration
 // +build integration
 
 package agent
@@ -22,24 +23,17 @@ package agent
 import (
 	"testing"
 
-	"github.com/elastic/beats/metricbeat/module/consul"
-
 	_ "github.com/denisenkom/go-mssqldb"
-	"github.com/stretchr/testify/assert"
 
-	mbtest "github.com/elastic/beats/metricbeat/mb/testing"
+	"github.com/elastic/beats/v7/libbeat/tests/compose"
+	mbtest "github.com/elastic/beats/v7/metricbeat/mb/testing"
+	"github.com/elastic/beats/v7/metricbeat/module/consul"
 )
 
 func TestData(t *testing.T) {
-	t.Skip("Skipping `data.json` generation test")
+	service := compose.EnsureUp(t, "consul")
 
-	f := mbtest.NewReportingMetricSetV2Error(t, consul.GetConfig([]string{"agent"}))
-	events, errs := mbtest.ReportingFetchV2Error(f)
-	if len(errs) > 0 {
-		t.Fatalf("Expected 0 error, had %d. %v\n", len(errs), errs)
-	}
-	assert.NotEmpty(t, events)
-
+	f := mbtest.NewReportingMetricSetV2Error(t, consul.GetConfig([]string{"agent"}, service.Host()))
 	if err := mbtest.WriteEventsReporterV2Error(f, t, ""); err != nil {
 		t.Fatal("write", err)
 	}

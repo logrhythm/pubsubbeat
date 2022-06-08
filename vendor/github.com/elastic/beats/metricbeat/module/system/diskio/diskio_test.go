@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build integration && ((darwin && cgo) || freebsd || linux || windows)
 // +build integration
 // +build darwin,cgo freebsd linux windows
 
@@ -24,14 +25,44 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/elastic/beats/v7/metricbeat/internal/sysinit"
+	mbtest "github.com/elastic/beats/v7/metricbeat/mb/testing"
 
-	mbtest "github.com/elastic/beats/metricbeat/mb/testing"
+	"github.com/stretchr/testify/assert"
 )
 
+func TestDataNameFilter(t *testing.T) {
+	sysinit.InitModule("./_meta/testdata")
+	conf := map[string]interface{}{
+		"module":                 "system",
+		"metricsets":             []string{"diskio"},
+		"diskio.include_devices": []string{"sdb", "sdb1", "sdb2"},
+		"hostfs":                 "./_meta/testdata",
+	}
+
+	f := mbtest.NewReportingMetricSetV2Error(t, conf)
+	data, errs := mbtest.ReportingFetchV2Error(f)
+	assert.Empty(t, errs)
+	assert.Equal(t, 3, len(data))
+}
+
+func TestDataEmptyFilter(t *testing.T) {
+	conf := map[string]interface{}{
+		"module":     "system",
+		"metricsets": []string{"diskio"},
+		"hostfs":     "./_meta/testdata",
+	}
+
+	f := mbtest.NewReportingMetricSetV2Error(t, conf)
+	data, errs := mbtest.ReportingFetchV2Error(f)
+	assert.Empty(t, errs)
+	assert.Equal(t, 10, len(data))
+
+}
+
 func TestFetch(t *testing.T) {
-	f := mbtest.NewReportingMetricSetV2(t, getConfig())
-	events, errs := mbtest.ReportingFetchV2(f)
+	f := mbtest.NewReportingMetricSetV2Error(t, getConfig())
+	events, errs := mbtest.ReportingFetchV2Error(f)
 
 	assert.Empty(t, errs)
 	if !assert.NotEmpty(t, events) {
@@ -42,11 +73,11 @@ func TestFetch(t *testing.T) {
 }
 
 func TestData(t *testing.T) {
-	f := mbtest.NewReportingMetricSetV2(t, getConfig())
-	err := mbtest.WriteEventsReporterV2(f, t, ".")
+	f := mbtest.NewReportingMetricSetV2Error(t, getConfig())
+	err := mbtest.WriteEventsReporterV2Error(f, t, ".")
 
 	// Do a first fetch to have a sample
-	mbtest.ReportingFetchV2(f)
+	mbtest.ReportingFetchV2Error(f)
 	time.Sleep(1 * time.Second)
 
 	if err != nil {

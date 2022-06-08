@@ -18,37 +18,71 @@
 package cmd
 
 import (
-	// register default heartbeat monitors
-	"github.com/elastic/beats/heartbeat/beater"
-	_ "github.com/elastic/beats/heartbeat/monitors/defaults"
-	cmd "github.com/elastic/beats/libbeat/cmd"
-	"github.com/elastic/beats/libbeat/cmd/instance"
+
+	// include all heartbeat specific autodiscovery builders
+	_ "github.com/elastic/beats/v7/heartbeat/autodiscover/builder/hints"
+
+	"github.com/elastic/beats/v7/heartbeat/beater"
+	cmd "github.com/elastic/beats/v7/libbeat/cmd"
+	"github.com/elastic/beats/v7/libbeat/cmd/instance"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/ecs"
+	"github.com/elastic/beats/v7/libbeat/publisher/processing"
+
+	// Import packages that need to register themselves.
+	_ "github.com/elastic/beats/v7/heartbeat/monitors/active/http"
+	_ "github.com/elastic/beats/v7/heartbeat/monitors/active/icmp"
+	_ "github.com/elastic/beats/v7/heartbeat/monitors/active/tcp"
 )
 
-// Name of this beat
-var Name = "heartbeat"
+const (
+	// Name of the beat
+	Name = "heartbeat"
+)
 
 // RootCmd to handle beats cli
 var RootCmd *cmd.BeatsRootCmd
 
-func init() {
-	RootCmd = cmd.GenRootCmdWithSettings(beater.New, instance.Settings{Name: Name})
+// withECSVersion is a modifier that adds ecs.version to events.
+var withECSVersion = processing.WithFields(common.MapStr{
+	"ecs": common.MapStr{
+		"version": ecs.Version,
+	},
+})
+
+// HeartbeatSettings contains the default settings for heartbeat
+func HeartbeatSettings() instance.Settings {
+	return instance.Settings{
+		Name:          Name,
+		Processing:    processing.MakeDefaultSupport(true, withECSVersion, processing.WithAgentMeta()),
+		HasDashboards: false,
+	}
+}
+
+// Initialize initializes the entrypoint commands for heartbeat
+func Initialize(settings instance.Settings) *cmd.BeatsRootCmd {
+	rootCmd := cmd.GenRootCmdWithSettings(beater.New, settings)
 
 	// remove dashboard from export commands
-	for _, cmd := range RootCmd.ExportCmd.Commands() {
+	for _, cmd := range rootCmd.ExportCmd.Commands() {
 		if cmd.Name() == "dashboard" {
-			RootCmd.ExportCmd.RemoveCommand(cmd)
+			rootCmd.ExportCmd.RemoveCommand(cmd)
 		}
 	}
 
 	// only add defined flags to setup command
-	setup := RootCmd.SetupCmd
+	setup := rootCmd.SetupCmd
 	setup.Short = "Setup Elasticsearch index template and pipelines"
 	setup.Long = `This command does initial setup of the environment:
  * Index mapping template in Elasticsearch to ensure fields are mapped.
  * ILM Policy
 `
 	setup.ResetFlags()
-	setup.Flags().Bool(cmd.TemplateKey, false, "Setup index template")
-	setup.Flags().Bool(cmd.ILMPolicyKey, false, "Setup ILM policy")
+	setup.Flags().Bool(cmd.IndexManagementKey, false, "Setup all components related to Elasticsearch index management, including template, ilm policy and rollover alias")
+
+	return rootCmd
+}
+
+func init() {
+	RootCmd = Initialize(HeartbeatSettings())
 }

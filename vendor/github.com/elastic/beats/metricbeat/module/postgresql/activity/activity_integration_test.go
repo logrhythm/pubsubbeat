@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build integration
 // +build integration
 
 package activity
@@ -22,18 +23,18 @@ package activity
 import (
 	"testing"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/tests/compose"
-	mbtest "github.com/elastic/beats/metricbeat/mb/testing"
-	"github.com/elastic/beats/metricbeat/module/postgresql"
-
 	"github.com/stretchr/testify/assert"
+
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/tests/compose"
+	mbtest "github.com/elastic/beats/v7/metricbeat/mb/testing"
+	"github.com/elastic/beats/v7/metricbeat/module/postgresql"
 )
 
 func TestFetch(t *testing.T) {
-	compose.EnsureUp(t, "postgresql")
+	service := compose.EnsureUp(t, "postgresql")
 
-	f := mbtest.NewReportingMetricSetV2Error(t, getConfig())
+	f := mbtest.NewReportingMetricSetV2Error(t, getConfig(service.Host()))
 	events, errs := mbtest.ReportingFetchV2Error(f)
 	if len(errs) > 0 {
 		t.Fatalf("Expected 0 error, had %d. %v\n", len(errs), errs)
@@ -43,33 +44,45 @@ func TestFetch(t *testing.T) {
 
 	t.Logf("%s/%s event: %+v", f.Module().Name(), f.Name(), event)
 
-	// Check event fields
-	assert.Contains(t, event, "database")
-	db_oid := event["database"].(common.MapStr)["oid"].(int64)
-	assert.True(t, db_oid > 0)
-
 	assert.Contains(t, event, "pid")
 	assert.True(t, event["pid"].(int64) > 0)
 
-	assert.Contains(t, event, "user")
-	assert.Contains(t, event["user"].(common.MapStr), "name")
-	assert.Contains(t, event["user"].(common.MapStr), "id")
-}
+	// Check event fields
+	if _, isQuery := event["database"]; isQuery {
+		db_oid := event["database"].(common.MapStr)["oid"].(int64)
+		assert.True(t, db_oid > 0)
 
-func TestData(t *testing.T) {
-	compose.EnsureUp(t, "postgresql")
-
-	f := mbtest.NewReportingMetricSetV2Error(t, getConfig())
-	if err := mbtest.WriteEventsReporterV2Error(f, t, ""); err != nil {
-		t.Fatal("write", err)
+		assert.Contains(t, event, "user")
+		assert.Contains(t, event["user"].(common.MapStr), "name")
+		assert.Contains(t, event["user"].(common.MapStr), "id")
+	} else {
+		assert.Contains(t, event, "backend_type")
+		assert.Contains(t, event, "wait_event")
+		assert.Contains(t, event, "wait_event_type")
 	}
 }
 
-func getConfig() map[string]interface{} {
+func TestData(t *testing.T) {
+	service := compose.EnsureUp(t, "postgresql")
+
+	f := mbtest.NewFetcher(t, getConfig(service.Host()))
+
+	dbNameKey := "postgresql.activity.database.name"
+	f.WriteEventsCond(t, "", func(event common.MapStr) bool {
+		_, err := event.GetValue(dbNameKey)
+		return err == nil
+	})
+	f.WriteEventsCond(t, "./_meta/data_backend.json", func(event common.MapStr) bool {
+		_, err := event.GetValue(dbNameKey)
+		return err != nil
+	})
+}
+
+func getConfig(host string) map[string]interface{} {
 	return map[string]interface{}{
 		"module":     "postgresql",
 		"metricsets": []string{"activity"},
-		"hosts":      []string{postgresql.GetEnvDSN()},
+		"hosts":      []string{postgresql.GetDSN(host)},
 		"username":   postgresql.GetEnvUsername(),
 		"password":   postgresql.GetEnvPassword(),
 	}

@@ -16,7 +16,6 @@
       The state of the process (Idle, Running, etc)
   - name: start_time
     type: date
-    format: epoch_second
     description: >
       The date and time the process has started
   - name: start_since
@@ -62,8 +61,8 @@
   - name: last_request_cpu
     type: long
     description: >
-      The max amount of memory the last request consumed (it is always 0 if the process is not in Idle state because memory calculation is done when the request processing has terminated)
+      The CPU percentage the last request consumed. It's always 0 if the process is not in Idle state because CPU calculation is done when the request processing has terminated
   - name: last_request_memory
     type: integer
     description: >
-      The content length of the request (only with POST) (of the current request)
+      The max amount of memory the last request consumed. It's always 0 if the process is not in Idle state because memory calculation is done when the request processing has terminated

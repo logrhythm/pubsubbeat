@@ -19,26 +19,30 @@ package http
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/pkg/errors"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/libbeat/monitoring"
-	"github.com/elastic/beats/packetbeat/pb"
-	"github.com/elastic/beats/packetbeat/procs"
-	"github.com/elastic/beats/packetbeat/protos"
-	"github.com/elastic/ecs/code/go/ecs"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/ecs"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/monitoring"
+	"github.com/elastic/beats/v7/packetbeat/pb"
+	"github.com/elastic/beats/v7/packetbeat/procs"
+	"github.com/elastic/beats/v7/packetbeat/protos"
 )
 
-var debugf = logp.MakeDebug("http")
-var detailedf = logp.MakeDebug("httpdetailed")
+var (
+	debugf    = logp.MakeDebug("http")
+	detailedf = logp.MakeDebug("httpdetailed")
+)
 
 type parserState uint8
 
@@ -87,6 +91,7 @@ type httpPlugin struct {
 	splitCookie         bool
 	hideKeywords        []string
 	redactAuthorization bool
+	redactHeaders       []string
 	maxMessageSize      int
 	mustDecodeBody      bool
 
@@ -95,6 +100,7 @@ type httpPlugin struct {
 	transactionTimeout time.Duration
 
 	results protos.Reporter
+	watcher procs.ProcessesWatcher
 }
 
 var (
@@ -109,6 +115,7 @@ func init() {
 func New(
 	testMode bool,
 	results protos.Reporter,
+	watcher procs.ProcessesWatcher,
 	cfg *common.Config,
 ) (protos.Plugin, error) {
 	p := &httpPlugin{}
@@ -119,19 +126,20 @@ func New(
 		}
 	}
 
-	if err := p.init(results, &config); err != nil {
+	if err := p.init(results, watcher, &config); err != nil {
 		return nil, err
 	}
 	return p, nil
 }
 
 // Init initializes the HTTP protocol analyser.
-func (http *httpPlugin) init(results protos.Reporter, config *httpConfig) error {
+func (http *httpPlugin) init(results protos.Reporter, watcher procs.ProcessesWatcher, config *httpConfig) error {
 	http.setFromConfig(config)
 
 	isDebug = logp.IsDebug("http")
 	isDetailed = logp.IsDebug("httpdetailed")
 	http.results = results
+	http.watcher = watcher
 	return nil
 }
 
@@ -145,6 +153,11 @@ func (http *httpPlugin) setFromConfig(config *httpConfig) {
 	http.parserConfig.realIPHeader = strings.ToLower(config.RealIPHeader)
 	http.transactionTimeout = config.TransactionTimeout
 	http.mustDecodeBody = config.DecodeBody
+
+	http.redactHeaders = make([]string, len(config.RedactHeaders))
+	for i, header := range config.RedactHeaders {
+		http.redactHeaders[i] = strings.ToLower(header)
+	}
 
 	for _, list := range [][]string{config.IncludeBodyFor, config.IncludeRequestBodyFor} {
 		http.parserConfig.includeRequestBodyFor = append(http.parserConfig.includeRequestBodyFor, list...)
@@ -289,7 +302,6 @@ func (http *httpPlugin) doParse(
 	tcptuple *common.TCPTuple,
 	dir uint8,
 ) *httpConnectionData {
-
 	if isDetailed {
 		detailedf("Payload received: [%s]", pkt.Payload)
 	}
@@ -357,8 +369,8 @@ func newStream(pkt *protos.Packet, tcptuple *common.TCPTuple) *stream {
 
 // ReceivedFin will be called when TCP transaction is terminating.
 func (http *httpPlugin) ReceivedFin(tcptuple *common.TCPTuple, dir uint8,
-	private protos.ProtocolData) protos.ProtocolData {
-
+	private protos.ProtocolData,
+) protos.ProtocolData {
 	debugf("Received FIN")
 	conn := getHTTPConnection(private)
 	if conn == nil {
@@ -385,8 +397,8 @@ func (http *httpPlugin) ReceivedFin(tcptuple *common.TCPTuple, dir uint8,
 // GapInStream is called when a gap of nbytes bytes is found in the stream (due
 // to packet loss).
 func (http *httpPlugin) GapInStream(tcptuple *common.TCPTuple, dir uint8,
-	nbytes int, private protos.ProtocolData) (priv protos.ProtocolData, drop bool) {
-
+	nbytes int, private protos.ProtocolData) (priv protos.ProtocolData, drop bool,
+) {
 	defer logp.Recover("GapInStream(http) exception")
 
 	conn := getHTTPConnection(private)
@@ -425,10 +437,14 @@ func (http *httpPlugin) handleHTTP(
 	tcptuple *common.TCPTuple,
 	dir uint8,
 ) {
-
 	m.tcpTuple = *tcptuple
 	m.direction = dir
-	m.cmdlineTuple = procs.ProcWatcher.FindProcessesTupleTCP(tcptuple.IPPort())
+	m.cmdlineTuple = http.watcher.FindProcessesTupleTCP(tcptuple.IPPort())
+
+	if !http.redactAuthorization {
+		m.username = extractBasicAuthUser(m.headers)
+	}
+
 	http.hideHeaders(m)
 
 	if m.isRequest {
@@ -450,6 +466,12 @@ func (http *httpPlugin) flushResponses(conn *httpConnectionData) {
 		unmatchedResponses.Add(1)
 		resp := conn.responses.pop()
 		debugf("Response from unknown transaction: %s. Reporting error.", resp.tcpTuple)
+
+		if resp.statusCode == 100 {
+			debugf("Drop first 100-continue response")
+			return
+		}
+
 		event := http.newTransaction(nil, resp)
 		http.publishTransaction(event)
 	}
@@ -466,7 +488,6 @@ func (http *httpPlugin) flushRequests(conn *httpConnectionData) {
 }
 
 func (http *httpPlugin) correlate(conn *httpConnectionData) {
-
 	// drop responses with missing requests
 	if conn.requests.empty() {
 		http.flushResponses(conn)
@@ -517,6 +538,8 @@ func (http *httpPlugin) newTransaction(requ, resp *message) beat.Event {
 	evt, pbf := pb.NewBeatEvent(ts)
 	pbf.SetSource(src)
 	pbf.SetDestination(dst)
+	pbf.AddIP(src.IP)
+	pbf.AddIP(dst.IP)
 	pbf.Network.Transport = "tcp"
 	pbf.Network.Protocol = "http"
 
@@ -532,21 +555,31 @@ func (http *httpPlugin) newTransaction(requ, resp *message) beat.Event {
 			logp.Warn("Fail to parse HTTP parameters: %v", err)
 		}
 
-		host := string(requ.host)
 		pbf.Source.Bytes = int64(requ.size)
+		host, port := extractHostHeader(string(requ.host))
 		if net.ParseIP(host) == nil {
 			pbf.Destination.Domain = host
+			pbf.AddHost(host)
+		} else {
+			pbf.AddIP(host)
+		}
+		if port == 0 {
+			port = int(pbf.Destination.Port)
+		} else if port != int(pbf.Destination.Port) {
+			requ.notes = append(requ.notes, "Host header port number mismatch")
 		}
 		pbf.Event.Start = requ.ts
 		pbf.Network.ForwardedIP = string(requ.realIP)
+		pbf.AddIP(string(requ.realIP))
 		pbf.Error.Message = requ.notes
 
 		// http
 		httpFields.Version = requ.version.String()
 		httpFields.RequestBytes = int64(requ.size)
 		httpFields.RequestBodyBytes = int64(requ.contentLength)
-		httpFields.RequestMethod = bytes.ToLower(requ.method)
+		httpFields.RequestMethod = requ.method
 		httpFields.RequestReferrer = requ.referer
+		pbf.AddHost(string(requ.referer))
 		if requ.sendBody && len(requ.body) > 0 {
 			httpFields.RequestBodyBytes = int64(len(requ.body))
 			httpFields.RequestBodyContent = common.NetString(requ.body)
@@ -554,7 +587,7 @@ func (http *httpPlugin) newTransaction(requ, resp *message) beat.Event {
 		httpFields.RequestHeaders = http.collectHeaders(requ)
 
 		// url
-		u := newURL(host, int64(pbf.Destination.Port), path, params)
+		u := newURL(host, int64(port), path, params)
 		pb.MarshalStruct(evt.Fields, "url", u)
 
 		// user-agent
@@ -567,6 +600,11 @@ func (http *httpPlugin) newTransaction(requ, resp *message) beat.Event {
 		}
 		fields["method"] = httpFields.RequestMethod
 		fields["query"] = fmt.Sprintf("%s %s", requ.method, path)
+
+		if requ.username != "" {
+			fields["user.name"] = requ.username
+			pbf.AddUser(requ.username)
+		}
 	}
 
 	if resp != nil {
@@ -685,8 +723,7 @@ func splitCookiesHeader(headerVal string) map[string]string {
 	for _, cval := range cstring {
 		cookie := strings.SplitN(cval, "=", 2)
 		if len(cookie) == 2 {
-			cookies[strings.ToLower(strings.TrimSpace(cookie[0]))] =
-				parseCookieValue(strings.TrimSpace(cookie[1]))
+			cookies[strings.ToLower(strings.TrimSpace(cookie[0]))] = parseCookieValue(strings.TrimSpace(cookie[1]))
 		}
 	}
 
@@ -701,7 +738,30 @@ func parseCookieValue(raw string) string {
 	return raw
 }
 
+func extractHostHeader(header string) (host string, port int) {
+	if len(header) == 0 || net.ParseIP(header) != nil {
+		return header, port
+	}
+	// Split :port trailer
+	if pos := strings.LastIndexByte(header, ':'); pos != -1 {
+		if num, err := strconv.Atoi(header[pos+1:]); err == nil && num > 0 && num < 65536 {
+			header, port = header[:pos], num
+		}
+	}
+	// Remove square bracket boxing of IPv6 address.
+	if last := len(header) - 1; header[0] == '[' && header[last] == ']' && net.ParseIP(header[1:last]) != nil {
+		header = header[1:last]
+	}
+	return header, port
+}
+
 func (http *httpPlugin) hideHeaders(m *message) {
+	for _, header := range http.redactHeaders {
+		if _, exists := m.headers[header]; exists {
+			m.headers[header] = []byte("REDACTED")
+		}
+	}
+
 	if !m.isRequest || !http.redactAuthorization {
 		return
 	}
@@ -866,6 +926,27 @@ func (ml *messageList) pop() *message {
 	return msg
 }
 
-func (ml *messageList) last() *message {
-	return ml.tail
+func extractBasicAuthUser(headers map[string]common.NetString) string {
+	const prefix = "Basic "
+
+	auth := string(headers["authorization"])
+	if len(auth) < len(prefix) || !strings.EqualFold(auth[:len(prefix)], prefix) {
+		return ""
+	}
+
+	c, err := base64.StdEncoding.DecodeString(auth[len(prefix):])
+	if err != nil {
+		c, err = base64.RawStdEncoding.DecodeString(auth[len(prefix):])
+		if err != nil {
+			return ""
+		}
+	}
+
+	cs := string(c)
+	s := strings.IndexByte(cs, ':')
+	if s < 0 {
+		return ""
+	}
+
+	return cs[:s]
 }

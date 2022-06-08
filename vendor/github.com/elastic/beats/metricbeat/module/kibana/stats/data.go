@@ -22,19 +22,37 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/elastic/beats/libbeat/common"
-	s "github.com/elastic/beats/libbeat/common/schema"
-	c "github.com/elastic/beats/libbeat/common/schema/mapstriface"
-	"github.com/elastic/beats/metricbeat/helper/elastic"
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/module/kibana"
+	"github.com/elastic/beats/v7/metricbeat/helper/elastic"
+
+	"github.com/elastic/beats/v7/libbeat/common"
+	s "github.com/elastic/beats/v7/libbeat/common/schema"
+	c "github.com/elastic/beats/v7/libbeat/common/schema/mapstriface"
+	"github.com/elastic/beats/v7/metricbeat/mb"
 )
 
 var (
 	schema = s.Schema{
+		"os": c.Dict("os", s.Schema{
+			"load": c.Dict("load", s.Schema{
+				"1m":  c.Float("1m"),
+				"5m":  c.Float("5m"),
+				"15m": c.Float("15m"),
+			}),
+			"memory": c.Dict("memory", s.Schema{
+				"total_in_bytes": c.Int("total_bytes"),
+				"free_in_bytes":  c.Int("free_bytes"),
+				"used_in_bytes":  c.Int("used_bytes"),
+			}),
+			"distro":          c.Str("distro", s.Optional),
+			"distroRelease":   c.Str("distro_release", s.Optional),
+			"platform":        c.Str("platform", s.Optional),
+			"platformRelease": c.Str("platform_release", s.Optional),
+		}),
+		"kibana": c.Ifc("kibana"),
+
 		"uuid":  c.Str("kibana.uuid"),
 		"name":  c.Str("kibana.name"),
-		"index": c.Str("kibana.name"),
+		"index": c.Str("kibana.index"),
 		"host": s.Object{
 			"name": c.Str("kibana.host"),
 		},
@@ -48,6 +66,9 @@ var (
 				"ms": c.Float("event_loop_delay"),
 			},
 			"memory": c.Dict("memory", s.Schema{
+				"resident_set_size": s.Object{
+					"bytes": c.Int("resident_set_size_bytes"),
+				},
 				"heap": c.Dict("heap", s.Schema{
 					"total": s.Object{
 						"bytes": c.Int("total_bytes"),
@@ -82,7 +103,7 @@ var (
 	})
 )
 
-func eventMapping(r mb.ReporterV2, content []byte) error {
+func eventMapping(r mb.ReporterV2, content []byte, isXpack bool) error {
 	var data map[string]interface{}
 	err := json.Unmarshal(content, &data)
 	if err != nil {
@@ -94,39 +115,20 @@ func eventMapping(r mb.ReporterV2, content []byte) error {
 		return errors.Wrap(err, "failure to apply stats schema")
 	}
 
-	var event mb.Event
-	event.RootFields = common.MapStr{}
-	event.RootFields.Put("service.name", kibana.ModuleName)
+	event := mb.Event{ModuleFields: common.MapStr{}, RootFields: common.MapStr{}}
 
 	// Set elasticsearch cluster id
 	elasticsearchClusterID, ok := data["cluster_uuid"]
 	if !ok {
 		event.Error = elastic.MakeErrorForMissingField("cluster_uuid", elastic.Kibana)
-		r.Event(event)
 		return event.Error
 	}
-	event.RootFields.Put("elasticsearch.cluster.id", elasticsearchClusterID)
-
-	// Set process PID
-	process, ok := data["process"].(map[string]interface{})
-	if !ok {
-		event.Error = elastic.MakeErrorForMissingField("process", elastic.Kibana)
-		r.Event(event)
-		return event.Error
-	}
-	pid, ok := process["pid"].(float64)
-	if !ok {
-		event.Error = elastic.MakeErrorForMissingField("process.pid", elastic.Kibana)
-		r.Event(event)
-		return event.Error
-	}
-	event.RootFields.Put("process.pid", int(pid))
+	event.ModuleFields.Put("elasticsearch.cluster.id", elasticsearchClusterID)
 
 	// Set service ID
 	uuid, err := dataFields.GetValue("uuid")
 	if err != nil {
 		event.Error = elastic.MakeErrorForMissingField("kibana.uuid", elastic.Kibana)
-		r.Event(event)
 		return event.Error
 	}
 	event.RootFields.Put("service.id", uuid)
@@ -136,24 +138,44 @@ func eventMapping(r mb.ReporterV2, content []byte) error {
 	version, err := dataFields.GetValue("version")
 	if err != nil {
 		event.Error = elastic.MakeErrorForMissingField("kibana.version", elastic.Kibana)
-		r.Event(event)
 		return event.Error
 	}
 	event.RootFields.Put("service.version", version)
 	dataFields.Delete("version")
 
 	// Set service address
-	serviceAddress, err := dataFields.GetValue("transport_address")
+	serviceAddress, err := dataFields.GetValue("kibana.transport_address")
 	if err != nil {
 		event.Error = elastic.MakeErrorForMissingField("kibana.transport_address", elastic.Kibana)
-		r.Event(event)
 		return event.Error
 	}
 	event.RootFields.Put("service.address", serviceAddress)
-	dataFields.Delete("transport_address")
+
+	// Set process PID
+	process, ok := data["process"].(map[string]interface{})
+	if !ok {
+		event.Error = elastic.MakeErrorForMissingField("process", elastic.Kibana)
+		return event.Error
+	}
+	pid, ok := process["pid"].(float64)
+	if !ok {
+		event.Error = elastic.MakeErrorForMissingField("process.pid", elastic.Kibana)
+		return event.Error
+	}
+	event.RootFields.Put("process.pid", int(pid))
+
+	dataFields.Delete("kibana")
 
 	event.MetricSetFields = dataFields
 
+	// xpack.enabled in config using standalone metricbeat writes to `.monitoring` instead of `metricbeat-*`
+	// When using Agent, the index name is overwritten anyways.
+	if isXpack {
+		index := elastic.MakeXPackMonitoringIndexName(elastic.Kibana)
+		event.Index = index
+	}
+
 	r.Event(event)
+
 	return nil
 }

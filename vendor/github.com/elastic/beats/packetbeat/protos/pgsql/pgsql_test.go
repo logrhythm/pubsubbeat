@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package pgsql
@@ -27,12 +28,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
 
-	"github.com/elastic/beats/packetbeat/protos"
-	"github.com/elastic/beats/packetbeat/publish"
+	"github.com/elastic/beats/v7/packetbeat/procs"
+	"github.com/elastic/beats/v7/packetbeat/protos"
+	"github.com/elastic/beats/v7/packetbeat/publish"
 )
 
 type eventStore struct {
@@ -40,12 +42,8 @@ type eventStore struct {
 }
 
 func (e *eventStore) publish(event beat.Event) {
-	publish.MarshalPacketbeatFields(&event, nil)
+	publish.MarshalPacketbeatFields(&event, nil, nil)
 	e.events = append(e.events, event)
-}
-
-func (e *eventStore) empty() bool {
-	return len(e.events) == 0
 }
 
 func pgsqlModForTests(store *eventStore) *pgsqlPlugin {
@@ -56,7 +54,7 @@ func pgsqlModForTests(store *eventStore) *pgsqlPlugin {
 
 	var pgsql pgsqlPlugin
 	config := defaultConfig
-	pgsql.init(callback, &config)
+	pgsql.init(callback, procs.ProcessesWatcher{}, &config)
 	return &pgsql
 }
 
@@ -232,11 +230,11 @@ func TestPgsqlParser_threeResponses(t *testing.T) {
 	}
 	var tuple common.TCPTuple
 	var private pgsqlPrivateData
-	var countHandlePgsql = 0
+	countHandlePgsql := 0
 
 	pgsql.handlePgsql = func(pgsql *pgsqlPlugin, m *pgsqlMessage, tcptuple *common.TCPTuple,
-		dir uint8, raw_msg []byte) {
-
+		dir uint8, raw_msg []byte,
+	) {
 		countHandlePgsql++
 	}
 
@@ -352,7 +350,7 @@ func Test_gap_in_response(t *testing.T) {
 	reqData, err := hex.DecodeString(
 		"510000001873656c656374202a20" +
 			"66726f6d20746573743b00")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	// response is incomplete
 	respData, err := hex.DecodeString(
@@ -365,7 +363,7 @@ func Test_gap_in_response(t *testing.T) {
 			"63440000001e0003000000046d656131" +
 			"000000046d656231000000046d656331" +
 			"440000001e0003000000046d65613200")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	tcptuple := testTCPTuple()
 	req := protos.Packet{Payload: reqData}

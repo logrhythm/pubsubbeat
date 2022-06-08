@@ -1,49 +1,57 @@
-from elasticsearch import NotFoundError
-from nose.tools import raises
 import datetime
+import unittest
+import pytest
+from elasticsearch import NotFoundError
 
 
-class IdxMgmt(object):
+class IdxMgmt(unittest.TestCase):
 
     def __init__(self, client, index):
         self._client = client
         self._index = index if index != '' and index != '*' else 'mockbeat'
+        self.patterns = [self.default_pattern(), "1", datetime.datetime.now().strftime("%Y.%m.%d")]
 
     def needs_init(self, s):
         return s == '' or s == '*'
 
-    def delete(self, indices=[]):
-        indices = list(filter(lambda x: x != '', indices))
-        if not indices:
-            indices == [self._index]
+    def delete(self, indices=[], policies=[], data_streams=[]):
+        for ds in data_streams:
+            self.delete_data_stream(ds)
+            self.delete_template(template=ds)
         for i in indices:
             self.delete_index_and_alias(i)
             self.delete_template(template=i)
-        for i in indices:
-            self.delete_policy(policy=i)
+        for i in [x for x in policies if x != '']:
+            self.delete_policy(i)
+
+    def delete_data_stream(self, data_stream):
+        try:
+            resp = self._client.transport.perform_request('DELETE', '/_data_stream/' + data_stream)
+        except NotFoundError:
+            pass
 
     def delete_index_and_alias(self, index=""):
         if self.needs_init(index):
             index = self._index
 
-        try:
-            self._client.transport.perform_request('DELETE', "/" + index + "*")
-        except NotFoundError:
-            pass
+        for pattern in self.patterns:
+            index_with_pattern = index+"-"+pattern
+            try:
+                self._client.indices.delete(index_with_pattern)
+                self._client.indices.delete_alias(index, index_with_pattern)
+            except NotFoundError:
+                continue
 
     def delete_template(self, template=""):
         if self.needs_init(template):
             template = self._index
 
         try:
-            self._client.transport.perform_request('DELETE', "/_template/" + template + "*")
+            self._client.transport.perform_request('DELETE', "/_index_template/" + template)
         except NotFoundError:
             pass
 
-    def delete_policy(self, policy=""):
-        if self.needs_init(policy):
-            policy = self._index
-
+    def delete_policy(self, policy):
         # Delete any existing policy starting with given policy
         policies = self._client.transport.perform_request('GET', "/_ilm/policy")
         for p, _ in policies.items():
@@ -54,43 +62,35 @@ class IdxMgmt(object):
             except NotFoundError:
                 pass
 
-    @raises(NotFoundError)
     def assert_index_template_not_loaded(self, template):
-        self._client.transport.perform_request('GET', '/_template/' + template)
+        with pytest.raises(NotFoundError):
+            self._client.transport.perform_request('GET', '/_index_template/' + template)
 
     def assert_index_template_loaded(self, template):
-        resp = self._client.transport.perform_request('GET', '/_template/' + template)
-        assert template in resp
-        assert "lifecycle" not in resp[template]["settings"]["index"]
+        resp = self._client.transport.perform_request('GET', '/_index_template/' + template)
+        found = False
+        for index_template in resp['index_templates']:
+            if index_template['name'] == template:
+                found = True
+        assert found
 
-    def assert_ilm_template_loaded(self, template, policy, alias):
-        resp = self._client.transport.perform_request('GET', '/_template/' + template)
-        assert resp[template]["settings"]["index"]["lifecycle"]["name"] == policy
-        assert resp[template]["settings"]["index"]["lifecycle"]["rollover_alias"] == alias
+    def assert_data_stream_created(self, data_stream):
+        try:
+            resp = self._client.transport.perform_request('GET', '/_data_stream/' + data_stream)
+        except NotFoundError:
+            assert False
 
     def assert_index_template_index_pattern(self, template, index_pattern):
-        resp = self._client.transport.perform_request('GET', '/_template/' + template)
-        assert template in resp
-        assert resp[template]["index_patterns"] == index_pattern
+        resp = self._client.transport.perform_request('GET', '/_index_template/' + template)
+        for index_template in resp['index_templates']:
+            if index_template['name'] == template:
+                assert index_pattern == index_template['index_template']['index_patterns']
+                found = True
+        assert found
 
-    def assert_alias_not_created(self, alias):
-        resp = self._client.transport.perform_request('GET', '/_alias')
-        for name, entry in resp.items():
-            if alias not in name:
-                continue
-            assert entry["aliases"] == {}, entry["aliases"]
-
-    def assert_alias_created(self, alias, pattern=None):
-        if pattern is None:
-            pattern = self.default_pattern()
-        name = alias + "-" + pattern
-        resp = self._client.transport.perform_request('GET', '/_alias/' + alias)
-        assert name in resp
-        assert resp[name]["aliases"][alias]["is_write_index"] == True
-
-    @raises(NotFoundError)
     def assert_policy_not_created(self, policy):
-        self._client.transport.perform_request('GET', '/_ilm/policy/' + policy)
+        with pytest.raises(NotFoundError):
+            self._client.transport.perform_request('GET', '/_ilm/policy/' + policy)
 
     def assert_policy_created(self, policy):
         resp = self._client.transport.perform_request('GET', '/_ilm/policy/' + policy)
@@ -98,18 +98,14 @@ class IdxMgmt(object):
         assert resp[policy]["policy"]["phases"]["hot"]["actions"]["rollover"]["max_size"] == "50gb"
         assert resp[policy]["policy"]["phases"]["hot"]["actions"]["rollover"]["max_age"] == "30d"
 
-    def assert_docs_written_to_alias(self, alias, pattern=None):
-        if pattern is None:
-            pattern = self.default_pattern()
-        name = alias + "-" + pattern
-        data = self._client.transport.perform_request('GET', '/' + name + '/_search')
-        assert data["hits"]["total"] > 0
+    def assert_docs_written_to_data_stream(self, data_stream):
+        # Refresh the indices to guarantee all documents are available
+        # through the _search API.
+        self._client.transport.perform_request('POST', '/_refresh')
+
+        data = self._client.transport.perform_request('GET', '/' + data_stream + '/_search')
+        self.assertGreater(data["hits"]["total"]["value"], 0)
 
     def default_pattern(self):
         d = datetime.datetime.now().strftime("%Y.%m.%d")
         return d + "-000001"
-
-    def index_for(self, alias, pattern=None):
-        if pattern is None:
-            pattern = self.default_pattern()
-        return "{}-{}".format(alias, pattern)

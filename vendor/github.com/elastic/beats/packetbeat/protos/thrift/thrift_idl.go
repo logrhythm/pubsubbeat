@@ -20,7 +20,7 @@ package thrift
 import (
 	"fmt"
 
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/logp"
 
 	"github.com/samuel/go-thrift/parser"
 )
@@ -49,7 +49,7 @@ func fieldsToArrayByID(fields []*parser.Field) []*string {
 		}
 	}
 
-	output := make([]*string, max+1, max+1)
+	output := make([]*string, max+1)
 
 	for _, field := range fields {
 		if len(field.Name) > 0 {

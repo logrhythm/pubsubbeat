@@ -24,8 +24,8 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/mapping"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/mapping"
 )
 
 type IndexPatternGenerator struct {
@@ -80,15 +80,10 @@ func (i *IndexPatternGenerator) generate() (common.MapStr, error) {
 
 func (i *IndexPatternGenerator) generatePattern(attrs common.MapStr) common.MapStr {
 	out := common.MapStr{
-		"version": i.beatVersion,
-		"objects": []common.MapStr{
-			common.MapStr{
-				"type":       "index-pattern",
-				"id":         i.indexName,
-				"version":    "1",
-				"attributes": attrs,
-			},
-		},
+		"type":       "index-pattern",
+		"id":         i.indexName,
+		"version":    i.beatVersion,
+		"attributes": attrs,
 	}
 
 	return out

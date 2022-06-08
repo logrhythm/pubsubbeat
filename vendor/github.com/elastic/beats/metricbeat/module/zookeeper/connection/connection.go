@@ -18,12 +18,11 @@
 package connection
 
 import (
-	"github.com/pkg/errors"
+	"fmt"
 
-	"github.com/elastic/beats/libbeat/common/cfgwarn"
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/mb/parse"
-	"github.com/elastic/beats/metricbeat/module/zookeeper"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/parse"
+	"github.com/elastic/beats/v7/metricbeat/module/zookeeper"
 )
 
 // init registers the MetricSet with the central registry as soon as the program
@@ -47,8 +46,6 @@ type MetricSet struct {
 // New creates a new instance of the MetricSet. New is responsible for unpacking
 // any MetricSet specific configuration options if there are any.
 func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
-	cfgwarn.Beta("The zookeeper connection metricset is beta.")
-
 	config := struct{}{}
 	if err := base.Module().UnpackConfig(&config); err != nil {
 		return nil, err
@@ -64,15 +61,21 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 func (m *MetricSet) Fetch(reporter mb.ReporterV2) error {
 	outputReader, err := zookeeper.RunCommand("cons", m.Host(), m.Module().Config().Timeout)
 	if err != nil {
-		return errors.Wrap(err, "'cons' command failed")
+		return fmt.Errorf("'cons' command failed: %w", err)
 	}
 
-	events, err := m.parseCons(outputReader)
+	events := m.parseCons(outputReader)
 	if err != nil {
-		return errors.Wrap(err, "error parsing response from zookeeper")
+		return fmt.Errorf("error parsing response from zookeeper: %w", err)
+	}
+
+	serverID, err := zookeeper.ServerID(m.Host(), m.Module().Config().Timeout)
+	if err != nil {
+		return fmt.Errorf("error obtaining server id %w", err)
 	}
 
 	for _, event := range events {
+		_, _ = event.RootFields.Put("service.node.name", serverID)
 		reporter.Event(event)
 	}
 

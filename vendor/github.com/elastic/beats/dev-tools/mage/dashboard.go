@@ -44,15 +44,19 @@ func ExportDashboard() error {
 		return err
 	}
 
-	// TODO: This is currently hardcoded for KB 7, we need to figure out what we do for KB 8 if applicable
-	file := CWD("module", module, "_meta/kibana/7/dashboard", id+".json")
+	dashboardCmd := sh.RunCmd("go", "run", filepath.Join(beatsDir, "dev-tools/cmd/dashboards/export_dashboards.go"))
 
-	dashboardCmd := sh.RunCmd("go", "run",
-		filepath.Join(beatsDir, "dev-tools/cmd/dashboards/export_dashboards.go"),
-		"-output", file, "-dashboard", id,
-	)
+	folder := CWD("module", module)
 
-	return dashboardCmd()
+	args := []string{
+		"-folder", folder,
+		"-dashboard", id,
+	}
+	if kibanaURL := EnvOr("KIBANA_URL", ""); kibanaURL != "" {
+		args = append(args, "-kibana", kibanaURL)
+	}
+
+	return dashboardCmd(args...)
 }
 
 // ImportDashboards imports dashboards to Kibana using the Beat setup command.

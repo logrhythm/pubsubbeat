@@ -23,8 +23,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
 )
 
 func TestEventFormatString(t *testing.T) {
@@ -35,6 +35,13 @@ func TestEventFormatString(t *testing.T) {
 		expected string
 		fields   []string
 	}{
+		{
+			"empty string",
+			"",
+			beat.Event{},
+			"",
+			nil,
+		},
 		{
 			"no fields configured",
 			"format string",
@@ -102,7 +109,7 @@ func TestEventFormatString(t *testing.T) {
 			"test timestamp formatter",
 			"%{[key]}: %{+YYYY.MM.dd}",
 			beat.Event{
-				Timestamp: time.Date(2015, 5, 1, 20, 12, 34, 0, time.Local),
+				Timestamp: time.Date(2015, 5, 1, 20, 12, 34, 0, time.UTC),
 				Fields: common.MapStr{
 					"key": "timestamp",
 				},
@@ -114,7 +121,7 @@ func TestEventFormatString(t *testing.T) {
 			"test timestamp formatter",
 			"%{[@timestamp]}: %{+YYYY.MM.dd}",
 			beat.Event{
-				Timestamp: time.Date(2015, 5, 1, 20, 12, 34, 0, time.Local),
+				Timestamp: time.Date(2015, 5, 1, 20, 12, 34, 0, time.UTC),
 				Fields: common.MapStr{
 					"key": "timestamp",
 				},
@@ -260,4 +267,16 @@ func TestEventFormatStringFromConfig(t *testing.T) {
 
 		assert.Equal(t, test.expected, actual)
 	}
+}
+
+func TestIsEmpty(t *testing.T) {
+	t.Run("when string is Empty", func(t *testing.T) {
+		fs := MustCompileEvent("")
+		assert.True(t, fs.IsEmpty())
+	})
+	t.Run("when string is not Empty", func(t *testing.T) {
+		fs := MustCompileEvent("hello")
+		assert.False(t, fs.IsEmpty())
+	})
+
 }

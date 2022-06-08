@@ -18,8 +18,8 @@
 package dns
 
 import (
-	"github.com/elastic/beats/packetbeat/config"
-	"github.com/elastic/beats/packetbeat/protos"
+	"github.com/elastic/beats/v7/packetbeat/config"
+	"github.com/elastic/beats/v7/packetbeat/protos"
 )
 
 type dnsConfig struct {
@@ -28,10 +28,8 @@ type dnsConfig struct {
 	IncludeAdditionals    bool `config:"include_additionals"`
 }
 
-var (
-	defaultConfig = dnsConfig{
-		ProtocolCommon: config.ProtocolCommon{
-			TransactionTimeout: protos.DefaultTransactionExpiration,
-		},
-	}
-)
+var defaultConfig = dnsConfig{
+	ProtocolCommon: config.ProtocolCommon{
+		TransactionTimeout: protos.DefaultTransactionExpiration,
+	},
+}

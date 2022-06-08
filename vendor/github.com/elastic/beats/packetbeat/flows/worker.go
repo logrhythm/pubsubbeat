@@ -23,15 +23,16 @@ import (
 	"net"
 	"time"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/common/flowhash"
-	"github.com/elastic/beats/packetbeat/procs"
-	"github.com/elastic/beats/packetbeat/protos/applayer"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common/flowhash"
+	"github.com/elastic/beats/v7/packetbeat/procs"
+	"github.com/elastic/beats/v7/packetbeat/protos/applayer"
 )
 
 type flowsProcessor struct {
 	spool    spool
+	watcher  procs.ProcessesWatcher
 	table    *flowMetaTable
 	counters *counterReg
 	timeout  time.Duration
@@ -44,6 +45,7 @@ var (
 
 func newFlowsWorker(
 	pub Reporter,
+	watcher procs.ProcessesWatcher,
 	table *flowMetaTable,
 	counters *counterReg,
 	timeout, period time.Duration,
@@ -84,6 +86,7 @@ func newFlowsWorker(
 	defaultBatchSize := 1024
 	processor := &flowsProcessor{
 		table:    table,
+		watcher:  watcher,
 		counters: counters,
 		timeout:  timeout,
 	}
@@ -104,7 +107,7 @@ func makeWorker(
 		if align > 0 {
 			// round time to nearest 10 seconds for alignment
 			aligned := time.Unix(((time.Now().Unix()+(align-1))/align)*align, 0)
-			waitStart := aligned.Sub(time.Now())
+			waitStart := time.Until(aligned)
 			debugf("worker wait start(%v): %v", aligned, waitStart)
 			if cont := w.sleep(waitStart); !cont {
 				return
@@ -153,7 +156,7 @@ func (fw *flowsProcessor) execute(w *worker, checkTimeout, handleReports, lastRe
 	defer fw.table.Unlock()
 	ts := time.Now()
 
-	// TODO: create snapshot inside flows/tables, so deletion of timedout flows
+	// TODO: create snapshot inside flows/tables, so deletion of timed-out flows
 	//       and reporting flows stats can be done more concurrent to packet
 	//       processing.
 
@@ -194,13 +197,14 @@ func (fw *flowsProcessor) report(
 	isOver bool,
 	intNames, uintNames, floatNames []string,
 ) {
-	event := createEvent(ts, flow, isOver, intNames, uintNames, floatNames)
+	event := createEvent(fw.watcher, ts, flow, isOver, intNames, uintNames, floatNames)
 
 	debugf("add event: %v", event)
 	fw.spool.publish(event)
 }
 
 func createEvent(
+	watcher procs.ProcessesWatcher,
 	ts time.Time, f *biFlow,
 	isOver bool,
 	intNames, uintNames, floatNames []string,
@@ -213,9 +217,15 @@ func createEvent(
 		"duration": f.ts.Sub(f.createTS),
 		"dataset":  "flow",
 		"kind":     "event",
-		"category": "network_traffic",
+		"category": []string{"network"},
 		"action":   "network_flow",
 	}
+	eventType := []string{"connection"}
+	if isOver {
+		eventType = append(eventType, "end")
+	}
+	event["type"] = eventType
+
 	flow := common.MapStr{
 		"id":    common.NetString(f.id.Serialize()),
 		"final": isOver,
@@ -386,7 +396,7 @@ func createEvent(
 
 	// Set process information if it's available
 	if tuple.IPLength != 0 && tuple.SrcPort != 0 {
-		if proc := procs.ProcWatcher.FindProcessesTuple(&tuple, proto); proc != nil {
+		if proc := watcher.FindProcessesTuple(&tuple, proto); proc != nil {
 			if proc.Src.PID > 0 {
 				p := common.MapStr{
 					"pid":               proc.Src.PID,

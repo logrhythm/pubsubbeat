@@ -22,13 +22,15 @@ import (
 	"os"
 	"time"
 
-	"github.com/elastic/beats/filebeat/harvester"
-	"github.com/elastic/beats/filebeat/input/file"
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/v7/filebeat/harvester"
+	"github.com/elastic/beats/v7/filebeat/input/file"
+	"github.com/elastic/beats/v7/libbeat/logp"
 )
 
 // Log contains all log related data
 type Log struct {
+	logger *logp.Logger
+
 	fs           harvester.Source
 	offset       int64
 	config       LogConfig
@@ -39,6 +41,7 @@ type Log struct {
 
 // NewLog creates a new log instance to read log sources
 func NewLog(
+	logger *logp.Logger,
 	fs harvester.Source,
 	config LogConfig,
 ) (*Log, error) {
@@ -52,6 +55,7 @@ func NewLog(
 	}
 
 	return &Log{
+		logger:       logger,
 		fs:           fs,
 		offset:       offset,
 		config:       config,
@@ -71,6 +75,11 @@ func (f *Log) Read(buf []byte) (int, error) {
 		case <-f.done:
 			return 0, ErrClosed
 		default:
+		}
+
+		err := f.checkFileDisappearedErrors()
+		if err != nil {
+			return totalN, err
 		}
 
 		n, err := f.fs.Read(buf)
@@ -99,41 +108,43 @@ func (f *Log) Read(buf []byte) (int, error) {
 			return totalN, err
 		}
 
-		logp.Debug("harvester", "End of file reached: %s; Backoff now.", f.fs.Name())
+		f.logger.Debugf("End of file reached: %s; Backoff now.", f.fs.Name())
 		f.wait()
 	}
 }
 
-// errorChecks checks how the given error should be handled based on the config options
+// errorChecks determines the cause for EOF errors, and how the EOF event should be handled
+// based on the config options.
 func (f *Log) errorChecks(err error) error {
 	if err != io.EOF {
-		logp.Err("Unexpected state reading from %s; error: %s", f.fs.Name(), err)
+		f.logger.Errorf("Unexpected state reading from %s; error: %s", f.fs.Name(), err)
 		return err
 	}
+
+	// At this point we have hit EOF!
 
 	// Stdin is not continuable
 	if !f.fs.Continuable() {
-		logp.Debug("harvester", "Source is not continuable: %s", f.fs.Name())
+		f.logger.Debugf("Source is not continuable: %s", f.fs.Name())
 		return err
 	}
 
-	if err == io.EOF && f.config.CloseEOF {
+	if f.config.CloseEOF {
 		return err
 	}
 
-	// Refetch fileinfo to check if the file was truncated or disappeared.
+	// Refetch fileinfo to check if the file was truncated.
 	// Errors if the file was removed/rotated after reading and before
 	// calling the stat function
 	info, statErr := f.fs.Stat()
 	if statErr != nil {
-		logp.Err("Unexpected error reading from %s; error: %s", f.fs.Name(), statErr)
+		f.logger.Errorf("Unexpected error reading from %s; error: %s", f.fs.Name(), statErr)
 		return statErr
 	}
 
 	// check if file was truncated
 	if info.Size() < f.offset {
-		logp.Debug("harvester",
-			"File was truncated as offset (%d) > size (%d): %s", f.offset, info.Size(), f.fs.Name())
+		f.logger.Debugf("File was truncated as offset (%d) > size (%d): %s", f.offset, info.Size(), f.fs.Name())
 		return ErrFileTruncate
 	}
 
@@ -143,9 +154,30 @@ func (f *Log) errorChecks(err error) error {
 		return ErrInactive
 	}
 
+	return nil
+}
+
+// checkFileDisappearedErrors checks if the log file has been removed or renamed (rotated).
+func (f *Log) checkFileDisappearedErrors() error {
+	// No point doing a stat call on the file if configuration options are
+	// not enabled
+	if !f.config.CloseRenamed && !f.config.CloseRemoved {
+		return nil
+	}
+
+	// Refetch fileinfo to check if the file was renamed or removed.
+	// Errors if the file was removed/rotated after reading and before
+	// calling the stat function
+	info, statErr := f.fs.Stat()
+	if statErr != nil {
+		f.logger.Errorf("Unexpected error reading from %s; error: %s", f.fs.Name(), statErr)
+		return statErr
+	}
+
 	if f.config.CloseRenamed {
 		// Check if the file can still be found under the same path
 		if !file.IsSameFile(f.fs.Name(), info) {
+			f.logger.Debugf("close_renamed is enabled and file %s has been renamed", f.fs.Name())
 			return ErrRenamed
 		}
 	}
@@ -153,6 +185,7 @@ func (f *Log) errorChecks(err error) error {
 	if f.config.CloseRemoved {
 		// Check if the file name exists. See https://github.com/elastic/filebeat/issues/93
 		if f.fs.Removed() {
+			f.logger.Debugf("close_removed is enabled and file %s has been removed", f.fs.Name())
 			return ErrRemoved
 		}
 	}
@@ -178,7 +211,8 @@ func (f *Log) wait() {
 }
 
 // Close closes the done channel but no th the file handler
-func (f *Log) Close() {
+func (f *Log) Close() error {
 	close(f.done)
 	// Note: File reader is not closed here because that leads to race conditions
+	return nil
 }

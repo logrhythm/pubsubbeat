@@ -21,7 +21,7 @@ import (
 	"github.com/magefile/mage/mg"
 	"github.com/pkg/errors"
 
-	"github.com/elastic/beats/dev-tools/mage"
+	devtools "github.com/elastic/beats/v7/dev-tools/mage"
 )
 
 const (
@@ -35,31 +35,28 @@ const (
 func CustomizePackaging() {
 	var (
 		moduleTarget = "module"
-		module       = mage.PackageFile{
-			Mode:   0644,
+		module       = devtools.PackageFile{
+			Mode:   0o644,
 			Source: dirModuleGenerated,
 		}
 
 		modulesDTarget = "modules.d"
-		modulesD       = mage.PackageFile{
-			Mode:    0644,
+		modulesD       = devtools.PackageFile{
+			Mode:    0o644,
 			Source:  dirModulesDGenerated,
 			Config:  true,
 			Modules: true,
 		}
 	)
 
-	for _, args := range mage.Packages {
+	for _, args := range devtools.Packages {
 		for _, pkgType := range args.Types {
 			switch pkgType {
-			case mage.TarGz, mage.Zip, mage.Docker:
+			case devtools.TarGz, devtools.Zip, devtools.Docker:
 				args.Spec.Files[moduleTarget] = module
 				args.Spec.Files[modulesDTarget] = modulesD
-			case mage.Deb, mage.RPM:
+			case devtools.Deb, devtools.RPM:
 				args.Spec.Files["/usr/share/{{.BeatName}}/"+moduleTarget] = module
-				args.Spec.Files["/etc/{{.BeatName}}/"+modulesDTarget] = modulesD
-			case mage.DMG:
-				args.Spec.Files["/Library/Application Support/{{.BeatVendor}}/{{.BeatName}}/"+moduleTarget] = module
 				args.Spec.Files["/etc/{{.BeatName}}/"+modulesDTarget] = modulesD
 			default:
 				panic(errors.Errorf("unhandled package type: %v", pkgType))
@@ -73,8 +70,8 @@ func CustomizePackaging() {
 // build/package/modules.d directories for use in packaging.
 func PrepareModulePackagingOSS() error {
 	return prepareModulePackaging([]struct{ Src, Dst string }{
-		{mage.OSSBeatDir("module"), dirModuleGenerated},
-		{mage.OSSBeatDir("modules.d"), dirModulesDGenerated},
+		{devtools.OSSBeatDir("module"), dirModuleGenerated},
+		{devtools.OSSBeatDir("modules.d"), dirModulesDGenerated},
 	}...)
 }
 
@@ -82,9 +79,9 @@ func PrepareModulePackagingOSS() error {
 // build/package/modules.d directories for use in packaging.
 func PrepareModulePackagingXPack() error {
 	return prepareModulePackaging([]struct{ Src, Dst string }{
-		{mage.OSSBeatDir("module"), dirModuleGenerated},
+		{devtools.OSSBeatDir("module"), dirModuleGenerated},
 		{"module", dirModuleGenerated},
-		{mage.OSSBeatDir("modules.d"), dirModulesDGenerated},
+		{devtools.OSSBeatDir("modules.d"), dirModulesDGenerated},
 		{"modules.d", dirModulesDGenerated},
 	}...)
 }
@@ -93,19 +90,19 @@ func PrepareModulePackagingXPack() error {
 // build/package/modules.d directories for use in packaging.
 func prepareModulePackaging(files ...struct{ Src, Dst string }) error {
 	// This depends on the modules.d directory being up-to-date.
-	mg.Deps(mage.GenerateDirModulesD)
+	mg.Deps(devtools.GenerateDirModulesD)
 
 	// Clean any existing generated directories.
-	if err := mage.Clean([]string{dirModuleGenerated, dirModulesDGenerated}); err != nil {
+	if err := devtools.Clean([]string{dirModuleGenerated, dirModulesDGenerated}); err != nil {
 		return err
 	}
 
 	for _, copyAction := range files {
-		err := (&mage.CopyTask{
+		err := (&devtools.CopyTask{
 			Source:  copyAction.Src,
 			Dest:    copyAction.Dst,
-			Mode:    0644,
-			DirMode: 0755,
+			Mode:    0o644,
+			DirMode: 0o755,
 			Exclude: []string{
 				"/_meta",
 				"/test",

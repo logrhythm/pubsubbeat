@@ -22,13 +22,17 @@ to implement Modules and their associated MetricSets.
 package mb
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"time"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/libbeat/monitoring"
+	"github.com/pkg/errors"
+
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/monitoring"
+	"github.com/elastic/beats/v7/metricbeat/helper/dialer"
 )
 
 const (
@@ -92,11 +96,44 @@ func (m *BaseModule) UnpackConfig(to interface{}) error {
 	return m.rawConfig.Unpack(to)
 }
 
+// WithConfig re-configures the module with the given raw configuration and returns a
+// copy of the module.
+// Intended to be called from module factories. Note that if metricsets are specified
+// in the new configuration, those metricsets must already be registered with
+// mb.Registry.
+func (m *BaseModule) WithConfig(config common.Config) (*BaseModule, error) {
+	var chkConfig struct {
+		Module string `config:"module"`
+	}
+	if err := config.Unpack(&chkConfig); err != nil {
+		return nil, errors.Wrap(err, "error parsing new module configuration")
+	}
+
+	// Don't allow module name change
+	if chkConfig.Module != "" && chkConfig.Module != m.name {
+		return nil, fmt.Errorf("cannot change module name from %v to %v", m.name, chkConfig.Module)
+	}
+
+	if err := config.SetString("module", -1, m.name); err != nil {
+		return nil, errors.Wrap(err, "unable to set existing module name in new configuration")
+	}
+
+	newBM := &BaseModule{
+		name:      m.name,
+		rawConfig: &config,
+	}
+
+	if err := config.Unpack(&newBM.config); err != nil {
+		return nil, errors.Wrap(err, "error parsing new module configuration")
+	}
+
+	return newBM, nil
+}
+
 // MetricSet interfaces
 
 // MetricSet is the common interface for all MetricSet implementations. In
-// addition to this interface, all MetricSets must implement either
-// EventFetcher or EventsFetcher (but not both).
+// addition to this interface, all MetricSets must implement a fetcher interface.
 type MetricSet interface {
 	ID() string     // Unique ID identifying a running MetricSet.
 	Name() string   // Name returns the name of the MetricSet.
@@ -114,20 +151,6 @@ type MetricSet interface {
 // cleanup any resources it has open at shutdown.
 type Closer interface {
 	Close() error
-}
-
-// EventFetcher is a MetricSet that returns a single event when collecting data.
-// Use ReportingMetricSet for new MetricSet implementations.
-type EventFetcher interface {
-	MetricSet
-	Fetch() (common.MapStr, error)
-}
-
-// EventsFetcher is a MetricSet that returns a multiple events when collecting
-// data. Use ReportingMetricSet for new MetricSet implementations.
-type EventsFetcher interface {
-	MetricSet
-	Fetch() ([]common.MapStr, error)
 }
 
 // Reporter is used by a MetricSet to report events, errors, or errors with
@@ -208,6 +231,13 @@ type ReportingMetricSetV2Error interface {
 	Fetch(r ReporterV2) error
 }
 
+// ReportingMetricSetV2WithContext is a MetricSet that reports events or errors through the
+// ReporterV2 interface. Fetch is called periodically to collect events.
+type ReportingMetricSetV2WithContext interface {
+	MetricSet
+	Fetch(ctx context.Context, r ReporterV2) error
+}
+
 // PushMetricSetV2 is a MetricSet that pushes events (rather than pulling them
 // periodically via a Fetch callback). Run is invoked to start the event
 // subscription and it should block until the MetricSet is ready to stop or
@@ -217,10 +247,23 @@ type PushMetricSetV2 interface {
 	Run(r PushReporterV2)
 }
 
+// PushMetricSetV2WithContext is a MetricSet that pushes events (rather than pulling them
+// periodically via a Fetch callback). Run is invoked to start the event
+// subscription and it should block until the MetricSet is ready to stop or
+// the context is closed.
+type PushMetricSetV2WithContext interface {
+	MetricSet
+	Run(ctx context.Context, r ReporterV2)
+}
+
 // HostData contains values parsed from the 'host' configuration. Other
 // configuration data like protocols, usernames, and passwords may also be
-// used to construct this HostData data.
+// used to construct this HostData data. HostData also contains information when combined scheme are
+// used, like doing HTTP request over a UNIX socket.
+//
 type HostData struct {
+	Transport dialer.Builder // The transport builder to use when creating the connection.
+
 	URI          string // The full URI that should be used in connections.
 	SanitizedURI string // A sanitized version of the URI without credentials.
 

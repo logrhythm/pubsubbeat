@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build windows
 // +build windows
 
 package file_integrity
@@ -27,9 +28,8 @@ import (
 	"unsafe"
 
 	"github.com/joeshaw/multierror"
-	"github.com/pkg/errors"
 
-	"github.com/elastic/beats/libbeat/common/file"
+	"github.com/elastic/beats/v7/libbeat/common/file"
 )
 
 // NewMetadata returns a new Metadata object. If an error is returned it is
@@ -38,8 +38,10 @@ import (
 func NewMetadata(path string, info os.FileInfo) (*Metadata, error) {
 	attrs, ok := info.Sys().(*syscall.Win32FileAttributeData)
 	if !ok {
-		return nil, errors.Errorf("unexpected fileinfo sys type %T for %v", info.Sys(), path)
+		return nil, fmt.Errorf("unexpected fileinfo sys type %T for %v", info.Sys(), path)
 	}
+
+	var errs multierror.Errors
 
 	state := file.GetOSState(info)
 
@@ -65,30 +67,32 @@ func NewMetadata(path string, info os.FileInfo) (*Metadata, error) {
 	// FILE_FLAG_BACKUP_SEMANTICS flag.
 	var err error
 	if !info.IsDir() {
-		fileInfo.SID, fileInfo.Owner, err = fileOwner(path)
+		if fileInfo.SID, fileInfo.Owner, err = fileOwner(path); err != nil {
+			errs = append(errs, fmt.Errorf("fileOwner failed: %w", err))
+		}
 	}
-	fileInfo.Origin, err = GetFileOrigin(path)
-	return fileInfo, err
+	if fileInfo.Origin, err = GetFileOrigin(path); err != nil {
+		errs = append(errs, fmt.Errorf("GetFileOrigin failed: %w", err))
+	}
+	return fileInfo, errs.Err()
 }
 
 // fileOwner returns the SID and name (domain\user) of the file's owner.
 func fileOwner(path string) (sid, owner string, err error) {
-	f, err := file.ReadOpen(path)
-	if err != nil {
-		return "", "", errors.Wrap(err, "failed to open file to get owner")
-	}
-	defer f.Close()
-
 	var securityID *syscall.SID
 	var securityDescriptor *SecurityDescriptor
 
-	if err = GetSecurityInfo(syscall.Handle(f.Fd()), FileObject,
+	pathW, err := syscall.UTF16PtrFromString(path)
+	if err != nil {
+		return sid, owner, fmt.Errorf("failed to convert path:'%s' to UTF16: %w", path, err)
+	}
+	if err = GetNamedSecurityInfo(pathW, FileObject,
 		OwnerSecurityInformation, &securityID, nil, nil, nil, &securityDescriptor); err != nil {
-		return "", "", errors.Wrapf(err, "failed on GetSecurityInfo for %v", path)
+		return "", "", fmt.Errorf("failed on GetSecurityInfo for %v: %w", path, err)
 	}
 	defer syscall.LocalFree((syscall.Handle)(unsafe.Pointer(securityDescriptor)))
 
-	// Covert SID to a string and lookup the username.
+	// Convert SID to a string and lookup the username.
 	var errs multierror.Errors
 	sid, err = securityID.String()
 	if err != nil {

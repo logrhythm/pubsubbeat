@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package pod
@@ -26,8 +27,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/metricbeat/module/kubernetes/util"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/metricbeat/module/kubernetes/util"
 )
 
 const testFile = "../_meta/test/stats_summary.json"
@@ -51,6 +52,7 @@ func TestEventMapping(t *testing.T) {
 
 	testCases := map[string]interface{}{
 		"name": "nginx-deployment-2303442956-pcqfc",
+		"uid":  "beabc196-2456-11e7-a3ad-42010a840235",
 
 		"network.rx.bytes":  107056,
 		"network.rx.errors": 0,
@@ -62,9 +64,10 @@ func TestEventMapping(t *testing.T) {
 		"cpu.usage.node.pct":  0.005631997,
 		"cpu.usage.limit.pct": 0.005631997,
 
-		"memory.usage.bytes":     1462272,
-		"memory.usage.node.pct":  0.01,
-		"memory.usage.limit.pct": 0.1,
+		"memory.usage.bytes":           1462272,
+		"memory.usage.node.pct":        0.01,
+		"memory.usage.limit.pct":       0.1,
+		"memory.working_set.limit.pct": 0.09943977591036414,
 	}
 
 	for k, v := range testCases {

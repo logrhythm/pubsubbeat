@@ -22,9 +22,9 @@ package look
 import (
 	"time"
 
-	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common"
 
-	"github.com/elastic/beats/heartbeat/reason"
+	"github.com/elastic/beats/v7/heartbeat/reason"
 )
 
 // RTT formats a round-trip-time given as time.Duration into an
@@ -35,12 +35,17 @@ func RTT(rtt time.Duration) common.MapStr {
 	}
 
 	return common.MapStr{
-		"us": rtt / (time.Microsecond / time.Nanosecond),
+		// cast to int64 since a go duration is a nano, but we want micros
+		// This makes the types less confusing because other wise the duration
+		// we get back has the wrong unit
+		"us": rtt.Microseconds(),
 	}
 }
 
 // Reason formats an error into an error event field.
 func Reason(err error) common.MapStr {
+	//nolint:errorlint // There are no new changes to this line but
+	// linter has been activated in the meantime. We'll cleanup separately.
 	if r, ok := err.(reason.Reason); ok {
 		return reason.Fail(r)
 	}

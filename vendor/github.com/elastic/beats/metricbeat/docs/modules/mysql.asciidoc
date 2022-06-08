@@ -1,9 +1,15 @@
 ////
-This file is generated! See scripts/docs_collector.py
+This file is generated! See scripts/mage/docs_collector.go
 ////
+
+:modulename: mysql
 
 [[metricbeat-module-mysql]]
 == MySQL module
+
+include::{libbeat-dir}/shared/integration-link.asciidoc[]
+
+:modulename!:
 
 This module periodically fetches metrics from https://www.mysql.com/[MySQL]
 servers.
@@ -58,11 +64,15 @@ in <<configuration-metricbeat>>. Here is an example configuration:
 metricbeat.modules:
 - module: mysql
   metricsets:
-    - "status"
-  #  - "galera_status"
+    - status
+  #  - galera_status
+  #  - performance
+  #  - query
   period: 10s
 
   # Host DSN should be defined as "user:pass@tcp(127.0.0.1:3306)/"
+  # or "unix(/var/lib/mysql/mysql.sock)/",
+  # or another DSN format supported by <https://github.com/Go-SQL-Driver/MySQL/>.
   # The username and password can either be set in the DSN or using the username
   # and password config options. Those specified in the DSN take precedence.
   hosts: ["root:secret@tcp(127.0.0.1:3306)/"]
@@ -84,9 +94,17 @@ The following metricsets are available:
 
 * <<metricbeat-metricset-mysql-galera_status,galera_status>>
 
+* <<metricbeat-metricset-mysql-performance,performance>>
+
+* <<metricbeat-metricset-mysql-query,query>>
+
 * <<metricbeat-metricset-mysql-status,status>>
 
 include::mysql/galera_status.asciidoc[]
+
+include::mysql/performance.asciidoc[]
+
+include::mysql/query.asciidoc[]
 
 include::mysql/status.asciidoc[]
 

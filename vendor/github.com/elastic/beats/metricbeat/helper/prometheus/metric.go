@@ -18,11 +18,13 @@
 package prometheus
 
 import (
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
-	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common"
 
 	dto "github.com/prometheus/client_model/go"
 )
@@ -37,6 +39,38 @@ type MetricMap interface {
 
 	// GetValue returns the resulting value
 	GetValue(m *dto.Metric) interface{}
+
+	// GetConfiguration returns the configuration for the metric
+	GetConfiguration() Configuration
+}
+
+// Configuration for mappings that needs extended treatment
+type Configuration struct {
+	// StoreNonMappedLables indicates if labels found at the metric that are
+	// not found at the label map should be part of the resulting event.
+	// This setting should be used when the label name is not known beforehand
+	StoreNonMappedLabels bool
+	// NonMappedLabelsPlacement is used when StoreNonMappedLabels is set to true, and
+	// defines the key path at the event under which to store the dynamically found labels.
+	// This key path will be added to the events that match this metric along with a subset of
+	// key/value pairs will be created under it, one for each non mapped label found.
+	//
+	// Example:
+	//
+	// given a metric family in a prometheus resource in the form:
+	// 		metric1{label1="value1",label2="value2"} 1
+	// and not mapping labels but using this entry on a the MetriMap definition:
+	// 		"metric1": ExtendedInfoMetric(Configuration{StoreNonMappedLabels: true, NonMappedLabelsPlacement: "mypath"}),
+	// would output an event that contains a metricset field as follows
+	// 		"mypath": {"label1":"value1","label2":"value2"}
+	//
+	NonMappedLabelsPlacement string
+	// MetricProcessing options are a set of functions that will be
+	// applied to metrics after they are retrieved
+	MetricProcessingOptions []MetricOption
+	// ExtraFields is used to add fields to the
+	// event where this metric is included
+	ExtraFields common.MapStr
 }
 
 // MetricOption adds settings to Metric objects behavior
@@ -45,16 +79,22 @@ type MetricOption interface {
 	Process(field string, value interface{}, labels common.MapStr) (string, interface{}, common.MapStr)
 }
 
-// OpFilter only processes metrics matching the given filter
-func OpFilter(filter map[string]string) MetricOption {
-	return opFilter{
-		labels: filter,
+// OpFilterMap only processes metrics matching the given filter
+func OpFilterMap(label string, filterMap map[string]string) MetricOption {
+	return opFilterMap{
+		label:     label,
+		filterMap: filterMap,
 	}
 }
 
 // OpLowercaseValue lowercases the value if it's a string
 func OpLowercaseValue() MetricOption {
 	return opLowercaseValue{}
+}
+
+// OpUnixTimestampValue parses a value into a Unix timestamp
+func OpUnixTimestampValue() MetricOption {
+	return opUnixTimestampValue{}
 }
 
 // OpMultiplyBuckets multiplies bucket labels in histograms, useful to change units
@@ -64,11 +104,19 @@ func OpMultiplyBuckets(multiplier float64) MetricOption {
 	}
 }
 
+// OpSetSuffix extends the field's name with the given suffix if the value of the metric
+// is numeric (and not histogram or quantile), otherwise does nothing
+func OpSetNumericMetricSuffix(suffix string) MetricOption {
+	return opSetNumericMetricSuffix{
+		suffix: suffix,
+	}
+}
+
 // Metric directly maps a Prometheus metric to a Metricbeat field
 func Metric(field string, options ...MetricOption) MetricMap {
 	return &commonMetric{
-		field:   field,
-		options: options,
+		field:  field,
+		config: Configuration{MetricProcessingOptions: options},
 	}
 }
 
@@ -77,8 +125,8 @@ func Metric(field string, options ...MetricOption) MetricMap {
 func KeywordMetric(field, keyword string, options ...MetricOption) MetricMap {
 	return &keywordMetric{
 		commonMetric{
-			field:   field,
-			options: options,
+			field:  field,
+			config: Configuration{MetricProcessingOptions: options},
 		},
 		keyword,
 	}
@@ -88,8 +136,8 @@ func KeywordMetric(field, keyword string, options ...MetricOption) MetricMap {
 func BooleanMetric(field string, options ...MetricOption) MetricMap {
 	return &booleanMetric{
 		commonMetric{
-			field:   field,
-			options: options,
+			field:  field,
+			config: Configuration{MetricProcessingOptions: options},
 		},
 	}
 }
@@ -99,8 +147,8 @@ func BooleanMetric(field string, options ...MetricOption) MetricMap {
 func LabelMetric(field, label string, options ...MetricOption) MetricMap {
 	return &labelMetric{
 		commonMetric{
-			field:   field,
-			options: options,
+			field:  field,
+			config: Configuration{MetricProcessingOptions: options},
 		},
 		label,
 	}
@@ -111,19 +159,38 @@ func LabelMetric(field, label string, options ...MetricOption) MetricMap {
 func InfoMetric(options ...MetricOption) MetricMap {
 	return &infoMetric{
 		commonMetric{
-			options: options,
+			config: Configuration{MetricProcessingOptions: options},
 		},
 	}
 }
 
+// ExtendedInfoMetric obtains info labels from the given metric and puts them
+// into events matching all the key labels present in the metric
+func ExtendedInfoMetric(configuration Configuration) MetricMap {
+	return &infoMetric{
+		commonMetric{
+			config: configuration,
+		},
+	}
+}
+
+// ExtendedMetric is a metric item that allows extended behaviour
+// through configuration
+func ExtendedMetric(field string, configuration Configuration) MetricMap {
+	return &commonMetric{
+		field:  field,
+		config: configuration,
+	}
+}
+
 type commonMetric struct {
-	field   string
-	options []MetricOption
+	field  string
+	config Configuration
 }
 
 // GetOptions returns the list of metric options
 func (m *commonMetric) GetOptions() []MetricOption {
-	return m.options
+	return m.config.MetricProcessingOptions
 }
 
 // GetField returns the resulting field name
@@ -131,32 +198,42 @@ func (m *commonMetric) GetField() string {
 	return m.field
 }
 
+// GetConfiguration returns the configuration for the metric
+func (m *commonMetric) GetConfiguration() Configuration {
+	return m.config
+}
+
 // GetValue returns the resulting value
 func (m *commonMetric) GetValue(metric *dto.Metric) interface{} {
 	counter := metric.GetCounter()
 	if counter != nil {
-		return int64(counter.GetValue())
+		if !math.IsNaN(counter.GetValue()) && !math.IsInf(counter.GetValue(), 0) {
+			return int64(counter.GetValue())
+		}
 	}
 
 	gauge := metric.GetGauge()
 	if gauge != nil {
-		return gauge.GetValue()
+		if !math.IsNaN(gauge.GetValue()) && !math.IsInf(gauge.GetValue(), 0) {
+			return gauge.GetValue()
+		}
 	}
 
 	summary := metric.GetSummary()
 	if summary != nil {
 		value := common.MapStr{}
-		value["sum"] = summary.GetSampleSum()
-		value["count"] = summary.GetSampleCount()
+		if !math.IsNaN(summary.GetSampleSum()) && !math.IsInf(summary.GetSampleSum(), 0) {
+			value["sum"] = summary.GetSampleSum()
+			value["count"] = summary.GetSampleCount()
+		}
 
 		quantiles := summary.GetQuantile()
 		percentileMap := common.MapStr{}
 		for _, quantile := range quantiles {
-			if !math.IsNaN(quantile.GetValue()) {
-				key := strconv.FormatFloat((100 * quantile.GetQuantile()), 'f', -1, 64)
+			if !math.IsNaN(quantile.GetValue()) && !math.IsInf(quantile.GetValue(), 0) {
+				key := strconv.FormatFloat(100*quantile.GetQuantile(), 'f', -1, 64)
 				percentileMap[key] = quantile.GetValue()
 			}
-
 		}
 
 		if len(percentileMap) != 0 {
@@ -169,14 +246,18 @@ func (m *commonMetric) GetValue(metric *dto.Metric) interface{} {
 	histogram := metric.GetHistogram()
 	if histogram != nil {
 		value := common.MapStr{}
-		value["sum"] = histogram.GetSampleSum()
-		value["count"] = histogram.GetSampleCount()
+		if !math.IsNaN(histogram.GetSampleSum()) && !math.IsInf(histogram.GetSampleSum(), 0) {
+			value["sum"] = histogram.GetSampleSum()
+			value["count"] = histogram.GetSampleCount()
+		}
 
 		buckets := histogram.GetBucket()
 		bucketMap := common.MapStr{}
 		for _, bucket := range buckets {
-			key := strconv.FormatFloat(bucket.GetUpperBound(), 'f', -1, 64)
-			bucketMap[key] = bucket.GetCumulativeCount()
+			if bucket.GetCumulativeCount() != uint64(math.NaN()) && bucket.GetCumulativeCount() != uint64(math.Inf(0)) {
+				key := strconv.FormatFloat(bucket.GetUpperBound(), 'f', -1, 64)
+				bucketMap[key] = bucket.GetCumulativeCount()
+			}
 		}
 
 		if len(bucketMap) != 0 {
@@ -251,18 +332,26 @@ func (m *infoMetric) GetField() string {
 	return ""
 }
 
-type opFilter struct {
-	labels map[string]string
+type opFilterMap struct {
+	label     string
+	filterMap map[string]string
 }
 
-// Process will return nil if labels don't match the filter
-func (o opFilter) Process(field string, value interface{}, labels common.MapStr) (string, interface{}, common.MapStr) {
-	for k, v := range o.labels {
-		if labels[k] != v {
-			return "", nil, nil
+// Called by the Prometheus helper to apply extra options on retrieved metrics
+// Check whether the value of the specified label is allowed and, if yes, return the metric via the specified mapped field
+// Else, if the specified label does not match the filter, return nil
+// This is useful in cases where multiple Metricbeat fields need to be defined per Prometheus metric, based on label values
+func (o opFilterMap) Process(field string, value interface{}, labels common.MapStr) (string, interface{}, common.MapStr) {
+	for k, v := range o.filterMap {
+		if labels[o.label] == k {
+			if field == "" {
+				return v, value, labels
+			} else {
+				return fmt.Sprintf("%v.%v", field, v), value, labels
+			}
 		}
 	}
-	return field, value, labels
+	return "", nil, nil
 }
 
 type opLowercaseValue struct{}
@@ -305,4 +394,59 @@ func (o opMultiplyBuckets) Process(field string, value interface{}, labels commo
 	histogram["bucket"] = multiplied
 	histogram["sum"] = sum * o.multiplier
 	return field, histogram, labels
+}
+
+type opSetNumericMetricSuffix struct {
+	suffix string
+}
+
+// Process will extend the field's name with the given suffix
+func (o opSetNumericMetricSuffix) Process(field string, value interface{}, labels common.MapStr) (string, interface{}, common.MapStr) {
+	_, ok := value.(float64)
+	if !ok {
+		return field, value, labels
+	}
+	field = fmt.Sprintf("%v.%v", field, o.suffix)
+	return field, value, labels
+}
+
+type opUnixTimestampValue struct {
+}
+
+// Process converts a value in seconds into an unix time
+func (o opUnixTimestampValue) Process(field string, value interface{}, labels common.MapStr) (string, interface{}, common.MapStr) {
+	return field, common.Time(time.Unix(int64(value.(float64)), 0)), labels
+}
+
+// OpLabelKeyPrefixRemover removes prefix from label keys
+func OpLabelKeyPrefixRemover(prefix string) MetricOption {
+	return opLabelKeyPrefixRemover{prefix}
+}
+
+// opLabelKeyPrefixRemover is a metric option processor that removes a prefix from the key of a label set
+type opLabelKeyPrefixRemover struct {
+	Prefix string
+}
+
+// Process modifies the labels map, removing a prefix when found at keys of the labels set.
+// For each label, if the key is found a new key will be created hosting the same value and the
+// old key will be deleted.
+// Fields, values and not prefixed labels will remain unmodified.
+func (o opLabelKeyPrefixRemover) Process(field string, value interface{}, labels common.MapStr) (string, interface{}, common.MapStr) {
+	renameKeys := []string{}
+	for k := range labels {
+		if len(k) < len(o.Prefix) {
+			continue
+		}
+		if k[:6] == o.Prefix {
+			renameKeys = append(renameKeys, k)
+		}
+	}
+
+	for i := range renameKeys {
+		v := labels[renameKeys[i]]
+		delete(labels, renameKeys[i])
+		labels[renameKeys[i][len(o.Prefix):]] = v
+	}
+	return "", value, labels
 }

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package cfgfile
@@ -47,7 +48,7 @@ func TestRead(t *testing.T) {
 	os.Setenv("TEST_KEY", "test_value")
 
 	assert.NotNil(t, absPath)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	config := &TestConfig{}
 

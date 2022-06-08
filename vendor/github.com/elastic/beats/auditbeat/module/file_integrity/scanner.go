@@ -26,7 +26,7 @@ import (
 
 	"golang.org/x/time/rate"
 
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/logp"
 )
 
 // scannerID is used as a global monotonically increasing counter for assigning
@@ -140,6 +140,11 @@ func (s *scanner) walkDir(dir string, action Action) error {
 			}
 			return nil
 		}
+
+		if !info.IsDir() && !s.config.IsIncludedPath(path) {
+			return nil
+		}
+
 		defer func() { startTime = time.Now() }()
 
 		event := s.newScanEvent(path, info, err, action)

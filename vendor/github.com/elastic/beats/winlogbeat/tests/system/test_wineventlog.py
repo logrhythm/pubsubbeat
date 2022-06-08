@@ -1,4 +1,6 @@
+import codecs
 import os
+import platform
 import sys
 import time
 import unittest
@@ -50,7 +52,7 @@ class Test(WriteReadTest):
         # remove the output file, otherwise there is a race condition
         # in read_events() below where it reads the results of the previous
         # execution
-        os.unlink(os.path.join(self.working_dir, "output", self.beat_name))
+        os.unlink(os.path.join(self.working_dir, "output", self.beat_name + "-" + self.today + ".ndjson"))
 
         msg = "Second event"
         self.write_event_log(msg)
@@ -61,16 +63,93 @@ class Test(WriteReadTest):
             "winlog.opcode": "Info",
         })
 
+    def test_cleared_channel_restarts(self):
+        """
+        wineventlog - When a bookmark points to a cleared (stale) channel
+        the subscription starts from the beginning
+        """
+        msg1 = "First event"
+        self.write_event_log(msg1)
+        msg2 = "Second event"
+        self.write_event_log(msg2)
+
+        evts = self.read_events(expected_events=2)
+
+        self.assertTrue(len(evts), 2)
+        self.assert_common_fields(evts[0], msg=msg1)
+        self.assert_common_fields(evts[1], msg=msg2)
+
+        # remove the output file, otherwise there is a race condition
+        # in read_events() below where it reads the results of the previous
+        # execution
+        os.unlink(os.path.join(self.working_dir, "output", self.beat_name + "-" + self.today + ".ndjson"))
+
+        self.clear_event_log()
+
+        # we check that after clearing the event log the bookmark still points to the previous checkpoint
+        event_logs = self.read_registry(requireBookmark=True)
+        self.assertTrue(len(list(event_logs.keys())), 1)
+        self.assertIn(self.providerName, event_logs)
+        record_number = event_logs[self.providerName]["record_number"]
+        self.assertTrue(record_number, 2)
+
+        msg3 = "Third event"
+        self.write_event_log(msg3)
+
+        evts = self.read_events()
+        self.assertTrue(len(evts), 1)
+        self.assert_common_fields(evts[0], msg=msg3)
+
+    def test_bad_bookmark_restart(self):
+        """
+        wineventlog - When a bookmarked event does not exist the subcription
+        restarts from the beginning
+        """
+        msg1 = "First event"
+        self.write_event_log(msg1)
+
+        evts = self.read_events(expected_events=1)
+
+        self.assertTrue(len(evts), 1)
+        self.assert_common_fields(evts[0], msg=msg1)
+
+        event_logs = self.read_registry(requireBookmark=True)
+        self.assertTrue(len(list(event_logs.keys())), 1)
+        self.assertIn(self.providerName, event_logs)
+        record_number = event_logs[self.providerName]["record_number"]
+        self.assertTrue(record_number, 1)
+
+        # write invalid bookmark, it should start from the beginning again
+        f = open(os.path.join(self.working_dir, "data", ".winlogbeat.yml"), "w")
+        f.write((
+            "update_time: 2100-01-01T00:00:00Z\n" +
+            "event_logs:\n" +
+            "  - name: {}\n" +
+            "    record_number: 1000\n" +
+            "    timestamp: 2100-01-01T00:00:00Z\n" +
+            "    bookmark: \"<BookmarkList>\\r\\n  <Bookmark Channel='{}' RecordId='1000' IsCurrent='true'/>\\r\\n</BookmarkList>\"\n").
+            format(self.providerName, self.providerName)
+        )
+        f.close()
+
+        # remove the output file, otherwise there is a race condition
+        # in read_events() below where it reads the results of the previous
+        # execution
+        os.unlink(os.path.join(self.working_dir, "output", self.beat_name + "-" + self.today + ".ndjson"))
+
+        evts = self.read_events(expected_events=1)
+        self.assertTrue(len(evts), 1)
+        self.assert_common_fields(evts[0], msg=msg1)
+
     def test_read_unknown_event_id(self):
         """
         wineventlog - Read unknown event ID
         """
         msg = "Unknown event ID"
-        event_id = 1111
-        self.write_event_log(msg, eventID=event_id)
+        self.write_event_log(msg, eventID=1111)
         evts = self.read_events()
         self.assertTrue(len(evts), 1)
-        self.assert_common_fields(evts[0], eventID=event_id, extra={
+        self.assert_common_fields(evts[0], eventID="1111", extra={
             "winlog.keywords": ["Classic"],
             "winlog.opcode": "Info",
         })
@@ -197,10 +276,10 @@ class Test(WriteReadTest):
             ]
         }, expected_events=4)
         self.assertTrue(len(evts), 4)
-        self.assertEqual(evts[0]["winlog.event_id"], 50)
-        self.assertEqual(evts[1]["winlog.event_id"], 100)
-        self.assertEqual(evts[2]["winlog.event_id"], 175)
-        self.assertEqual(evts[3]["winlog.event_id"], 200)
+        self.assertEqual(evts[0]["winlog.event_id"], "50")
+        self.assertEqual(evts[1]["winlog.event_id"], "100")
+        self.assertEqual(evts[2]["winlog.event_id"], "175")
+        self.assertEqual(evts[3]["winlog.event_id"], "200")
 
     def test_query_level_single(self):
         """
@@ -249,6 +328,8 @@ class Test(WriteReadTest):
         self.assertEqual(evts[0]["log.level"], "error")
         self.assertEqual(evts[1]["log.level"], "warning")
 
+    @unittest.skipIf(platform.platform().startswith("Windows-7"),
+                     "Flaky test: https://github.com/elastic/beats/issues/22753")
     def test_query_ignore_older(self):
         """
         wineventlog - Query by time (ignore_older than 2s)
@@ -266,8 +347,8 @@ class Test(WriteReadTest):
             ]
         })
         self.assertTrue(len(evts), 1)
-        self.assertEqual(evts[0]["winlog.event_id"], 10)
-        self.assertEqual(evts[0]["event.code"], 10)
+        self.assertEqual(evts[0]["winlog.event_id"], "10")
+        self.assertEqual(evts[0]["event.code"], "10")
 
     def test_query_provider(self):
         """
@@ -310,23 +391,6 @@ class Test(WriteReadTest):
         self.assertTrue(len(evts), 1)
         self.assertEqual(evts[0]["message"], "selected")
 
-    def test_unknown_eventlog_config(self):
-        """
-        wineventlog - Unknown config parameter
-        """
-        self.render_config_template(
-            event_logs=[
-                {
-                    "name": self.providerName,
-                    "api": self.api,
-                    "forwarded": False,
-                    "invalid": "garbage"}
-            ]
-        )
-        self.start_beat().check_wait(exit_code=1)
-        assert self.log_contains(
-            "1 error: Invalid event log key 'invalid' found.")
-
     def test_utf16_characters(self):
         """
         wineventlog - UTF-16 characters
@@ -335,7 +399,7 @@ class Test(WriteReadTest):
                u'\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB\u30B9\u30AF\u30EA'
                u'\u30D7\u30C8\u3092\u5B9F\u884C\u3057'
                u'\u8C61\u5F62\u5B57')
-        self.write_event_log(msg)
+        self.write_event_log(str(msg))
         evts = self.read_events(config={
             "event_logs": [
                 {
@@ -357,7 +421,7 @@ class Test(WriteReadTest):
         self.assertTrue(len(evts), 1)
 
         event_logs = self.read_registry(requireBookmark=True)
-        self.assertTrue(len(event_logs.keys()), 1)
+        self.assertTrue(len(list(event_logs.keys())), 1)
         self.assertIn(self.providerName, event_logs)
         record_number = event_logs[self.providerName]["record_number"]
         self.assertGreater(record_number, 0)
@@ -407,8 +471,8 @@ Logon Process Name:  IKE"""
         self.write_event_log(msg)
         evts = self.read_events()
         self.assertTrue(len(evts), 1)
-        self.assertEqual(unicode(self.api), evts[0]["winlog.api"], msg=evts[0])
+        self.assertEqual(str(self.api), evts[0]["winlog.api"], msg=evts[0])
         self.assertNotIn("event.original", evts[0], msg=evts[0])
         self.assertIn("message", evts[0], msg=evts[0])
         self.assertNotIn("\\u000a", evts[0]["message"], msg=evts[0])
-        self.assertEqual(unicode(msg), evts[0]["message"].decode('unicode-escape'), msg=evts[0])
+        self.assertEqual(str(msg), codecs.decode(evts[0]["message"], "unicode_escape"), msg=evts[0])

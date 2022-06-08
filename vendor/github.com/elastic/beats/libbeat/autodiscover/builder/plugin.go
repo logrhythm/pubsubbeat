@@ -20,8 +20,8 @@ package builder
 import (
 	"errors"
 
-	"github.com/elastic/beats/libbeat/autodiscover"
-	p "github.com/elastic/beats/libbeat/plugin"
+	"github.com/elastic/beats/v7/libbeat/autodiscover"
+	p "github.com/elastic/beats/v7/libbeat/plugin"
 )
 
 type builderPlugin struct {
@@ -29,7 +29,7 @@ type builderPlugin struct {
 	builder autodiscover.BuilderConstructor
 }
 
-var pluginKey = "libbeat.autodiscover.builder"
+const pluginKey = "libbeat.autodiscover.builder"
 
 // Plugin accepts a BuilderConstructor to be registered as a plugin
 func Plugin(name string, b autodiscover.BuilderConstructor) map[string][]interface{} {

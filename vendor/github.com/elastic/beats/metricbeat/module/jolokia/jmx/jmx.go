@@ -18,12 +18,12 @@
 package jmx
 
 import (
-	"github.com/elastic/beats/metricbeat/helper"
+	"github.com/elastic/beats/v7/metricbeat/helper"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/mb/parse"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/parse"
 )
 
 var (
@@ -32,9 +32,9 @@ var (
 
 // init registers the MetricSet with the central registry.
 func init() {
-	if err := mb.Registry.AddMetricSet("jolokia", "jmx", New, hostParser); err != nil {
-		panic(err)
-	}
+	mb.Registry.MustAddMetricSet("jolokia", "jmx", New,
+		mb.WithHostParser(hostParser),
+	)
 }
 
 const (

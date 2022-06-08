@@ -21,9 +21,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/module/kubernetes"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/module/kubernetes"
 )
 
 func eventMapping(content []byte) ([]common.MapStr, error) {
@@ -66,6 +66,12 @@ func eventMapping(content []byte) ([]common.MapStr, error) {
 						"count": volume.Inodes,
 					},
 				},
+			}
+			if volume.CapacityBytes > 0 {
+				volumeEvent.Put("fs.used.pct", float64(volume.UsedBytes)/float64(volume.CapacityBytes))
+			}
+			if volume.Inodes > 0 {
+				volumeEvent.Put("fs.inodes.pct", float64(volume.InodesUsed)/float64(volume.Inodes))
 			}
 			events = append(events, volumeEvent)
 		}

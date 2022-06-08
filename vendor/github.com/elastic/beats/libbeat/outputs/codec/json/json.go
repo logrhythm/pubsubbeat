@@ -21,9 +21,9 @@ import (
 	"bytes"
 	stdjson "encoding/json"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/outputs/codec"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/outputs/codec"
 	"github.com/elastic/go-structform/gotype"
 	"github.com/elastic/go-structform/json"
 )
@@ -41,11 +41,13 @@ type Encoder struct {
 type Config struct {
 	Pretty     bool
 	EscapeHTML bool
+	LocalTime  bool
 }
 
 var defaultConfig = Config{
 	Pretty:     false,
 	EscapeHTML: false,
+	LocalTime:  false,
 }
 
 func init() {
@@ -71,13 +73,14 @@ func New(version string, config Config) *Encoder {
 func (e *Encoder) reset() {
 	visitor := json.NewVisitor(&e.buf)
 	visitor.SetEscapeHTML(e.config.EscapeHTML)
+	visitor.SetIgnoreInvalidFloat(true)
 
 	var err error
 
 	// create new encoder with custom time.Time encoding
 	e.folder, err = gotype.NewIterator(visitor,
 		gotype.Folders(
-			codec.MakeTimestampEncoder(),
+			codec.MakeUTCOrLocalTimestampEncoder(e.config.LocalTime),
 			codec.MakeBCTimestampEncoder(),
 		),
 	)

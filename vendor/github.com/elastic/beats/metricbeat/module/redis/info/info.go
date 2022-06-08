@@ -22,14 +22,16 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/mb/parse"
-	"github.com/elastic/beats/metricbeat/module/redis"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/parse"
+	"github.com/elastic/beats/v7/metricbeat/module/redis"
 )
+
+var hostParser = parse.URLHostParserBuilder{DefaultScheme: "redis"}.Build()
 
 func init() {
 	mb.Registry.MustAddMetricSet("redis", "info", New,
-		mb.WithHostParser(parse.PassThruHostParser),
+		mb.WithHostParser(hostParser),
 		mb.DefaultMetricSet(),
 	)
 }
@@ -50,8 +52,15 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 
 // Fetch fetches metrics from Redis by issuing the INFO command.
 func (m *MetricSet) Fetch(r mb.ReporterV2) error {
-	// Fetch default INFO.
-	info, err := redis.FetchRedisInfo("default", m.Connection())
+	conn := m.Connection()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			m.Logger().Debug(errors.Wrapf(err, "failed to release connection"))
+		}
+	}()
+
+	// Fetch all INFO.
+	info, err := redis.FetchRedisInfo("all", conn)
 	if err != nil {
 		return errors.Wrap(err, "failed to fetch redis info")
 	}
@@ -64,14 +73,13 @@ func (m *MetricSet) Fetch(r mb.ReporterV2) error {
 		{"client_biggest_input_buf", "client_recent_max_input_buffer"},
 	}
 	for _, r := range renamings {
-		if v, ok := info[r.new]; ok {
-			info[r.old] = v
-		} else {
-			info[r.new] = info[r.old]
+		if v, ok := info[r.old]; ok {
+			info[r.new] = v
+			delete(info, r.old)
 		}
 	}
 
-	slowLogLength, err := redis.FetchSlowLogLength(m.Connection())
+	slowLogLength, err := redis.FetchSlowLogLength(conn)
 	if err != nil {
 		return errors.Wrap(err, "failed to fetch slow log length")
 

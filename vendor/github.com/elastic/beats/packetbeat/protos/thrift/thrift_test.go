@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package thrift
@@ -24,15 +25,16 @@ import (
 	"net"
 	"testing"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/packetbeat/protos"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/packetbeat/procs"
+	"github.com/elastic/beats/v7/packetbeat/protos"
 )
 
 func thriftForTests() *thriftPlugin {
 	t := &thriftPlugin{}
 	config := defaultConfig
-	t.init(true, nil, &config)
+	t.init(true, nil, procs.ProcessesWatcher{}, &config)
 	return t
 }
 
@@ -120,7 +122,6 @@ func TestThrift_readMessageBegin(t *testing.T) {
 
 	data, _ = hex.DecodeString("800100010000000570696e6700000001")
 	stream = thriftStream{data: data, message: new(thriftMessage)}
-	m = stream.message
 	ok, complete = thrift.readMessageBegin(&stream)
 	if !ok || complete {
 		t.Errorf("Bad result: %v %v", ok, complete)
@@ -128,7 +129,6 @@ func TestThrift_readMessageBegin(t *testing.T) {
 
 	data, _ = hex.DecodeString("800100010000000570696e6700000001")
 	stream = thriftStream{data: data, message: new(thriftMessage)}
-	m = stream.message
 	ok, complete = thrift.readMessageBegin(&stream)
 	if !ok || complete {
 		t.Errorf("Bad result: %v %v", ok, complete)
@@ -148,7 +148,6 @@ func TestThrift_readMessageBegin(t *testing.T) {
 
 	data, _ = hex.DecodeString("0000000570696e670100000000")
 	stream = thriftStream{data: data, message: new(thriftMessage)}
-	m = stream.message
 	ok, complete = thrift.readMessageBegin(&stream)
 	if !ok || complete {
 		t.Error("Bad result:", ok, complete)

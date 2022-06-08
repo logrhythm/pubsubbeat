@@ -17,7 +17,10 @@
 
 package template
 
-import "github.com/elastic/beats/libbeat/mapping"
+import (
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/mapping"
+)
 
 // TemplateConfig holds config information about the Elasticsearch template
 type TemplateConfig struct {
@@ -26,14 +29,15 @@ type TemplateConfig struct {
 	Pattern string `config:"pattern"`
 	Fields  string `config:"fields"`
 	JSON    struct {
-		Enabled bool   `config:"enabled"`
-		Path    string `config:"path"`
-		Name    string `config:"name"`
+		Enabled      bool   `config:"enabled"`
+		Path         string `config:"path"`
+		Name         string `config:"name"`
+		IsDataStream bool   `config:"data_stream"`
 	} `config:"json"`
 	AppendFields mapping.Fields   `config:"append_fields"`
 	Overwrite    bool             `config:"overwrite"`
 	Settings     TemplateSettings `config:"settings"`
-	Order        int              `config:"order"`
+	Priority     int              `config:"priority"`
 }
 
 // TemplateSettings are part of the Elasticsearch template and hold index and source specific information.
@@ -43,10 +47,12 @@ type TemplateSettings struct {
 }
 
 // DefaultConfig for index template
-func DefaultConfig() TemplateConfig {
+func DefaultConfig(info beat.Info) TemplateConfig {
 	return TemplateConfig{
-		Enabled: true,
-		Fields:  "",
-		Order:   1,
+		Name:     info.Beat + "-" + info.Version,
+		Pattern:  info.Beat + "-" + info.Version,
+		Enabled:  true,
+		Fields:   "",
+		Priority: 150,
 	}
 }

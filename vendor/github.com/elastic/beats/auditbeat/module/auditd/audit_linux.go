@@ -18,9 +18,9 @@
 package auditd
 
 import (
+	"errors"
 	"fmt"
 	"os"
-	"os/user"
 	"runtime"
 	"strconv"
 	"strings"
@@ -28,17 +28,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pkg/errors"
-
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/libbeat/monitoring"
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/mb/parse"
-	"github.com/elastic/go-libaudit"
-	"github.com/elastic/go-libaudit/aucoalesce"
-	"github.com/elastic/go-libaudit/auparse"
-	"github.com/elastic/go-libaudit/rule"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/monitoring"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/parse"
+	"github.com/elastic/go-libaudit/v2"
+	"github.com/elastic/go-libaudit/v2/aucoalesce"
+	"github.com/elastic/go-libaudit/v2/auparse"
+	"github.com/elastic/go-libaudit/v2/rule"
 )
 
 const (
@@ -52,6 +50,8 @@ const (
 
 	lostEventsUpdateInterval        = time.Second * 15
 	maxDefaultStreamBufferConsumers = 4
+
+	setPIDMaxRetries = 5
 )
 
 type backpressureStrategy uint8
@@ -98,7 +98,7 @@ type MetricSet struct {
 func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 	config := defaultConfig
 	if err := base.Module().UnpackConfig(&config); err != nil {
-		return nil, errors.Wrap(err, "failed to unpack the auditd config")
+		return nil, fmt.Errorf("failed to unpack the auditd config: %w", err)
 	}
 
 	log := logp.NewLogger(moduleName)
@@ -107,7 +107,7 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 
 	client, err := newAuditClient(&config, log)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create audit client")
+		return nil, fmt.Errorf("failed to create audit client: %w", err)
 	}
 
 	reassemblerGapsMetric.Set(0)
@@ -138,10 +138,32 @@ func newAuditClient(c *Config, log *logp.Logger) (*libaudit.AuditClient, error) 
 	return libaudit.NewAuditClient(nil)
 }
 
+func closeAuditClient(client *libaudit.AuditClient) error {
+	discard := func(bytes []byte) ([]syscall.NetlinkMessage, error) {
+		return nil, nil
+	}
+	// Drain the netlink channel in parallel to Close() to prevent a deadlock.
+	// This goroutine will terminate once receive from netlink errors (EBADF,
+	// EBADFD, or any other error). This happens because the fd is closed.
+	go func() {
+		for {
+			_, err := client.Netlink.Receive(true, discard)
+			switch err {
+			case nil, syscall.EINTR:
+			case syscall.EAGAIN:
+				time.Sleep(50 * time.Millisecond)
+			default:
+				return
+			}
+		}
+	}()
+	return client.Close()
+}
+
 // Run initializes the audit client and receives audit messages from the
 // kernel until the reporter's done channel is closed.
 func (ms *MetricSet) Run(reporter mb.PushReporterV2) {
-	defer ms.client.Close()
+	defer closeAuditClient(ms.client)
 
 	if err := ms.addRules(reporter); err != nil {
 		reporter.Error(err)
@@ -163,7 +185,11 @@ func (ms *MetricSet) Run(reporter mb.PushReporterV2) {
 			ms.log.Errorw("Failure creating audit monitoring client", "error", err)
 		}
 		go func() {
-			defer client.Close()
+			defer func() { // Close the most recently allocated "client" instance.
+				if client != nil {
+					closeAuditClient(client)
+				}
+			}()
 			timer := time.NewTicker(lostEventsUpdateInterval)
 			defer timer.Stop()
 			for {
@@ -175,6 +201,15 @@ func (ms *MetricSet) Run(reporter mb.PushReporterV2) {
 						ms.updateKernelLostMetric(status.Lost)
 					} else {
 						ms.log.Error("get status request failed:", err)
+						if err = closeAuditClient(client); err != nil {
+							ms.log.Errorw("Error closing audit monitoring client", "error", err)
+						}
+						client, err = libaudit.NewAuditClient(nil)
+						if err != nil {
+							ms.log.Errorw("Failure creating audit monitoring client", "error", err)
+							reporter.Error(err)
+							return
+						}
 					}
 				}
 			}
@@ -219,15 +254,15 @@ func (ms *MetricSet) addRules(reporter mb.PushReporterV2) error {
 
 	client, err := libaudit.NewAuditClient(nil)
 	if err != nil {
-		return errors.Wrap(err, "failed to create audit client for adding rules")
+		return fmt.Errorf("failed to create audit client for adding rules: %w", err)
 	}
-	defer client.Close()
+	defer closeAuditClient(client)
 
 	// Don't attempt to change configuration if audit rules are locked (enabled == 2).
 	// Will result in EPERM.
 	status, err := client.GetStatus()
 	if err != nil {
-		err = errors.Wrap(err, "failed to get audit status before adding rules")
+		err = fmt.Errorf("failed to get audit status before adding rules: %w", err)
 		reporter.Error(err)
 		return err
 	}
@@ -238,7 +273,7 @@ func (ms *MetricSet) addRules(reporter mb.PushReporterV2) error {
 	// Delete existing rules.
 	n, err := client.DeleteRules()
 	if err != nil {
-		return errors.Wrap(err, "failed to delete existing rules")
+		return fmt.Errorf("failed to delete existing rules: %w", err)
 	}
 	ms.log.Infof("Deleted %v pre-existing audit rules.", n)
 
@@ -253,7 +288,7 @@ func (ms *MetricSet) addRules(reporter mb.PushReporterV2) error {
 	for _, rule := range rules {
 		if err = client.AddRule(rule.data); err != nil {
 			// Treat rule add errors as warnings and continue.
-			err = errors.Wrapf(err, "failed to add audit rule '%v'", rule.flags)
+			err = fmt.Errorf("failed to add audit rule '%v': %w", rule.flags, err)
 			reporter.Error(err)
 			ms.log.Warnw("Failure adding audit rule", "error", err)
 			failCount++
@@ -271,14 +306,17 @@ func (ms *MetricSet) initClient() error {
 		// required to ensure that auditing is enabled if the process is only
 		// given CAP_AUDIT_READ.
 		err := ms.client.SetEnabled(true, libaudit.NoWait)
-		return errors.Wrap(err, "failed to enable auditing in the kernel")
+		if err != nil {
+			return fmt.Errorf("failed to enable auditing in the kernel: %w", err)
+		}
+		return nil
 	}
 
 	// Unicast client initialization (requires CAP_AUDIT_CONTROL and that the
 	// process be in initial PID namespace).
 	status, err := ms.client.GetStatus()
 	if err != nil {
-		return errors.Wrap(err, "failed to get audit status")
+		return fmt.Errorf("failed to get audit status: %w", err)
 	}
 	ms.kernelLost.enabled = true
 	ms.kernelLost.counter = status.Lost
@@ -291,13 +329,13 @@ func (ms *MetricSet) initClient() error {
 
 	if fm, _ := ms.config.failureMode(); status.Failure != fm {
 		if err = ms.client.SetFailure(libaudit.FailureMode(fm), libaudit.NoWait); err != nil {
-			return errors.Wrap(err, "failed to set audit failure mode in kernel")
+			return fmt.Errorf("failed to set audit failure mode in kernel: %w", err)
 		}
 	}
 
 	if status.BacklogLimit != ms.config.BacklogLimit {
 		if err = ms.client.SetBacklogLimit(ms.config.BacklogLimit, libaudit.NoWait); err != nil {
-			return errors.Wrap(err, "failed to set audit backlog limit in kernel")
+			return fmt.Errorf("failed to set audit backlog limit in kernel: %w", err)
 		}
 	}
 
@@ -309,7 +347,7 @@ func (ms *MetricSet) initClient() error {
 		if status.FeatureBitmap&libaudit.AuditFeatureBitmapBacklogWaitTime != 0 {
 			ms.log.Info("Setting kernel backlog wait time to prevent backpressure propagating to the kernel.")
 			if err = ms.client.SetBacklogWaitTime(0, libaudit.NoWait); err != nil {
-				return errors.Wrap(err, "failed to set audit backlog wait time in kernel")
+				return fmt.Errorf("failed to set audit backlog wait time in kernel: %w", err)
 			}
 		} else {
 			if ms.backpressureStrategy == bsAuto {
@@ -329,25 +367,41 @@ func (ms *MetricSet) initClient() error {
 
 	if status.RateLimit != ms.config.RateLimit {
 		if err = ms.client.SetRateLimit(ms.config.RateLimit, libaudit.NoWait); err != nil {
-			return errors.Wrap(err, "failed to set audit rate limit in kernel")
+			return fmt.Errorf("failed to set audit rate limit in kernel: %w", err)
 		}
 	}
 
 	if status.Enabled == 0 {
 		if err = ms.client.SetEnabled(true, libaudit.NoWait); err != nil {
-			return errors.Wrap(err, "failed to enable auditing in the kernel")
+			return fmt.Errorf("failed to enable auditing in the kernel: %w", err)
 		}
 	}
+
 	if err := ms.client.WaitForPendingACKs(); err != nil {
-		return errors.Wrap(err, "failed to wait for ACKs")
+		return fmt.Errorf("failed to wait for ACKs: %w", err)
 	}
-	if err := ms.client.SetPID(libaudit.WaitForReply); err != nil {
+
+	if err := ms.setPID(setPIDMaxRetries); err != nil {
 		if errno, ok := err.(syscall.Errno); ok && errno == syscall.EEXIST && status.PID != 0 {
 			return fmt.Errorf("failed to set audit PID. An audit process is already running (PID %d)", status.PID)
 		}
-		return errors.Wrapf(err, "failed to set audit PID (current audit PID %d)", status.PID)
+		return fmt.Errorf("failed to set audit PID (current audit PID %d): %w", status.PID, err)
 	}
 	return nil
+}
+
+func (ms *MetricSet) setPID(retries int) (err error) {
+	if err = ms.client.SetPID(libaudit.WaitForReply); err == nil || !errors.Is(err, syscall.ENOBUFS) || retries == 0 {
+		return err
+	}
+	// At this point the netlink channel is congested (ENOBUFS).
+	// Drain and close the client, then retry with a new client.
+	closeAuditClient(ms.client)
+	if ms.client, err = newAuditClient(&ms.config, ms.log); err != nil {
+		return fmt.Errorf("failed to recover from ENOBUFS: %w", err)
+	}
+	ms.log.Info("Recovering from ENOBUFS ...")
+	return ms.setPID(retries - 1)
 }
 
 func (ms *MetricSet) updateKernelLostMetric(lost uint32) {
@@ -386,7 +440,7 @@ func (ms *MetricSet) receiveEvents(done <-chan struct{}) (<-chan []*auparse.Audi
 	}
 	reassembler, err := libaudit.NewReassembler(int(ms.config.ReassemblerMaxInFlight), ms.config.ReassemblerTimeout, st)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create Reassembler")
+		return nil, fmt.Errorf("failed to create Reassembler: %w", err)
 	}
 	go maintain(done, reassembler)
 
@@ -398,7 +452,7 @@ func (ms *MetricSet) receiveEvents(done <-chan struct{}) (<-chan []*auparse.Audi
 		for {
 			raw, err := ms.client.Receive(false)
 			if err != nil {
-				if errors.Cause(err) == syscall.EBADF {
+				if errors.Is(err, syscall.EBADF) {
 					// Client has been closed.
 					break
 				}
@@ -449,7 +503,7 @@ func filterRecordType(typ auparse.AuditMessageType) bool {
 	case typ == auparse.AUDIT_REPLACE:
 		return true
 	// Messages from 1300-2999 are valid audit message types.
-	case typ < auparse.AUDIT_USER_AUTH || typ > auparse.AUDIT_LAST_USER_MSG2:
+	case (typ < auparse.AUDIT_USER_AUTH || typ > auparse.AUDIT_LAST_USER_MSG2) && typ != auparse.AUDIT_LOGIN:
 		return true
 	}
 
@@ -460,7 +514,7 @@ func buildMetricbeatEvent(msgs []*auparse.AuditMessage, config Config) mb.Event 
 	auditEvent, err := aucoalesce.CoalesceMessages(msgs)
 	if err != nil {
 		// Add messages on error so that it's possible to debug the problem.
-		out := mb.Event{RootFields: common.MapStr{}}
+		out := mb.Event{RootFields: common.MapStr{}, Error: err}
 		addEventOriginal(msgs, out.RootFields)
 		return out
 	}
@@ -539,58 +593,81 @@ func buildMetricbeatEvent(msgs []*auparse.AuditMessage, config Config) mb.Event 
 		m.Put("paths", auditEvent.Paths)
 	}
 
-	switch auditEvent.Category {
-	case aucoalesce.EventTypeUserLogin:
-		// Customize event.type / event.category to match unified values.
-		normalizeEventFields(out.RootFields)
-		// Set ECS user fields from the attempted login account.
-		if usernameOrID := auditEvent.Summary.Actor.Secondary; usernameOrID != "" {
-			if usr, err := resolveUsernameOrID(usernameOrID); err == nil {
-				out.RootFields.Put("user.name", usr.Username)
-				out.RootFields.Put("user.id", usr.Uid)
-			} else {
-				// The login account doesn't exists. Treat it as a user name
-				out.RootFields.Put("user.name", usernameOrID)
-				out.RootFields.Delete("user.id")
+	normalizeEventFields(auditEvent, out.RootFields)
+
+	// User set for related.user
+	var userSet common.StringSet
+	if config.ResolveIDs {
+		userSet = make(common.StringSet)
+	}
+
+	// Copy user.*/group.* fields from event
+	setECSEntity := func(key string, ent aucoalesce.ECSEntityData, root common.MapStr, set common.StringSet) {
+		if ent.ID == "" && ent.Name == "" {
+			return
+		}
+		if ent.ID == uidUnset {
+			ent.ID = ""
+		}
+		nameField := key + ".name"
+		idField := key + ".id"
+		if ent.ID != "" {
+			root.Put(idField, ent.ID)
+		} else {
+			root.Delete(idField)
+		}
+		if ent.Name != "" {
+			root.Put(nameField, ent.Name)
+			if set != nil {
+				set.Add(ent.Name)
 			}
+		} else {
+			root.Delete(nameField)
 		}
 	}
 
+	setECSEntity("user", auditEvent.ECS.User.ECSEntityData, out.RootFields, userSet)
+	setECSEntity("user.effective", auditEvent.ECS.User.Effective, out.RootFields, userSet)
+	setECSEntity("user.target", auditEvent.ECS.User.Target, out.RootFields, userSet)
+	setECSEntity("user.changes", auditEvent.ECS.User.Changes, out.RootFields, userSet)
+	setECSEntity("group", auditEvent.ECS.Group, out.RootFields, nil)
+
+	if userSet != nil {
+		if userSet.Count() != 0 {
+			out.RootFields.Put("related.user", userSet.ToSlice())
+		}
+	}
+	getStringField := func(key string, m common.MapStr) (str string) {
+		if asIf, _ := m.GetValue(key); asIf != nil {
+			str, _ = asIf.(string)
+		}
+		return str
+	}
+
+	// Remove redundant user.effective.* when it's the same as user.*
+	removeRedundantEntity := func(target, original string, m common.MapStr) bool {
+		for _, suffix := range []string{".id", ".name"} {
+			if value := getStringField(original+suffix, m); value != "" && getStringField(target+suffix, m) == value {
+				m.Delete(target)
+				return true
+			}
+		}
+		return false
+	}
+	removeRedundantEntity("user.effective", "user", out.RootFields)
 	return out
 }
 
-func resolveUsernameOrID(userOrID string) (usr *user.User, err error) {
-	usr, err = user.Lookup(userOrID)
-	if err == nil {
-		// User found by name
-		return
+func normalizeEventFields(event *aucoalesce.Event, m common.MapStr) {
+	m.Put("event.kind", "event")
+	if len(event.ECS.Event.Category) > 0 {
+		m.Put("event.category", event.ECS.Event.Category)
 	}
-	if _, ok := err.(user.UnknownUserError); !ok {
-		// Lookup failed by a reason other than user not found
-		return
+	if len(event.ECS.Event.Type) > 0 {
+		m.Put("event.type", event.ECS.Event.Type)
 	}
-	return user.LookupId(userOrID)
-}
-
-func normalizeEventFields(m common.MapStr) {
-	getFieldAsStr := func(key string) (s string, found bool) {
-		iface, err := m.GetValue(key)
-		if err != nil {
-			return
-		}
-		s, found = iface.(string)
-		return
-	}
-
-	category, ok1 := getFieldAsStr("event.category")
-	action, ok2 := getFieldAsStr("event.action")
-	outcome, ok3 := getFieldAsStr("event.outcome")
-	if !ok1 || !ok2 || !ok3 {
-		return
-	}
-	if category == "user-login" && action == "logged-in" { // USER_LOGIN
-		m.Put("event.category", "authentication")
-		m.Put("event.type", fmt.Sprintf("authentication_%s", outcome))
+	if event.ECS.Event.Outcome != "" {
+		m.Put("event.outcome", event.ECS.Event.Outcome)
 	}
 }
 
@@ -670,7 +747,9 @@ func addProcess(p aucoalesce.Process, m common.MapStr) {
 	}
 	if p.PPID != "" {
 		if ppid, err := strconv.Atoi(p.PPID); err == nil {
-			process["ppid"] = ppid
+			process["parent"] = common.MapStr{
+				"pid": ppid,
+			}
 		}
 	}
 	if p.Title != "" {
@@ -864,17 +943,17 @@ func kernelVersion() (major, minor int, full string, err error) {
 	release := string(data[:length])
 	parts := strings.SplitN(release, ".", 3)
 	if len(parts) < 2 {
-		return 0, 0, release, errors.Errorf("failed to parse uname release '%v'", release)
+		return 0, 0, release, fmt.Errorf("failed to parse uname release '%v'", release)
 	}
 
 	major, err = strconv.Atoi(parts[0])
 	if err != nil {
-		return 0, 0, release, errors.Wrapf(err, "failed to parse major version from '%v'", release)
+		return 0, 0, release, fmt.Errorf("failed to parse major version from '%v': %w", release, err)
 	}
 
 	minor, err = strconv.Atoi(parts[1])
 	if err != nil {
-		return 0, 0, release, errors.Wrapf(err, "failed to parse minor version from '%v'", release)
+		return 0, 0, release, fmt.Errorf("failed to parse minor version from '%v': %w", release, err)
 	}
 
 	return major, minor, release, nil
@@ -884,7 +963,7 @@ func determineSocketType(c *Config, log *logp.Logger) (string, error) {
 	client, err := libaudit.NewAuditClient(nil)
 	if err != nil {
 		if c.SocketType == "" {
-			return "", errors.Wrap(err, "failed to create audit client")
+			return "", fmt.Errorf("failed to create audit client: %w", err)
 		}
 		// Ignore errors if a socket type has been specified. It will fail during
 		// further setup and its necessary for unit tests to pass
@@ -894,7 +973,7 @@ func determineSocketType(c *Config, log *logp.Logger) (string, error) {
 	status, err := client.GetStatus()
 	if err != nil {
 		if c.SocketType == "" {
-			return "", errors.Wrap(err, "failed to get audit status")
+			return "", fmt.Errorf("failed to get audit status: %w", err)
 		}
 		return c.SocketType, nil
 	}
@@ -954,7 +1033,6 @@ func determineSocketType(c *Config, log *logp.Logger) (string, error) {
 		}
 		return unicast, nil
 	}
-
 }
 
 func getBackpressureStrategy(value string, logger *logp.Logger) backpressureStrategy {

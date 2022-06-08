@@ -9,8 +9,10 @@ multiline:
   negate: true
   match: after
 
-{{ if .convert_timezone }}
 processors:
-- add_locale: ~
-{{ end }}
-
+# Locale for time zone is only needed in non-json logs
+- add_locale.when.not.regexp.message: "^{"
+- add_fields:
+    target: ''
+    fields:
+      ecs.version: 1.12.0

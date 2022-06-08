@@ -1,8 +1,8 @@
+import os
+import unittest
+
 from heartbeat import BaseTest
 from parameterized import parameterized
-import os
-from nose.plugins.skip import SkipTest
-import nose.tools
 
 
 class Test(BaseTest):
@@ -18,7 +18,7 @@ class Test(BaseTest):
         server = self.start_server("hello world", status_code)
 
         self.render_http_config(
-            ["http://localhost:{}".format(server.server_port)])
+            ["localhost:{}".format(server.server_port)])
 
         proc = self.start_beat()
         self.wait_until(lambda: self.log_contains("heartbeat is running"))
@@ -34,7 +34,37 @@ class Test(BaseTest):
 
         if os.name == "nt":
             # Currently skipped on Windows as fields.yml not generated
-            raise SkipTest
+            raise unittest.SkipTest
+        self.assert_fields_are_documented(output[0])
+
+    @parameterized.expand([
+        "200", "404"
+    ])
+    def test_http_with_hosts_config(self, status_code):
+        """
+        Test http server
+        """
+        status_code = int(status_code)
+        server = self.start_server("hello world", status_code)
+
+        self.render_http_config_with_hosts(
+            ["localhost:{}".format(server.server_port)])
+
+        proc = self.start_beat()
+        self.wait_until(lambda: self.log_contains("heartbeat is running"))
+
+        self.wait_until(
+            lambda: self.output_has(lines=1))
+
+        proc.check_kill_and_wait()
+
+        server.shutdown()
+        output = self.read_output()
+        assert status_code == output[0]["http.response.status_code"]
+
+        if os.name == "nt":
+            # Currently skipped on Windows as fields.yml not generated
+            raise unittest.SkipTest
         self.assert_fields_are_documented(output[0])
 
     def test_http_delayed(self):
@@ -53,47 +83,10 @@ class Test(BaseTest):
             try:
                 proc = self.start_beat()
                 self.wait_until(lambda: self.output_has(lines=1))
-                nose.tools.assert_greater_equal(
+                self.assertGreaterEqual(
                     self.last_output_line()['http.rtt.total.us'], delay)
             finally:
                 proc.check_kill_and_wait()
-        finally:
-            server.shutdown()
-
-    @parameterized.expand([
-        ("up", '{"foo": {"baz": "bar"}}'),
-        ("down", '{"foo": "unexpected"}'),
-        ("down", 'notjson'),
-    ])
-    def test_http_json(self, expected_status, body):
-        """
-        Test JSON response checks
-        """
-        server = self.start_server(body, 200)
-        try:
-            self.render_config_template(
-                monitors=[{
-                    "type": "http",
-                    "urls": ["http://localhost:{}".format(server.server_port)],
-                    "check_response_json": [{
-                        "description": "foo equals bar",
-                        "condition": {
-                            "equals": {"foo": {"baz": "bar"}}
-                        }
-                    }]
-                }]
-            )
-
-            try:
-                proc = self.start_beat()
-                self.wait_until(lambda: self.log_contains("heartbeat is running"))
-
-                self.wait_until(
-                    lambda: self.output_has(lines=1))
-            finally:
-                proc.check_kill_and_wait()
-
-            self.assert_last_status(expected_status)
         finally:
             server.shutdown()
 
@@ -130,7 +123,7 @@ class Test(BaseTest):
             self.assert_last_status(status)
             if os.name == "nt":
                 # Currently skipped on Windows as fields.yml not generated
-                raise SkipTest
+                raise unittest.SkipTest
             self.assert_fields_are_documented(output[0])
         finally:
             server.shutdown()
@@ -140,5 +133,13 @@ class Test(BaseTest):
             monitors=[{
                 "type": "http",
                 "urls": urls,
+            }]
+        )
+
+    def render_http_config_with_hosts(self, urls):
+        self.render_config_template(
+            monitors=[{
+                "type": "http",
+                "hosts": urls,
             }]
         )

@@ -19,6 +19,13 @@
       type: object
       description: >
         key and value debugging information.
+    - name: log_event.action
+      type: keyword
+    - name: pipeline_id
+      type: keyword
+      example: main
+      description: >
+        The ID of the pipeline.
 
     - name: message
       type: alias

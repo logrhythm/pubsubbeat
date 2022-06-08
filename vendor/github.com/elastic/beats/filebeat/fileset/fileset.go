@@ -15,11 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/*
-Package fileset contains the code that loads Filebeat modules (which are
-composed of filesets).
-*/
-
+// Package fileset contains the code that loads Filebeat modules (which are
+// composed of filesets).
 package fileset
 
 import (
@@ -30,23 +27,26 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"text/template"
 
+	"github.com/elastic/go-ucfg"
+
 	errw "github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/common/cfgwarn"
-	"github.com/elastic/beats/libbeat/logp"
-	mlimporter "github.com/elastic/beats/libbeat/ml-importer"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common/cfgwarn"
+	"github.com/elastic/beats/v7/libbeat/logp"
 )
 
 // Fileset struct is the representation of a fileset.
 type Fileset struct {
 	name        string
-	mcfg        *ModuleConfig
+	mname       string
 	fcfg        *FilesetConfig
 	modulePath  string
 	manifest    *manifest
@@ -63,17 +63,17 @@ type pipeline struct {
 func New(
 	modulesPath string,
 	name string,
-	mcfg *ModuleConfig,
-	fcfg *FilesetConfig) (*Fileset, error) {
-
-	modulePath := filepath.Join(modulesPath, mcfg.Module)
+	mname string,
+	fcfg *FilesetConfig) (*Fileset, error,
+) {
+	modulePath := filepath.Join(modulesPath, mname)
 	if _, err := os.Stat(modulePath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("Module %s (%s) doesn't exist.", mcfg.Module, modulePath)
+		return nil, fmt.Errorf("module %s (%s) doesn't exist", mname, modulePath)
 	}
 
 	return &Fileset{
 		name:       name,
-		mcfg:       mcfg,
+		mname:      mname,
 		fcfg:       fcfg,
 		modulePath: modulePath,
 	}, nil
@@ -81,23 +81,23 @@ func New(
 
 // String returns the module and the name of the fileset.
 func (fs *Fileset) String() string {
-	return fs.mcfg.Module + "/" + fs.name
+	return fs.mname + "/" + fs.name
 }
 
 // Read reads the manifest file and evaluates the variables.
-func (fs *Fileset) Read(beatVersion string) error {
+func (fs *Fileset) Read(info beat.Info) error {
 	var err error
 	fs.manifest, err = fs.readManifest()
 	if err != nil {
 		return err
 	}
 
-	fs.vars, err = fs.evaluateVars(beatVersion)
+	fs.vars, err = fs.evaluateVars(info)
 	if err != nil {
 		return err
 	}
 
-	fs.pipelineIDs, err = fs.getPipelineIDs(beatVersion)
+	fs.pipelineIDs, err = fs.getPipelineIDs(info)
 	if err != nil {
 		return err
 	}
@@ -108,17 +108,11 @@ func (fs *Fileset) Read(beatVersion string) error {
 // manifest structure is the representation of the manifest.yml file from the
 // fileset.
 type manifest struct {
-	ModuleVersion   string                   `config:"module_version"`
-	Vars            []map[string]interface{} `config:"var"`
-	IngestPipeline  []string                 `config:"ingest_pipeline"`
-	Input           string                   `config:"input"`
-	MachineLearning []struct {
-		Name       string `config:"name"`
-		Job        string `config:"job"`
-		Datafeed   string `config:"datafeed"`
-		MinVersion string `config:"min_version"`
-	} `config:"machine_learning"`
-	Requires struct {
+	ModuleVersion  string                   `config:"module_version"`
+	Vars           []map[string]interface{} `config:"var"`
+	IngestPipeline []string                 `config:"ingest_pipeline"`
+	Input          string                   `config:"input"`
+	Requires       struct {
 		Processors []ProcessorRequirement `config:"processors"`
 	} `config:"requires"`
 }
@@ -158,10 +152,10 @@ func (fs *Fileset) readManifest() (*manifest, error) {
 }
 
 // evaluateVars resolves the fileset variables.
-func (fs *Fileset) evaluateVars(beatVersion string) (map[string]interface{}, error) {
+func (fs *Fileset) evaluateVars(info beat.Info) (map[string]interface{}, error) {
 	var err error
 	vars := map[string]interface{}{}
-	vars["builtin"], err = fs.getBuiltinVars(beatVersion)
+	vars["builtin"], err = fs.getBuiltinVars(info)
 	if err != nil {
 		return nil, err
 	}
@@ -173,10 +167,9 @@ func (fs *Fileset) evaluateVars(beatVersion string) (map[string]interface{}, err
 			return nil, fmt.Errorf("Variable doesn't have a string 'name' key")
 		}
 
-		value, exists := vals["default"]
-		if !exists {
-			return nil, fmt.Errorf("Variable %s doesn't have a 'default' key", name)
-		}
+		// Variables are not required to have a default. Templates should
+		// handle null default values as necessary.
+		value := vals["default"]
 
 		// evaluate OS specific vars
 		osVals, exists := vals["os"].(map[string]interface{})
@@ -244,13 +237,13 @@ func (fs *Fileset) turnOffElasticsearchVars(vars map[string]interface{}, esVersi
 func resolveVariable(vars map[string]interface{}, value interface{}) (interface{}, error) {
 	switch v := value.(type) {
 	case string:
-		return applyTemplate(vars, v, false)
+		return ApplyTemplate(vars, v, false)
 	case []interface{}:
 		transformed := []interface{}{}
 		for _, val := range v {
 			s, ok := val.(string)
 			if ok {
-				transf, err := applyTemplate(vars, s, false)
+				transf, err := ApplyTemplate(vars, s, false)
 				if err != nil {
 					return nil, fmt.Errorf("array: %v", err)
 				}
@@ -264,11 +257,11 @@ func resolveVariable(vars map[string]interface{}, value interface{}) (interface{
 	return value, nil
 }
 
-// applyTemplate applies a Golang text/template. If specialDelims is set to true,
+// ApplyTemplate applies a Golang text/template. If specialDelims is set to true,
 // the delimiters are set to `{<` and `>}` instead of `{{` and `}}`. These are easier to use
 // in pipeline definitions.
-func applyTemplate(vars map[string]interface{}, templateString string, specialDelims bool) (string, error) {
-	tpl := template.New("text")
+func ApplyTemplate(vars map[string]interface{}, templateString string, specialDelims bool) (string, error) {
+	tpl := template.New("text").Option("missingkey=error")
 	if specialDelims {
 		tpl = tpl.Delims("{<", ">}")
 	}
@@ -298,8 +291,24 @@ func getTemplateFunctions(vars map[string]interface{}) (template.FuncMap, error)
 	}
 
 	return template.FuncMap{
+		"inList": func(collection []interface{}, item string) bool {
+			for _, h := range collection {
+				if reflect.DeepEqual(item, h) {
+					return true
+				}
+			}
+			return false
+		},
+		"tojson": func(v interface{}) (string, error) {
+			var buf strings.Builder
+			enc := json.NewEncoder(&buf)
+			enc.SetEscapeHTML(false)
+			err := enc.Encode(v)
+			return buf.String(), err
+		},
 		"IngestPipeline": func(shortID string) string {
-			return formatPipelineID(
+			return FormatPipelineID(
+				builtinVars["prefix"].(string),
 				builtinVars["module"].(string),
 				builtinVars["fileset"].(string),
 				shortID,
@@ -311,7 +320,7 @@ func getTemplateFunctions(vars map[string]interface{}) (template.FuncMap, error)
 
 // getBuiltinVars computes the supported built in variables and groups them
 // in a dictionary
-func (fs *Fileset) getBuiltinVars(beatVersion string) (map[string]interface{}, error) {
+func (fs *Fileset) getBuiltinVars(info beat.Info) (map[string]interface{}, error) {
 	host, err := os.Hostname()
 	if err != nil || len(host) == 0 {
 		return nil, fmt.Errorf("Error getting the hostname: %v", err)
@@ -324,16 +333,17 @@ func (fs *Fileset) getBuiltinVars(beatVersion string) (map[string]interface{}, e
 	}
 
 	return map[string]interface{}{
+		"prefix":      info.IndexPrefix,
 		"hostname":    hostname,
 		"domain":      domain,
-		"module":      fs.mcfg.Module,
+		"module":      fs.mname,
 		"fileset":     fs.name,
-		"beatVersion": beatVersion,
+		"beatVersion": info.Version,
 	}, nil
 }
 
 func (fs *Fileset) getInputConfig() (*common.Config, error) {
-	path, err := applyTemplate(fs.vars, fs.manifest.Input, false)
+	path, err := ApplyTemplate(fs.vars, fs.manifest.Input, false)
 	if err != nil {
 		return nil, fmt.Errorf("Error expanding vars on the input path: %v", err)
 	}
@@ -342,7 +352,7 @@ func (fs *Fileset) getInputConfig() (*common.Config, error) {
 		return nil, fmt.Errorf("Error reading input file %s: %v", path, err)
 	}
 
-	yaml, err := applyTemplate(fs.vars, string(contents), false)
+	yaml, err := ApplyTemplate(fs.vars, string(contents), false)
 	if err != nil {
 		return nil, fmt.Errorf("Error interpreting the template of the input: %v", err)
 	}
@@ -352,30 +362,36 @@ func (fs *Fileset) getInputConfig() (*common.Config, error) {
 		return nil, fmt.Errorf("Error reading input config: %v", err)
 	}
 
+	cfg, err = mergePathDefaults(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	// overrides
 	if len(fs.fcfg.Input) > 0 {
 		overrides, err := common.NewConfigFrom(fs.fcfg.Input)
 		if err != nil {
 			return nil, fmt.Errorf("Error creating config from input overrides: %v", err)
 		}
-		cfg, err = common.MergeConfigs(cfg, overrides)
+		cfg, err = common.MergeConfigsWithOptions([]*common.Config{cfg, overrides}, ucfg.FieldReplaceValues("**.paths"), ucfg.FieldAppendValues("**.processors"))
 		if err != nil {
 			return nil, fmt.Errorf("Error applying config overrides: %v", err)
 		}
 	}
 
-	// force our pipeline ID
-	rootPipelineID := ""
-	if len(fs.pipelineIDs) > 0 {
-		rootPipelineID = fs.pipelineIDs[0]
-	}
-	err = cfg.SetString("pipeline", -1, rootPipelineID)
-	if err != nil {
-		return nil, fmt.Errorf("Error setting the pipeline ID in the input config: %v", err)
+	const pipelineField = "pipeline"
+	if !cfg.HasField(pipelineField) {
+		rootPipelineID := ""
+		if len(fs.pipelineIDs) > 0 {
+			rootPipelineID = fs.pipelineIDs[0]
+		}
+		if err := cfg.SetString(pipelineField, -1, rootPipelineID); err != nil {
+			return nil, errw.Wrap(err, "error setting the fileset pipeline ID in config")
+		}
 	}
 
 	// force our the module/fileset name
-	err = cfg.SetString("_module_name", -1, fs.mcfg.Module)
+	err = cfg.SetString("_module_name", -1, fs.mname)
 	if err != nil {
 		return nil, fmt.Errorf("Error setting the _module_name cfg in the input config: %v", err)
 	}
@@ -384,21 +400,21 @@ func (fs *Fileset) getInputConfig() (*common.Config, error) {
 		return nil, fmt.Errorf("Error setting the _fileset_name cfg in the input config: %v", err)
 	}
 
-	cfg.PrintDebugf("Merged input config for fileset %s/%s", fs.mcfg.Module, fs.name)
+	cfg.PrintDebugf("Merged input config for fileset %s/%s", fs.mname, fs.name)
 
 	return cfg, nil
 }
 
 // getPipelineIDs returns the Ingest Node pipeline IDs
-func (fs *Fileset) getPipelineIDs(beatVersion string) ([]string, error) {
+func (fs *Fileset) getPipelineIDs(info beat.Info) ([]string, error) {
 	var pipelineIDs []string
 	for _, ingestPipeline := range fs.manifest.IngestPipeline {
-		path, err := applyTemplate(fs.vars, ingestPipeline, false)
+		path, err := ApplyTemplate(fs.vars, ingestPipeline, false)
 		if err != nil {
 			return nil, fmt.Errorf("Error expanding vars on the ingest pipeline path: %v", err)
 		}
 
-		pipelineIDs = append(pipelineIDs, formatPipelineID(fs.mcfg.Module, fs.name, path, beatVersion))
+		pipelineIDs = append(pipelineIDs, FormatPipelineID(info.IndexPrefix, fs.mname, fs.name, path, info.Version))
 	}
 
 	return pipelineIDs, nil
@@ -412,7 +428,7 @@ func (fs *Fileset) GetPipelines(esVersion common.Version) (pipelines []pipeline,
 	}
 
 	for idx, ingestPipeline := range fs.manifest.IngestPipeline {
-		path, err := applyTemplate(fs.vars, ingestPipeline, false)
+		path, err := ApplyTemplate(fs.vars, ingestPipeline, false)
 		if err != nil {
 			return nil, fmt.Errorf("Error expanding vars on the ingest pipeline path: %v", err)
 		}
@@ -422,7 +438,7 @@ func (fs *Fileset) GetPipelines(esVersion common.Version) (pipelines []pipeline,
 			return nil, fmt.Errorf("Error reading pipeline file %s: %v", path, err)
 		}
 
-		encodedString, err := applyTemplate(vars, string(strContents), true)
+		encodedString, err := ApplyTemplate(vars, string(strContents), true)
 		if err != nil {
 			return nil, fmt.Errorf("Error interpreting the template of the ingest pipeline: %v", err)
 		}
@@ -437,7 +453,7 @@ func (fs *Fileset) GetPipelines(esVersion common.Version) (pipelines []pipeline,
 			if err = yaml.Unmarshal([]byte(encodedString), &content); err != nil {
 				return nil, fmt.Errorf("Error YAML decoding the pipeline file: %s: %v", path, err)
 			}
-			newContent, err := fixYAMLMaps(content)
+			newContent, err := FixYAMLMaps(content)
 			if err != nil {
 				return nil, fmt.Errorf("Failed to sanitize the YAML pipeline file: %s: %v", path, err)
 			}
@@ -458,11 +474,11 @@ func (fs *Fileset) GetPipelines(esVersion common.Version) (pipelines []pipeline,
 	return pipelines, nil
 }
 
-// This function recursively converts maps with interface{} keys, as returned by
+// FixYAMLMaps recursively converts maps with interface{} keys, as returned by
 // yaml.Unmarshal, to maps of string keys, as expected by the json encoder
 // that will be used when delivering the pipeline to Elasticsearch.
 // Will return an error when something other than a string is used as a key.
-func fixYAMLMaps(elem interface{}) (_ interface{}, err error) {
+func FixYAMLMaps(elem interface{}) (_ interface{}, err error) {
 	switch v := elem.(type) {
 	case map[interface{}]interface{}:
 		result := make(map[string]interface{}, len(v))
@@ -471,20 +487,20 @@ func fixYAMLMaps(elem interface{}) (_ interface{}, err error) {
 			if !ok {
 				return nil, fmt.Errorf("key '%v' is not string but %T", key, key)
 			}
-			if result[keyS], err = fixYAMLMaps(value); err != nil {
+			if result[keyS], err = FixYAMLMaps(value); err != nil {
 				return nil, err
 			}
 		}
 		return result, nil
 	case map[string]interface{}:
 		for key, value := range v {
-			if v[key], err = fixYAMLMaps(value); err != nil {
+			if v[key], err = FixYAMLMaps(value); err != nil {
 				return nil, err
 			}
 		}
 	case []interface{}:
 		for idx, value := range v {
-			if v[idx], err = fixYAMLMaps(value); err != nil {
+			if v[idx], err = FixYAMLMaps(value); err != nil {
 				return nil, err
 			}
 		}
@@ -492,9 +508,12 @@ func fixYAMLMaps(elem interface{}) (_ interface{}, err error) {
 	return elem, nil
 }
 
-// formatPipelineID generates the ID to be used for the pipeline ID in Elasticsearch
-func formatPipelineID(module, fileset, path, beatVersion string) string {
-	return fmt.Sprintf("filebeat-%s-%s-%s-%s", beatVersion, module, fileset, removeExt(filepath.Base(path)))
+// FormatPipelineID generates the ID to be used for the pipeline ID in Elasticsearch
+func FormatPipelineID(prefix, module, fileset, path, version string) string {
+	if module == "" && fileset == "" {
+		return fmt.Sprintf("%s-%s-%s", prefix, version, removeExt(filepath.Base(path)))
+	}
+	return fmt.Sprintf("%s-%s-%s-%s-%s", prefix, version, module, fileset, removeExt(filepath.Base(path)))
 }
 
 // removeExt returns the file name without the extension. If no dot is found,
@@ -512,19 +531,4 @@ func removeExt(path string) string {
 // fileset depends.
 func (fs *Fileset) GetRequiredProcessors() []ProcessorRequirement {
 	return fs.manifest.Requires.Processors
-}
-
-// GetMLConfigs returns the list of machine-learning configurations declared
-// by this fileset.
-func (fs *Fileset) GetMLConfigs() []mlimporter.MLConfig {
-	var mlConfigs []mlimporter.MLConfig
-	for _, ml := range fs.manifest.MachineLearning {
-		mlConfigs = append(mlConfigs, mlimporter.MLConfig{
-			ID:           fmt.Sprintf("filebeat-%s-%s-%s_ecs", fs.mcfg.Module, fs.name, ml.Name),
-			JobPath:      filepath.Join(fs.modulePath, fs.name, ml.Job),
-			DatafeedPath: filepath.Join(fs.modulePath, fs.name, ml.Datafeed),
-			MinVersion:   ml.MinVersion,
-		})
-	}
-	return mlConfigs
 }

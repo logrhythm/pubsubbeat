@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build linux
 // +build linux
 
 package socket
@@ -24,18 +25,17 @@ import (
 	"net"
 	"os"
 	"os/user"
-	"path/filepath"
 	"strconv"
 	"syscall"
 
 	"github.com/pkg/errors"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
-	sock "github.com/elastic/beats/metricbeat/helper/socket"
-	"github.com/elastic/beats/metricbeat/mb"
-	"github.com/elastic/beats/metricbeat/mb/parse"
-	"github.com/elastic/beats/metricbeat/module/system"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/metric/system/resolve"
+	sock "github.com/elastic/beats/v7/metricbeat/helper/socket"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/mb/parse"
 	"github.com/elastic/gosigar/sys/linux"
 )
 
@@ -50,6 +50,10 @@ func init() {
 	)
 }
 
+// MetricSet holds any configuration or state information. It must implement
+// the mb.MetricSet interface. And this is best achieved by embedding
+// mb.BaseMetricSet because it implements all of the required mb.MetricSet
+// interface methods except for Fetch.
 type MetricSet struct {
 	mb.BaseMetricSet
 	netlink       *sock.NetlinkSession
@@ -62,18 +66,16 @@ type MetricSet struct {
 	users         UserCache
 }
 
+// New creates a new instance of the MetricSet. New is responsible for unpacking
+// any MetricSet specific configuration options if there are any.
 func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
+	sys := base.Module().(resolve.Resolver)
 	c := defaultConfig
 	if err := base.Module().UnpackConfig(&c); err != nil {
 		return nil, err
 	}
 
-	systemModule, ok := base.Module().(*system.Module)
-	if !ok {
-		return nil, errors.New("unexpected module type")
-	}
-
-	ptable, err := sock.NewProcTable(filepath.Join(systemModule.HostFS, "/proc"))
+	ptable, err := sock.NewProcTable(sys.ResolveHostFS("/proc"))
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +112,7 @@ func New(base mb.BaseMetricSet) (mb.MetricSet, error) {
 }
 
 // Fetch socket metrics from the system
-func (m *MetricSet) Fetch(r mb.ReporterV2) {
+func (m *MetricSet) Fetch(r mb.ReporterV2) error {
 	// Refresh inode to process mapping (must be root).
 	if err := m.ptable.Refresh(); err != nil {
 		debugf("process table refresh had failures: %v", err)
@@ -118,8 +120,7 @@ func (m *MetricSet) Fetch(r mb.ReporterV2) {
 
 	sockets, err := m.netlink.GetSocketList()
 	if err != nil {
-		r.Error(errors.Wrap(err, "failed requesting socket dump"))
-		return
+		return errors.Wrap(err, "failed requesting socket dump")
 	}
 	debugf("netlink returned %d sockets", len(sockets))
 
@@ -133,10 +134,13 @@ func (m *MetricSet) Fetch(r mb.ReporterV2) {
 
 		root, metricSet := c.ToMapStr()
 
-		r.Event(mb.Event{
+		isOpen := r.Event(mb.Event{
 			RootFields:      root,
 			MetricSetFields: metricSet,
 		})
+		if !isOpen {
+			return nil
+		}
 	}
 
 	// Set the "previous" connections set to the "current" connections.
@@ -146,6 +150,8 @@ func (m *MetricSet) Fetch(r mb.ReporterV2) {
 
 	// Reset the listeners for the next iteration.
 	m.listeners.Reset()
+
+	return nil
 }
 
 // filterAndRememberSockets filters sockets to remove sockets that were seen
@@ -191,7 +197,7 @@ func (m *MetricSet) enrichConnectionData(c *connection) {
 	c.User = m.users.LookupUID(int(c.UID))
 
 	// Determine direction (incoming, outgoing, or listening).
-	c.Direction = m.listeners.Direction(uint8(syscall.IPPROTO_TCP),
+	c.Direction = m.listeners.Direction(uint8(c.Family), uint8(syscall.IPPROTO_TCP),
 		c.LocalIP, c.LocalPort, c.RemoteIP, c.RemotePort)
 
 	// Reverse DNS lookup on the remote IP.
@@ -273,14 +279,14 @@ var (
 	}
 
 	localHostInfoGroup = map[string]string{
-		sock.InboundName:   "destination",
-		sock.OutboundName:  "source",
+		sock.IngressName:   "destination",
+		sock.EgressName:    "source",
 		sock.ListeningName: "server",
 	}
 
 	remoteHostInfoGroup = map[string]string{
-		sock.InboundName:  "source",
-		sock.OutboundName: "destination",
+		sock.IngressName: "source",
+		sock.EgressName:  "destination",
 	}
 )
 

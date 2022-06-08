@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package node
@@ -23,11 +24,11 @@ import (
 	"io/ioutil"
 	"testing"
 
-	mbtest "github.com/elastic/beats/metricbeat/mb/testing"
+	"github.com/stretchr/testify/require"
 
-	"github.com/stretchr/testify/assert"
+	mbtest "github.com/elastic/beats/v7/metricbeat/mb/testing"
 
-	"github.com/elastic/beats/metricbeat/module/elasticsearch"
+	"github.com/elastic/beats/v7/metricbeat/module/elasticsearch"
 )
 
 var info = elasticsearch.Info{
@@ -43,9 +44,9 @@ func TestInvalid(t *testing.T) {
 	file := "./_meta/test/invalid.json"
 
 	content, err := ioutil.ReadFile(file)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	reporter := &mbtest.CapturingReporterV2{}
-	err = eventsMapping(reporter, info, content)
-	assert.Error(t, err)
+	err = eventsMapping(reporter, info, content, true)
+	require.Error(t, err)
 }

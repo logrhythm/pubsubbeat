@@ -24,9 +24,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
 )
 
 const digitalOceanMetadataV1 = `{
@@ -116,6 +116,9 @@ func TestRetrieveDigitalOceanMetadata(t *testing.T) {
 			"provider": "digitalocean",
 			"instance": common.MapStr{
 				"id": "1111111",
+			},
+			"service": common.MapStr{
+				"name": "Droplets",
 			},
 			"region": "nyc3",
 		},

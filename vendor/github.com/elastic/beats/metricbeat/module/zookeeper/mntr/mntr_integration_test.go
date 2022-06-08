@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build integration
 // +build integration
 
 package mntr
@@ -24,16 +25,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/tests/compose"
-	mbtest "github.com/elastic/beats/metricbeat/mb/testing"
-	"github.com/elastic/beats/metricbeat/module/zookeeper"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/tests/compose"
+	mbtest "github.com/elastic/beats/v7/metricbeat/mb/testing"
 )
 
 func TestFetch(t *testing.T) {
-	compose.EnsureUp(t, "zookeeper")
+	service := compose.EnsureUp(t, "zookeeper")
 
-	f := mbtest.NewReportingMetricSetV2Error(t, getConfig())
+	f := mbtest.NewReportingMetricSetV2Error(t, getConfig(service.Host()))
 	events, errs := mbtest.ReportingFetchV2Error(f)
 
 	assert.Empty(t, errs)
@@ -46,8 +46,8 @@ func TestFetch(t *testing.T) {
 	e, _ := events[0].BeatEvent("zookeeper", "mntr").Fields.GetValue("zookeeper.mntr")
 	event := e.(common.MapStr)
 	// Check values
-	avgLatency := event["latency"].(common.MapStr)["avg"].(int64)
-	maxLatency := event["latency"].(common.MapStr)["max"].(int64)
+	avgLatency := event["latency"].(common.MapStr)["avg"].(float64)
+	maxLatency := event["latency"].(common.MapStr)["max"].(float64)
 	numAliveConnections := event["num_alive_connections"].(int64)
 
 	assert.True(t, avgLatency >= 0)
@@ -59,19 +59,19 @@ func TestFetch(t *testing.T) {
 }
 
 func TestData(t *testing.T) {
-	compose.EnsureUp(t, "zookeeper")
+	service := compose.EnsureUp(t, "zookeeper")
 
-	f := mbtest.NewReportingMetricSetV2Error(t, getConfig())
+	f := mbtest.NewReportingMetricSetV2Error(t, getConfig(service.Host()))
 	err := mbtest.WriteEventsReporterV2Error(f, t, ".")
 	if err != nil {
 		t.Fatal("write", err)
 	}
 }
 
-func getConfig() map[string]interface{} {
+func getConfig(host string) map[string]interface{} {
 	return map[string]interface{}{
 		"module":     "zookeeper",
 		"metricsets": []string{"mntr"},
-		"hosts":      []string{zookeeper.GetZookeeperEnvHost() + ":" + zookeeper.GetZookeeperEnvPort()},
+		"hosts":      []string{host},
 	}
 }

@@ -24,13 +24,14 @@ import (
 	"github.com/joeshaw/multierror"
 	"github.com/pkg/errors"
 
+	"github.com/elastic/beats/v7/libbeat/common"
 	"github.com/elastic/go-ucfg/yaml"
 )
 
-//This reflects allowed attributes for field definitions in the fields.yml.
-//No logic is put into this data structure.
-//The purpose is to enable using different kinds of transformation, on top of the same data structure.
-//Current transformation:
+// This reflects allowed attributes for field definitions in the fields.yml.
+// No logic is put into this data structure.
+// The purpose is to enable using different kinds of transformation, on top of the same data structure.
+// Current transformation:
 //  -ElasticSearch Template
 //  -Kibana Index Pattern
 
@@ -44,8 +45,8 @@ type Field struct {
 	Fields         Fields      `config:"fields"`
 	MultiFields    Fields      `config:"multi_fields"`
 	Enabled        *bool       `config:"enabled"`
-	Analyzer       string      `config:"analyzer"`
-	SearchAnalyzer string      `config:"search_analyzer"`
+	Analyzer       Analyzer    `config:"analyzer"`
+	SearchAnalyzer Analyzer    `config:"search_analyzer"`
 	Norms          bool        `config:"norms"`
 	Dynamic        DynamicType `config:"dynamic"`
 	Index          *bool       `config:"index"`
@@ -55,6 +56,22 @@ type Field struct {
 	AliasPath      string      `config:"path"`
 	MigrationAlias bool        `config:"migration"`
 	Dimension      *bool       `config:"dimension"`
+
+	// DynamicTemplate controls whether this field represents an explicitly
+	// named dynamic template.
+	//
+	// Such dynamic templates are only suitable for use in dynamic_template
+	// parameter in bulk requests or in ingest pipelines, as they will have
+	// no path or type match criteria.
+	DynamicTemplate bool `config:"dynamic_template"`
+
+	// Unit holds a standard unit for numeric fields: "percent", "byte", or a time unit.
+	// See https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-field-meta.html.
+	Unit string `config:"unit"`
+
+	// MetricType holds a standard metric type for numeric fields: "gauge" or "counter".
+	// See https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-field-meta.html.
+	MetricType string `config:"metric_type"`
 
 	ObjectType            string          `config:"object_type"`
 	ObjectTypeMappingType string          `config:"object_type_mapping_type"`
@@ -76,8 +93,9 @@ type Field struct {
 	UrlTemplate          []VersionizedString `config:"url_template"`
 	OpenLinkInCurrentTab *bool               `config:"open_link_in_current_tab"`
 
-	Overwrite bool `config:"overwrite"`
-	Path      string
+	Overwrite    bool  `config:"overwrite"`
+	DefaultField *bool `config:"default_field"`
+	Path         string
 }
 
 // ObjectTypeCfg defines type and configuration of object attributes
@@ -108,15 +126,119 @@ func (d *DynamicType) Unpack(s string) error {
 	return nil
 }
 
+type Analyzer struct {
+	Name       string
+	Definition interface{}
+}
+
+func (a *Analyzer) Unpack(v interface{}) error {
+	var m common.MapStr
+	switch v := v.(type) {
+	case string:
+		a.Name = v
+		return nil
+	case common.MapStr:
+		m = v
+	case map[string]interface{}:
+		m = common.MapStr(v)
+	default:
+		return fmt.Errorf("'%v' is invalid analyzer setting", v)
+	}
+
+	if len(m) != 1 {
+		return fmt.Errorf("'%v' is invalid analyzer setting", v)
+	}
+	for a.Name, a.Definition = range m {
+		break
+	}
+
+	return nil
+}
+
 // Validate ensures objectTypeParams are not mixed with top level objectType configuration
 func (f *Field) Validate() error {
-	if len(f.ObjectTypeParams) == 0 {
-		return nil
+	if err := f.validateType(); err != nil {
+		return errors.Wrapf(err, "incorrect type configuration for field '%s'", f.Name)
 	}
-	if f.ScalingFactor != 0 || f.ObjectTypeMappingType != "" || f.ObjectType != "" {
-		return errors.New("mixing top level objectType configuration with array of object type configurations is forbidden")
+	if len(f.ObjectTypeParams) > 0 {
+		if f.ScalingFactor != 0 || f.ObjectTypeMappingType != "" || f.ObjectType != "" {
+			return errors.New("mixing top level objectType configuration with array of object type configurations is forbidden")
+		}
 	}
 	return nil
+}
+
+func (f *Field) validateType() error {
+	var allowedFormatters, allowedMetricTypes, allowedUnits []string
+	switch strings.ToLower(f.Type) {
+	case "text", "keyword", "wildcard", "constant_keyword", "match_only_text":
+		allowedFormatters = []string{"string", "url"}
+	case "long", "integer", "short", "byte", "double", "float", "half_float", "scaled_float", "histogram":
+		allowedFormatters = []string{"string", "url", "bytes", "duration", "number", "percent", "color"}
+		allowedMetricTypes = []string{"gauge", "counter"}
+		allowedUnits = []string{"percent", "byte", "nanos", "micros", "ms", "s", "m", "h", "d"}
+	case "date", "date_nanos":
+		allowedFormatters = []string{"string", "url", "date"}
+	case "geo_point":
+		allowedFormatters = []string{"geo_point"}
+	case "date_range":
+		allowedFormatters = []string{"date_range"}
+	case "boolean", "binary", "ip", "alias", "array", "ip_range":
+		// No formatters, metric types, or units allowed.
+	case "object":
+		if f.DynamicTemplate && (len(f.ObjectTypeParams) > 0 || f.ObjectType != "") {
+			// When either ObjectTypeParams or ObjectType are set for an object-type field,
+			// libbeat/template will create dynamic templates. It does not make sense to
+			// use these with explicit dynamic templates.
+			return errors.New("dynamic_template not supported with object_type_params")
+		}
+		// No further checks for object yet.
+		return nil
+	case "group", "nested", "flattened":
+		// No check for them yet
+		return nil
+	case "":
+		// Module keys, not used as fields
+		return nil
+	default:
+		// There are more types, not being used by beats, to be added if needed
+		return fmt.Errorf("unexpected type '%s' for field '%s'", f.Type, f.Name)
+	}
+	if err := validateAllowedValue(f.Name, "format", f.Format, allowedFormatters); err != nil {
+		return err
+	}
+	if err := validateAllowedValue(f.Name, "metric type", f.MetricType, allowedMetricTypes); err != nil {
+		return err
+	}
+	if err := validateAllowedValue(f.Name, "unit", f.Unit, allowedUnits); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateAllowedValue(fieldName string, propertyName string, propertyValue string, allowedPropertyValues []string) error {
+	if propertyValue == "" {
+		return nil
+	}
+	if len(allowedPropertyValues) == 0 {
+		return fmt.Errorf("no %s expected for field '%s', found: %s", propertyName, fieldName, propertyValue)
+	}
+	if !stringsContains(allowedPropertyValues, propertyValue) {
+		return fmt.Errorf(
+			"unexpected %s '%s' for field '%s', expected one of: %s",
+			propertyName, propertyValue, fieldName, strings.Join(allowedPropertyValues, ", "),
+		)
+	}
+	return nil
+}
+
+func stringsContains(haystack []string, needle string) bool {
+	for _, v := range haystack {
+		if v == needle {
+			return true
+		}
+	}
+	return false
 }
 
 func LoadFieldsYaml(path string) (Fields, error) {
@@ -172,7 +294,6 @@ func (f Fields) HasKey(key string) bool {
 func (f Fields) GetField(key string) *Field {
 	keys := strings.Split(key, ".")
 	return f.getField(keys)
-
 }
 
 // HasNode checks if inside fields the given node exists
@@ -184,7 +305,6 @@ func (f Fields) HasNode(key string) bool {
 }
 
 func (f Fields) hasNode(keys []string) bool {
-
 	// Nothing to compare, so does not contain it
 	if len(keys) == 0 {
 		return false
@@ -194,7 +314,6 @@ func (f Fields) hasNode(keys []string) bool {
 	keys = keys[1:]
 
 	for _, field := range f {
-
 		if field.Name == key {
 
 			//// It's the last key to compare
@@ -281,7 +400,6 @@ func (f Fields) GetKeys() []string {
 }
 
 func (f Fields) getKeys(namespace string) []string {
-
 	var keys []string
 
 	for _, field := range f {
@@ -293,6 +411,10 @@ func (f Fields) getKeys(namespace string) []string {
 			keys = append(keys, fieldName)
 		} else {
 			keys = append(keys, field.Fields.getKeys(fieldName)...)
+		}
+		if field.ObjectType == "histogram" {
+			keys = append(keys, fieldName+".values")
+			keys = append(keys, fieldName+".counts")
 		}
 	}
 

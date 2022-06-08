@@ -19,12 +19,14 @@ package pipeline
 
 import (
 	"sync"
+	"time"
 
-	"github.com/elastic/beats/libbeat/beat"
-	"github.com/elastic/beats/libbeat/common/atomic"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/libbeat/publisher"
-	"github.com/elastic/beats/libbeat/publisher/queue"
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/beats/v7/libbeat/common/atomic"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/processors"
+	"github.com/elastic/beats/v7/libbeat/publisher"
+	"github.com/elastic/beats/v7/libbeat/publisher/queue"
 )
 
 // client connects a beat with the processors and pipeline queue.
@@ -37,15 +39,29 @@ type client struct {
 	processors beat.Processor
 	producer   queue.Producer
 	mutex      sync.Mutex
-	acker      acker
+	acker      beat.ACKer
+	waiter     *clientCloseWaiter
 
 	eventFlags   publisher.EventFlags
 	canDrop      bool
 	reportEvents bool
 
-	isOpen atomic.Bool
+	// Open state, signaling, and sync primitives for coordinating client Close.
+	isOpen    atomic.Bool   // set to false during shutdown, such that no new events will be accepted anymore.
+	closeOnce sync.Once     // closeOnce ensure that the client shutdown sequence is only executed once
+	closeRef  beat.CloseRef // extern closeRef for sending a signal that the client should be closed.
+	done      chan struct{} // the done channel will be closed if the closeReg gets closed, or Close is run.
 
 	eventer beat.ClientEventer
+}
+
+type clientCloseWaiter struct {
+	events  atomic.Uint32
+	closing atomic.Bool
+
+	signalAll  chan struct{} // ack loop notifies `close` that all events have been acked
+	signalDone chan struct{} // shutdown handler telling `wait` that shutdown has been completed
+	waitClose  time.Duration
 }
 
 func (c *client) PublishAll(events []beat.Event) {
@@ -95,13 +111,7 @@ func (c *client) publish(e beat.Event) {
 		e = *event
 	}
 
-	open := c.acker.addEvent(e, publish)
-	if !open {
-		// client is closing down -> report event as dropped and return
-		c.onDroppedOnPublish(e)
-		return
-	}
-
+	c.acker.AddEvent(e, publish)
 	if !publish {
 		c.onFilteredOut(e)
 		return
@@ -135,23 +145,45 @@ func (c *client) publish(e beat.Event) {
 }
 
 func (c *client) Close() error {
-	// first stop ack handling. ACK handler might block (with timeout), waiting
-	// for pending events to be ACKed.
-
 	log := c.logger()
 
-	if !c.isOpen.Swap(false) {
-		return nil // closed or already closing
-	}
+	// first stop ack handling. ACK handler might block on wait (with timeout), waiting
+	// for pending events to be ACKed.
+	c.closeOnce.Do(func() {
+		close(c.done)
 
-	c.onClosing()
+		c.isOpen.Store(false)
+		c.onClosing()
 
-	log.Debug("client: closing acker")
-	c.acker.close()
-	log.Debug("client: done closing acker")
+		log.Debug("client: closing acker")
+		c.waiter.signalClose()
+		c.waiter.wait()
 
-	// finally disconnect client from broker
-	n := c.producer.Cancel()
+		c.acker.Close()
+		log.Debug("client: done closing acker")
+
+		log.Debug("client: unlink from queue")
+		c.unlink()
+		log.Debug("client: done unlink")
+
+		if c.processors != nil {
+			log.Debug("client: closing processors")
+			err := processors.Close(c.processors)
+			if err != nil {
+				log.Errorf("client: error closing processors: %v", err)
+			}
+			log.Debug("client: done closing processors")
+		}
+	})
+	return nil
+}
+
+// unlink is the final step of closing a client. It cancells the connect of the
+// client as producer to the queue.
+func (c *client) unlink() {
+	log := c.logger()
+
+	n := c.producer.Cancel() // close connection to queue
 	log.Debugf("client: cancelled %v events", n)
 
 	if c.reportEvents {
@@ -162,7 +194,6 @@ func (c *client) Close() error {
 	}
 
 	c.onClosed()
-	return nil
 }
 
 func (c *client) logger() *logp.Logger {
@@ -170,7 +201,6 @@ func (c *client) logger() *logp.Logger {
 }
 
 func (c *client) onClosing() {
-	c.pipeline.observer.clientClosing()
 	if c.eventer != nil {
 		c.eventer.Closing()
 	}
@@ -197,7 +227,7 @@ func (c *client) onPublished() {
 func (c *client) onFilteredOut(e beat.Event) {
 	log := c.logger()
 
-	log.Debug("Pipeline client receives callback 'onFilteredOut' for event: %+v", e)
+	log.Debugf("Pipeline client receives callback 'onFilteredOut' for event: %+v", e)
 	c.pipeline.observer.filteredEvent()
 	if c.eventer != nil {
 		c.eventer.FilteredOut(e)
@@ -207,9 +237,73 @@ func (c *client) onFilteredOut(e beat.Event) {
 func (c *client) onDroppedOnPublish(e beat.Event) {
 	log := c.logger()
 
-	log.Debug("Pipeline client receives callback 'onDroppedOnPublish' for event: %+v", e)
+	log.Debugf("Pipeline client receives callback 'onDroppedOnPublish' for event: %+v", e)
 	c.pipeline.observer.failedPublishEvent()
 	if c.eventer != nil {
 		c.eventer.DroppedOnPublish(e)
+	}
+}
+
+func newClientCloseWaiter(timeout time.Duration) *clientCloseWaiter {
+	return &clientCloseWaiter{
+		signalAll:  make(chan struct{}, 1),
+		signalDone: make(chan struct{}),
+		waitClose:  timeout,
+	}
+}
+
+func (w *clientCloseWaiter) AddEvent(_ beat.Event, published bool) {
+	if published {
+		w.events.Inc()
+	}
+}
+
+func (w *clientCloseWaiter) ACKEvents(n int) {
+	value := w.events.Sub(uint32(n))
+	if value != 0 {
+		return
+	}
+
+	// send done signal, if close is waiting
+	if w.closing.Load() {
+		w.signalAll <- struct{}{}
+	}
+}
+
+// The Close signal from the pipeline is ignored. Instead the client
+// explicitely uses `signalClose` and `wait` before it continues with the
+// closing sequence.
+func (w *clientCloseWaiter) Close() {}
+
+func (w *clientCloseWaiter) signalClose() {
+	if w == nil {
+		return
+	}
+
+	w.closing.Store(true)
+	if w.events.Load() == 0 {
+		w.finishClose()
+		return
+	}
+
+	// start routine to propagate shutdown signals or timeouts to anyone
+	// being blocked in wait.
+	go func() {
+		defer w.finishClose()
+
+		select {
+		case <-w.signalAll:
+		case <-time.After(w.waitClose):
+		}
+	}()
+}
+
+func (w *clientCloseWaiter) finishClose() {
+	close(w.signalDone)
+}
+
+func (w *clientCloseWaiter) wait() {
+	if w != nil {
+		<-w.signalDone
 	}
 }

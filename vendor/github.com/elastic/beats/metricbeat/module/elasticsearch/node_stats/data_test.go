@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//go:build !integration
 // +build !integration
 
 package node_stats
@@ -22,9 +23,41 @@ package node_stats
 import (
 	"testing"
 
-	"github.com/elastic/beats/metricbeat/module/elasticsearch"
+	"github.com/elastic/beats/v7/metricbeat/mb"
+	"github.com/elastic/beats/v7/metricbeat/module/elasticsearch"
 )
 
 func TestStats(t *testing.T) {
-	elasticsearch.TestMapperWithInfo(t, "./_meta/test/node_stats.*.json", eventsMapping)
+	ms := mockMetricSet{}
+	elasticsearch.TestMapperWithMetricSetAndInfo(t, "./_meta/test/node_stats.*.json", ms, eventsMapping)
+}
+
+type mockMetricSet struct{}
+
+func (m mockMetricSet) GetMasterNodeID() (string, error) {
+	return "test_node_id", nil
+}
+
+func (m mockMetricSet) IsMLockAllEnabled(_ string) (bool, error) {
+	return true, nil
+}
+
+func (m mockMetricSet) Module() mb.Module {
+	return mockModule{}
+}
+
+type mockModule struct{}
+
+func (m mockModule) Name() string {
+	return "mock_module"
+}
+
+func (m mockModule) Config() mb.ModuleConfig {
+	return mb.ModuleConfig{
+		Period: 10000,
+	}
+}
+
+func (m mockModule) UnpackConfig(to interface{}) error {
+	return nil
 }

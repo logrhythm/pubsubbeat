@@ -1,14 +1,20 @@
 ////
-This file is generated! See scripts/docs_collector.py
+This file is generated! See scripts/mage/docs_collector.go
 ////
+
+:modulename: docker
 
 [[metricbeat-module-docker]]
 == Docker module
 
+include::{libbeat-dir}/shared/integration-link.asciidoc[]
+
+:modulename!:
+
 This module fetches metrics from https://www.docker.com/[Docker] containers. The default metricsets are: `container`, `cpu`, `diskio`, `healthcheck`, `info`, `memory` and `network`. The `image` metricset is not enabled by default.
 
 [float]
-=== Compability
+=== Compatibility
 
 The Docker module is currently tested on Linux and Mac with the community
 edition engine, versions 1.11 and 17.09.0-ce. It is not tested on Windows,
@@ -44,12 +50,19 @@ metricbeat.modules:
     #- "image"
     - "memory"
     - "network"
+    #- "network_summary"
   hosts: ["unix:///var/run/docker.sock"]
   period: 10s
   enabled: true
 
   # If set to true, replace dots in labels with `_`.
   #labels.dedot: false
+
+  # Skip metrics for certain device major numbers in docker/diskio. 
+  # Necessary on systems with software RAID, device mappers, 
+  # or other configurations where virtual disks will sum metrics from other disks.
+  # By default, it will skip devices with major numbers 9 or 253.
+  #skip_major: []
 
   # If set to true, collects metrics per core.
   #cpu.cores: true
@@ -60,6 +73,8 @@ metricbeat.modules:
     #certificate:           "/etc/pki/client/cert.pem"
     #key:                   "/etc/pki/client/cert.key"
 ----
+
+This module supports TLS connections when using `ssl` config field, as described in <<configuration-ssl>>.
 
 [float]
 === Metricsets
@@ -84,6 +99,8 @@ The following metricsets are available:
 
 * <<metricbeat-metricset-docker-network,network>>
 
+* <<metricbeat-metricset-docker-network_summary,network_summary>>
+
 include::docker/container.asciidoc[]
 
 include::docker/cpu.asciidoc[]
@@ -101,4 +118,6 @@ include::docker/info.asciidoc[]
 include::docker/memory.asciidoc[]
 
 include::docker/network.asciidoc[]
+
+include::docker/network_summary.asciidoc[]
 

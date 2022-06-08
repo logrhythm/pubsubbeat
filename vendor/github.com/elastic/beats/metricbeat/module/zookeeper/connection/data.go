@@ -19,20 +19,19 @@ package connection
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"regexp"
 	"strconv"
 
-	"github.com/pkg/errors"
+	"github.com/elastic/beats/v7/metricbeat/mb"
 
-	"github.com/elastic/beats/metricbeat/mb"
-
-	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common"
 )
 
 var capturer = regexp.MustCompile(`/(?P<ip>.*):(?P<port>\d+)\[(?P<interest_ops>\d*)]\(queued=(?P<queued>\d*),recved=(?P<received>\d*),sent=(?P<sent>\d*)\)`)
 
-func (m *MetricSet) parseCons(i io.Reader) ([]mb.Event, error) {
+func (m *MetricSet) parseCons(i io.Reader) []mb.Event {
 	scanner := bufio.NewScanner(i)
 
 	result := make([]mb.Event, 0)
@@ -45,7 +44,7 @@ func (m *MetricSet) parseCons(i io.Reader) ([]mb.Event, error) {
 		oneParsingIsCorrect := false
 		keyMap, err := lineToMap(line)
 		if err != nil {
-			m.Logger().Debugf(err.Error())
+			m.Logger().Errorf("Error while parsing zookeeper 'cons' command %s", err.Error())
 			continue
 		}
 
@@ -70,14 +69,14 @@ func (m *MetricSet) parseCons(i io.Reader) ([]mb.Event, error) {
 		}
 	}
 
-	return result, nil
+	return result
 }
 
 func lineToMap(line string) (map[string]string, error) {
 	capturedPatterns := capturer.FindStringSubmatch(line)
 	if len(capturedPatterns) < 1 {
 		//Nothing captured
-		return nil, errors.Errorf("no data captured in '%s'", line)
+		return nil, fmt.Errorf("no data captured,'%s'", line)
 	}
 
 	keyMap := make(map[string]string)
@@ -105,6 +104,4 @@ func (m *MetricSet) checkRegexAndSetInt(output common.MapStr, capturedData strin
 	} else {
 		m.Logger().Errorf("parse error: empty data for key '%s'", key)
 	}
-
-	return
 }

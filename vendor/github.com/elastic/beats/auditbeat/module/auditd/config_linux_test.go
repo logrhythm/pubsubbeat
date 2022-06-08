@@ -27,7 +27,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/common"
 )
 
 func TestConfigValidate(t *testing.T) {
@@ -94,7 +94,7 @@ func TestConfigValidateConnectionType(t *testing.T) {
 }
 
 func TestConfigRuleOrdering(t *testing.T) {
-	const fileMode = 0644
+	const fileMode = 0o644
 	config := defaultConfig
 	config.RulesBlob = strings.Join([]string{
 		makeRuleFlags(0, 0),

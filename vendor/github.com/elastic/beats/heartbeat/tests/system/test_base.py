@@ -2,12 +2,12 @@ import os
 import unittest
 
 from heartbeat import BaseTest
-from elasticsearch import Elasticsearch
 from beat.beat import INTEGRATION_TESTS
-import nose.tools
+from beat import common_tests
+from time import sleep
 
 
-class Test(BaseTest):
+class Test(BaseTest, common_tests.TestExportsMixin):
 
     def test_base(self):
         """
@@ -18,6 +18,61 @@ class Test(BaseTest):
             "monitors": [
                 {
                     "type": "http",
+                    "urls": ["http://localhost:9200"],
+                }
+            ]
+        }
+
+        self.render_config_template(
+            path=os.path.abspath(self.working_dir) + "/log/*",
+            **config
+        )
+
+        heartbeat_proc = self.start_beat()
+        self.wait_until(lambda: self.log_contains("heartbeat is running"))
+        heartbeat_proc.check_kill_and_wait()
+
+    def test_run_once(self):
+        """
+        Basic test with exiting Heartbeat normally
+        """
+
+        config = {
+            "run_once": True,
+            "monitors": [
+                {
+                    "type": "http",
+                    "id": "http-check",
+                    "urls": ["http://localhost:9200"],
+                },
+                {
+                    "type": "tcp",
+                    "id": "tcp-check",
+                    "hosts": ["localhost:9200"],
+                }
+            ]
+        }
+
+        self.render_config_template(
+            path=os.path.abspath(self.working_dir) + "/log/*",
+            **config
+        )
+
+        heartbeat_proc = self.start_beat()
+        self.wait_until(lambda: self.output_has(lines=2))
+        self.wait_until(lambda: self.log_contains("Ending run_once run"))
+        heartbeat_proc.check_wait()
+
+    def test_disabled(self):
+        """
+        Basic test against a disabled monitor
+        """
+
+        config = {
+            "monitors": [
+                {
+                    "type": "http",
+                    "enabled": "false",
                     "urls": ["http://localhost:9200"],
                 }
             ]
@@ -86,6 +141,30 @@ class Test(BaseTest):
             }
         )
 
+    def test_host_fields_not_present(self):
+        """
+        Ensure that libbeat isn't adding any host.* fields
+        """
+        monitor = {
+            "type": "http",
+            "urls": ["http://localhost:9200"],
+        }
+        config = {
+            "monitors": [monitor]
+        }
+
+        self.render_config_template(
+            path=os.path.abspath(self.working_dir) + "/*",
+            **config
+        )
+
+        heartbeat_proc = self.start_beat()
+        self.wait_until(lambda: self.output_lines() > 0)
+        heartbeat_proc.check_kill_and_wait()
+        doc = self.read_output()[0]
+
+        assert "host.name" not in doc
+
     def run_fields(self, expected, local=None, top=None):
         monitor = {
             "type": "http",
@@ -110,23 +189,23 @@ class Test(BaseTest):
         heartbeat_proc.check_kill_and_wait()
 
         doc = self.read_output()[0]
-        self.assertDictContainsSubset(expected, doc)
+        assert expected.items() <= doc.items()
         return doc
 
     @unittest.skipUnless(INTEGRATION_TESTS, "integration test")
-    def test_template(self):
+    def test_index_management(self):
         """
-        Test that the template can be loaded with `setup --template`
+        Test that the template can be loaded with `setup --index-management`
         """
-        es = Elasticsearch([self.get_elasticsearch_url()])
+        es = self.get_elasticsearch_instance()
         self.render_config_template(
             monitors=[{
                 "type": "http",
                 "urls": ["http://localhost:9200"],
             }],
-            elasticsearch={"host": self.get_elasticsearch_url()},
+            elasticsearch=self.get_elasticsearch_template_config()
         )
-        exit_code = self.run_beat(extra_args=["setup", "--template"])
+        exit_code = self.run_beat(extra_args=["setup", "--index-management"])
 
         assert exit_code == 0
         assert self.log_contains('Loaded index template')
@@ -156,8 +235,8 @@ class Test(BaseTest):
             heartbeat_proc.check_kill_and_wait()
 
         for output in self.read_output():
-            nose.tools.assert_equal(
+            self.assertEqual(
                 output["event.dataset"],
-                "uptime",
+                output["monitor.type"],
                 "Check for event.dataset in {} failed".format(output)
             )

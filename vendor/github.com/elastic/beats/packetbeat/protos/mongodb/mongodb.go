@@ -22,14 +22,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/logp"
-	"github.com/elastic/beats/libbeat/monitoring"
+	"github.com/elastic/beats/v7/libbeat/common"
+	"github.com/elastic/beats/v7/libbeat/logp"
+	"github.com/elastic/beats/v7/libbeat/monitoring"
 
-	"github.com/elastic/beats/packetbeat/pb"
-	"github.com/elastic/beats/packetbeat/procs"
-	"github.com/elastic/beats/packetbeat/protos"
-	"github.com/elastic/beats/packetbeat/protos/tcp"
+	"github.com/elastic/beats/v7/packetbeat/pb"
+	"github.com/elastic/beats/v7/packetbeat/procs"
+	"github.com/elastic/beats/v7/packetbeat/protos"
+	"github.com/elastic/beats/v7/packetbeat/protos/tcp"
 )
 
 var debugf = logp.MakeDebug("mongodb")
@@ -47,6 +47,7 @@ type mongodbPlugin struct {
 	transactionTimeout time.Duration
 
 	results protos.Reporter
+	watcher procs.ProcessesWatcher
 }
 
 type transactionKey struct {
@@ -54,9 +55,7 @@ type transactionKey struct {
 	id  int
 }
 
-var (
-	unmatchedRequests = monitoring.NewInt(nil, "mongodb.unmatched_requests")
-)
+var unmatchedRequests = monitoring.NewInt(nil, "mongodb.unmatched_requests")
 
 func init() {
 	protos.Register("mongodb", New)
@@ -65,6 +64,7 @@ func init() {
 func New(
 	testMode bool,
 	results protos.Reporter,
+	watcher procs.ProcessesWatcher,
 	cfg *common.Config,
 ) (protos.Plugin, error) {
 	p := &mongodbPlugin{}
@@ -75,13 +75,13 @@ func New(
 		}
 	}
 
-	if err := p.init(results, &config); err != nil {
+	if err := p.init(results, watcher, &config); err != nil {
 		return nil, err
 	}
 	return p, nil
 }
 
-func (mongodb *mongodbPlugin) init(results protos.Reporter, config *mongodbConfig) error {
+func (mongodb *mongodbPlugin) init(results protos.Reporter, watcher procs.ProcessesWatcher, config *mongodbConfig) error {
 	debugf("Init a MongoDB protocol parser")
 	mongodb.setFromConfig(config)
 
@@ -94,6 +94,7 @@ func (mongodb *mongodbPlugin) init(results protos.Reporter, config *mongodbConfi
 		protos.DefaultTransactionHashSize)
 	mongodb.responses.StartJanitor(mongodb.transactionTimeout)
 	mongodb.results = results
+	mongodb.watcher = watcher
 
 	return nil
 }
@@ -215,10 +216,9 @@ func (mongodb *mongodbPlugin) handleMongodb(
 	tcptuple *common.TCPTuple,
 	dir uint8,
 ) {
-
 	m.tcpTuple = *tcptuple
 	m.direction = dir
-	m.cmdlineTuple = procs.ProcWatcher.FindProcessesTupleTCP(tcptuple.IPPort())
+	m.cmdlineTuple = mongodb.watcher.FindProcessesTupleTCP(tcptuple.IPPort())
 
 	if m.isResponse {
 		debugf("MongoDB response message")
@@ -342,11 +342,12 @@ func reconstructQuery(t *transaction, full bool) (query string) {
 		if !full {
 			// remove the actual data.
 			// TODO: review if we need to add other commands here
-			if t.method == "insert" {
+			switch t.method {
+			case "insert":
 				params, err = doc2str(copyMapWithoutKey(t.params, "documents"))
-			} else if t.method == "update" {
+			case "update":
 				params, err = doc2str(copyMapWithoutKey(t.params, "updates"))
-			} else if t.method == "findandmodify" {
+			case "findandmodify":
 				params, err = doc2str(copyMapWithoutKey(t.params, "update"))
 			}
 		} else {
@@ -379,7 +380,9 @@ func (mongodb *mongodbPlugin) publishTransaction(t *transaction) {
 
 	evt, pbf := pb.NewBeatEvent(t.ts)
 	pbf.SetSource(&t.src)
+	pbf.AddIP(t.src.IP)
 	pbf.SetDestination(&t.dst)
+	pbf.AddIP(t.dst.IP)
 	pbf.Source.Bytes = int64(t.bytesIn)
 	pbf.Destination.Bytes = int64(t.bytesOut)
 	pbf.Event.Dataset = "mongodb"

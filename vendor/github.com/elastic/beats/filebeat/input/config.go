@@ -20,16 +20,14 @@ package input
 import (
 	"time"
 
-	cfg "github.com/elastic/beats/filebeat/config"
-	"github.com/elastic/beats/libbeat/common/cfgwarn"
+	cfg "github.com/elastic/beats/v7/filebeat/config"
+	"github.com/elastic/beats/v7/libbeat/common/cfgwarn"
 )
 
-var (
-	defaultConfig = inputConfig{
-		ScanFrequency: 10 * time.Second,
-		Type:          cfg.DefaultType,
-	}
-)
+var defaultConfig = inputConfig{
+	ScanFrequency: 10 * time.Second,
+	Type:          cfg.DefaultType,
+}
 
 type inputConfig struct {
 	ScanFrequency time.Duration `config:"scan_frequency" validate:"min=0,nonzero"`

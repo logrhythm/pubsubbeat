@@ -52,6 +52,11 @@ filebeat.{{input_config | default("inputs")}}:
     {{k}}: {{v}}
   {% endfor %}
   {% endif %}
+  {%- if publisher_pipeline %}
+  {%- for name, value in publisher_pipeline.items() %}
+  publisher_pipeline.{{name}}: {{value | tojson}}
+  {%- endfor %}
+  {% endif %}
 
   fields_under_root: {{"true" if fieldsUnderRoot else "false"}}
 
@@ -76,10 +81,12 @@ filebeat.{{input_config | default("inputs")}}:
     {% if json.overwrite_keys %}overwrite_keys: true{% endif %}
     {% if json.add_error_key %}add_error_key: true{% endif %}
     {% if json.ignore_decoding_error %}ignore_decoding_error: true{% endif %}
+    {% if json.document_id %}document_id: {{json.document_id}}{% endif %}
   {% endif %}
 
   {% if multiline %}
   multiline:
+    type: {{multiline_type}}
     pattern: {{pattern}}
     negate: {{negate}}
     match: {{match}}
@@ -113,14 +120,8 @@ filebeat.config.{{ reload_type|default("inputs") }}:
 
 {% if ilm %}
 setup.ilm:
-  enabled: {{ ilm.enabled | default("auto") }}
+  enabled: {{ ilm.enabled | default("true") }}
   policy_name: libbeat-test-default-policy
-  {% if ilm.pattern %}
-  pattern: {{ ilm.pattern }}
-  {% endif %}
-  {% if ilm.rollover_alias %}
-  rollover_alias: {{ ilm.rollover_alias }}
-  {% endif %}
 {% endif %}
 
 

@@ -18,16 +18,15 @@
 package memory
 
 import (
-	"reflect"
 	"testing"
 	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/elastic/beats/libbeat/common"
-	mbtest "github.com/elastic/beats/metricbeat/mb/testing"
-	"github.com/elastic/beats/metricbeat/module/docker"
+	"github.com/elastic/beats/v7/libbeat/common"
+	mbtest "github.com/elastic/beats/v7/metricbeat/mb/testing"
+	"github.com/elastic/beats/v7/metricbeat/module/docker"
 )
 
 func TestMemoryService_GetMemoryStats(t *testing.T) {
@@ -65,6 +64,9 @@ func TestMemoryService_GetMemoryStats(t *testing.T) {
 				"name": "image",
 			},
 			"runtime": "docker",
+			"memory": common.MapStr{
+				"usage": 0.5,
+			},
 		},
 		"docker": common.MapStr{
 			"container": common.MapStr{
@@ -79,6 +81,9 @@ func TestMemoryService_GetMemoryStats(t *testing.T) {
 		},
 	}
 	expectedFields := common.MapStr{
+		"stats": map[string]uint64{
+			"total_rss": 5,
+		},
 		"fail": common.MapStr{
 			"count": memorystats.MemoryStats.Failcnt,
 		},
@@ -106,6 +111,50 @@ func TestMemoryService_GetMemoryStats(t *testing.T) {
 	assert.Equal(t, expectedFields, event.MetricSetFields)
 }
 
+func TestMemoryServiceBadData(t *testing.T) {
+
+	badMemStats := types.StatsJSON{
+		Stats: types.Stats{
+			Read:        time.Now(),
+			MemoryStats: types.MemoryStats{}, //Test for cases where this is empty
+		},
+	}
+
+	memoryService := &MemoryService{}
+	memoryRawStats := []docker.Stat{docker.Stat{Stats: badMemStats}}
+	rawStats := memoryService.getMemoryStatsList(memoryRawStats, false)
+	assert.Len(t, rawStats, 0)
+
+}
+
+func TestMemoryMath(t *testing.T) {
+	memStats := types.StatsJSON{
+		Stats: types.Stats{
+			Read: time.Now(),
+			PreCPUStats: types.CPUStats{
+				CPUUsage: types.CPUUsage{
+					TotalUsage: 200,
+				},
+			},
+			MemoryStats: types.MemoryStats{
+				Limit: 5,
+				Usage: 5000,
+				Stats: map[string]uint64{
+					"total_inactive_file": 1000, // CGV1
+					"inactive_file":       900,
+				},
+			}, //Test for cases where this is empty
+		},
+	}
+
+	memoryService := &MemoryService{}
+	memoryRawStats := []docker.Stat{
+		docker.Stat{Stats: memStats, Container: &types.Container{Names: []string{"test-container"}, Labels: map[string]string{}}},
+	}
+	rawStats := memoryService.getMemoryStatsList(memoryRawStats, false)
+	assert.Equal(t, float64(800), rawStats[0].UsageP) // 5000-900 /5
+}
+
 func getMemoryStats(read time.Time, number uint64) types.StatsJSON {
 
 	myMemoryStats := types.StatsJSON{
@@ -124,7 +173,4 @@ func getMemoryStats(read time.Time, number uint64) types.StatsJSON {
 	myMemoryStats.MemoryStats.Stats["total_rss"] = number * 5
 
 	return myMemoryStats
-}
-func equalEvent(expectedEvent common.MapStr, event common.MapStr) bool {
-	return reflect.DeepEqual(expectedEvent, event)
 }
