@@ -1,7 +1,19 @@
 # Cloudbuild to create a Beat image from any repository
-# DO NOT EDIT
 
 steps:
+# === GENERATE DYNAMIC VERSION ===
+- name: 'gcr.io/cloud-builders/bash'
+  id: generate_version
+  entrypoint: 'bash'
+  args:
+    - '-c'
+    - |
+      echo "Generating dynamic version..."
+      echo "dev_$(date +%m%d%y)" > /workspace/beat_version.txt
+      export BEAT_VERSION=$(cat /workspace/beat_version.txt)
+      echo "Generated version: $BEAT_VERSION"
+      echo "export BEAT_VERSION=$BEAT_VERSION" >> /workspace/env_vars.sh
+
 # === AUTHENTICATE WITH JFROG ARTIFACTORY ===
 - name: 'gcr.io/cloud-builders/gcloud'
   id: fetch_artifactory_credentials
@@ -23,25 +35,39 @@ steps:
       --username "$(cat /workspace/artifactory_user.txt)" \
       --password-stdin < /workspace/artifactory_password.txt
   waitFor: 
-    - fetch_artifactory_credentials 
+    - fetch_artifactory_credentials
+    - generate_version
+
 # === BUILD THE BEAT IMAGE ===
 - name: 'gcr.io/cloud-builders/docker'
   id: build_${_BEAT_NAME}
-  args: 
-    - build
-    - -f
-    - deploy/standard/Dockerfile
-    - -t
-    - logrhythm-docker.jfrog.io/${_BEAT_PUBLISHER}/collection/collection-dev/beats/${_BEAT_NAME}:${_BEAT_VERSION}
-    - --build-arg
-    - BEAT_PUBLISHER=${_BEAT_PUBLISHER}
-    - --build-arg
-    - BEAT_NAME=${_BEAT_NAME}
-    - --build-arg
-    - BEAT_VERSION=${_BEAT_VERSION}
-    - deploy
+  entrypoint: 'bash'
+  args:
+    - '-c'
+    - |
+      source /workspace/env_vars.sh
+      echo "Building with version: $BEAT_VERSION"
+      docker build \
+        -f deploy/standard/Dockerfile \
+        -t logrhythm-docker.jfrog.io/${_BEAT_PUBLISHER}/collection/collection-dev/beats/${_BEAT_NAME}:$BEAT_VERSION \
+        --build-arg BEAT_PUBLISHER=${_BEAT_PUBLISHER} \
+        --build-arg BEAT_NAME=${_BEAT_NAME} \
+        deploy
+
+# Set the dynamic image name
+- name: 'gcr.io/cloud-builders/bash'
+  id: set_image_output
+  entrypoint: 'bash'
+  args:
+    - '-c'
+    - |
+      source /workspace/env_vars.sh
+      echo "logrhythm-docker.jfrog.io/${_BEAT_PUBLISHER}/collection/collection-dev/beats/${_BEAT_NAME}:$BEAT_VERSION" > /workspace/image_name.txt
+  waitFor:
+    - build_${_BEAT_NAME}
+
 images:
-- 'logrhythm-docker.jfrog.io/${_BEAT_PUBLISHER}/collection/collection-dev/beats/${_BEAT_NAME}:${_BEAT_VERSION}'
+- '$(cat /workspace/image_name.txt)'
 
 substitutions:
   _BEAT_PUBLISHER: 'logrhythm'
