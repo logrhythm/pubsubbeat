@@ -1,5 +1,4 @@
 steps:
-# === GENERATE DYNAMIC VERSION ===
 - name: 'gcr.io/cloud-builders/bash'
   id: generate_version
   entrypoint: 'bash'
@@ -11,7 +10,6 @@ steps:
       echo "$DYNAMIC_VERSION" > /workspace/beat_version.txt
       echo "Generated version: $DYNAMIC_VERSION"
 
-# === AUTHENTICATE WITH JFROG ARTIFACTORY ===
 - name: 'gcr.io/cloud-builders/gcloud'
   id: fetch_artifactory_credentials
   entrypoint: 'sh'
@@ -34,7 +32,6 @@ steps:
   waitFor: 
     - fetch_artifactory_credentials
 
-# === BUILD THE BEAT IMAGE WITH VERSION TAG ===
 - name: 'gcr.io/cloud-builders/docker'
   id: build_beat
   entrypoint: 'bash'
@@ -45,7 +42,7 @@ steps:
       echo "Using dynamic version: $DYNAMIC_VERSION"
       docker build \
         -f deploy/standard/Dockerfile \
-        -t logrhythm-docker.jfrog.io/${_BEAT_PUBLISHER}/collection/collection-dev/beats/${_BEAT_NAME}:$DYNAMIC_VERSION \
+        -t "logrhythm-docker.jfrog.io/${_BEAT_PUBLISHER}/collection/collection-dev/beats/${_BEAT_NAME}:$DYNAMIC_VERSION" \
         --build-arg BEAT_PUBLISHER=${_BEAT_PUBLISHER} \
         --build-arg BEAT_NAME=${_BEAT_NAME} \
         deploy
@@ -53,7 +50,6 @@ steps:
     - authenticate_artifactory
     - generate_version
 
-# === PUSH IMAGE WITH VERSION TAG ===
 - name: 'gcr.io/cloud-builders/docker'
   id: push_dynamic_version
   entrypoint: 'bash'
@@ -61,7 +57,7 @@ steps:
     - '-c'
     - |
       DYNAMIC_VERSION=$(cat /workspace/beat_version.txt)
-      docker push logrhythm-docker.jfrog.io/${_BEAT_PUBLISHER}/collection/collection-dev/beats/${_BEAT_NAME}:$DYNAMIC_VERSION
+      docker push "logrhythm-docker.jfrog.io/${_BEAT_PUBLISHER}/collection/collection-dev/beats/${_BEAT_NAME}:$DYNAMIC_VERSION"
   waitFor:
     - build_beat
 
