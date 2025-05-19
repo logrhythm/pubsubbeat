@@ -1,0 +1,52 @@
+# Cloudbuild to create a Beat image from any repository
+# DO NOT EDIT
+
+steps:
+# === AUTHENTICATE WITH JFROG ARTIFACTORY ===
+- name: 'gcr.io/cloud-builders/gcloud'
+  id: fetch_artifactory_credentials
+  entrypoint: 'sh'
+  args:
+    - '-c'
+    - |
+      echo "Fetching credentials..."
+      echo -n "$(gcloud secrets versions access latest --secret=ARTIFACTORY_USER)" > /workspace/artifactory_user.txt
+      echo -n "$(gcloud secrets versions access latest --secret=ARTIFACTORY_PASSWORD)" > /workspace/artifactory_password.txt
+
+- name: 'gcr.io/cloud-builders/docker'
+  id: authenticate_artifactory
+  entrypoint: 'sh'
+  args:
+    - '-c'
+    - |
+      docker login logrhythm-docker.jfrog.io \
+      --username "$(cat /workspace/artifactory_user.txt)" \
+      --password-stdin < /workspace/artifactory_password.txt
+  waitFor: 
+    - fetch_artifactory_credentials 
+# === BUILD THE BEAT IMAGE ===
+- name: 'gcr.io/cloud-builders/docker'
+  id: build_${_BEAT_NAME}
+  args: 
+    - build
+    - -f
+    - deploy/standard/Dockerfile
+    - -t
+    - logrhythm-docker.jfrog.io/${_BEAT_PUBLISHER}/collection/collection-dev/beats/${_BEAT_NAME}:${_BEAT_VERSION}
+    - --build-arg
+    - BEAT_PUBLISHER=${_BEAT_PUBLISHER}
+    - --build-arg
+    - BEAT_NAME=${_BEAT_NAME}
+    - --build-arg
+    - BEAT_VERSION=${_BEAT_VERSION}
+    - deploy
+images:
+- 'logrhythm-docker.jfrog.io/${_BEAT_PUBLISHER}/collection/collection-dev/beats/${_BEAT_NAME}:${_BEAT_VERSION}'
+
+substitutions:
+  _BEAT_PUBLISHER: 'logrhythm'
+  _BEAT_NAME: 'pubsubbeat'
+
+timeout: 2400s
+options: 
+  machineType: 'N1_HIGHCPU_8'
