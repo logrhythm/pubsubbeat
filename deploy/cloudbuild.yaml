@@ -23,7 +23,7 @@ steps:
 
 - name: 'gcr.io/cloud-builders/docker'
   id: build_beat
-  entrypoint: 'bash'
+  entrypoint: 'sh'
   args:
     - '-c'
     - |
@@ -33,13 +33,14 @@ steps:
         -t "logrhythm-docker.jfrog.io/${_BEAT_PUBLISHER}/collection/collection-dev/beats/${_BEAT_NAME}:$BUILD_ID" \
         --build-arg BEAT_PUBLISHER=${_BEAT_PUBLISHER} \
         --build-arg BEAT_NAME=${_BEAT_NAME} \
+        --build-arg BEAT_VERSION=$BUILD_ID \
         deploy
   waitFor:
     - authenticate_artifactory
 
 - name: 'gcr.io/cloud-builders/docker'
   id: push_dynamic_version
-  entrypoint: 'bash'
+  entrypoint: 'sh'
   args:
     - '-c'
     - |
