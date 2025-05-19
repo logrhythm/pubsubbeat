@@ -41,14 +41,16 @@ When running the build we have 2 substitutions:
 - Name of the Beat (corresponding to the GitHub repo name, ex: `pubsubbeat`)
 
 **Note:**  
-The version is now automatically determined from [latest.yml](https://raw.githubusercontent.com/logrhythm/versions/master/latest.yml) for `pubsubbeat` and prefixed with `dev_`.  
+The version is now automatically set during the Docker build as the current date in the format `dev_MMDDYY` (e.g., `dev_051924` for May 19, 2024).  
 You do **not** need to specify a version substitution.
 
 ## Run Build
-To run the build from `/pubsubbeat`:
+To run the build from your project directory:
 ```bash
 gcloud builds submit --config ./deploy/beats/cloudbuild.yaml --substitutions=_BEAT_PUBLISHER="publisher",_BEAT_NAME="repo name"
 ```
 *Fill in `publisher` and `repo name` with your values from the previous step!*
+
+The resulting Docker image will have a label and environment variable `BEAT_VERSION` set to the current date in the format described above.
 
 GCS Dependencies path -- [logrhythm_datacollector_external_deps](https://console.cloud.google.com/storage/browser/logrhythm_datacollector_external_deps;tab=objects?forceOnBucketsSortingFiltering=false&project=datacollector-215718&prefix=&forceOnObjectsSortingFiltering=false)

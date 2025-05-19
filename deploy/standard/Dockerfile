@@ -7,24 +7,19 @@ FROM golang:1.13 as source
 ARG BEAT_PUBLISHER
 ARG BEAT_NAME
 
-# Install curl and python3-yaml for version extraction
-RUN apt-get update && apt-get install -y curl python3-yaml git
+# Install git (curl/python3-yaml no longer needed)
+RUN apt-get update && apt-get install -y git
 
-# Fetch latest.yml and extract version for pubsubbeat, prefix with dev_
-RUN curl -sSL https://raw.githubusercontent.com/logrhythm/versions/master/latest.yml -o /tmp/latest.yml && \
-    export BEAT_VERSION=$(python3 -c "import yaml; d=yaml.safe_load(open('/tmp/latest.yml')); print('dev_' + d['pubsubbeat'])") && \
-    echo $BEAT_VERSION > /beat_version.txt
+# Set BEAT_VERSION as dev_ + current date (MMDDYY)
+RUN export BEAT_VERSION=dev_$(date +%m%d%y) && echo $BEAT_VERSION > /beat_version.txt
 
 # Set environment variable for later stages
 ENV BEAT_VERSION_FILE=/beat_version.txt
 
 WORKDIR /go/src/github.com/$BEAT_PUBLISHER/$BEAT_NAME
 
-# Clone the repo and checkout the version (without dev_ prefix)
-RUN \
-  export RAW_VERSION=$(cat /beat_version.txt | sed 's/^dev_//') && \
-  git clone "https://github.com/$BEAT_PUBLISHER/$BEAT_NAME" . && \
-  git checkout $RAW_VERSION
+# Clone the repo (no version checkout since version is date-based)
+RUN git clone "https://github.com/$BEAT_PUBLISHER/$BEAT_NAME" .
 
 #####################################################################
 # Build the Beat executable 
