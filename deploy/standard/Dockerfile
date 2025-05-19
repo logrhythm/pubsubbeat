@@ -13,8 +13,7 @@ WORKDIR /go/src/github.com/$BEAT_PUBLISHER/$BEAT_NAME
 # Clone the repo
 RUN \
   SRC_DIR="/go/src/github.com/$BEAT_PUBLISHER/$BEAT_NAME" && \
-  git clone "https://github.com/$BEAT_PUBLISHER/$BEAT_NAME" . && \
-  git checkout $BEAT_VERSION
+  git clone "https://github.com/$BEAT_PUBLISHER/$BEAT_NAME" . 
 #####################################################################
 
 #####################################################################
