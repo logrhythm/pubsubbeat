@@ -2,16 +2,16 @@
 
 steps:
 # === GENERATE DYNAMIC VERSION ===
-- name: 'bash'
+- name: 'gcr.io/cloud-builders/bash'
   id: generate_version
   entrypoint: 'bash'
   args:
     - '-c'
     - |
       echo "Generating dynamic version..."
-      VERSION="dev_$(date +%m%d%y)"
-      echo "$VERSION" > /workspace/beat_version.txt
-      echo "Generated version: $VERSION"
+      DYNAMIC_VERSION="dev_$(date +%m%d%y)"
+      echo "$DYNAMIC_VERSION" > /workspace/beat_version.txt
+      echo "Generated version: $DYNAMIC_VERSION"
 
 # === AUTHENTICATE WITH JFROG ARTIFACTORY ===
 - name: 'gcr.io/cloud-builders/gcloud'
