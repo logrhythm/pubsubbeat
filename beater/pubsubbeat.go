@@ -188,7 +188,7 @@ func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 		if datetime.IsZero() {
 			datetime = time.Now()
 		}
-
+		bt.logger.Info("pubsubbeat eventMap.", eventMap)
 		bt.client.Publish(beat.Event{
 			Timestamp: datetime,
 			Fields:    eventMap,
