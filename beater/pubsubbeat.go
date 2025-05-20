@@ -152,7 +152,11 @@ func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 		if len(m.Attributes) > 0 {
 			eventMap["attributes"] = m.Attributes
 		}
-		bt.logger.Info("string(m.Data) PubSub receive context...", string(m.Data))
+		bt.logger.Info("m.resource.labels.service :- ", m.resource.labels.service)
+		if len(m.resource.labels.service) > 0 {
+			eventMap["device_type"] = m.resource.labels.service
+		}
+		
 
 		if bt.config.Json.Enabled {
 			var unmarshalErr error
