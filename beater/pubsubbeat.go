@@ -152,6 +152,7 @@ func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 		if len(m.Attributes) > 0 {
 			eventMap["attributes"] = m.Attributes
 		}
+		bt.logger.Info("string(m.Data) PubSub receive context...", string(m.Data))
 
 		if bt.config.Json.Enabled {
 			var unmarshalErr error
@@ -171,8 +172,6 @@ func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 				var jsonData interface{}
 				unmarshalErr = json.Unmarshal(m.Data, &jsonData)
 				if unmarshalErr == nil {
-					//bt.logger.Info("pubsubbeat eventMap 174:-", resource.labels.service)
-					bt.logger.Info("pubsubbeat eventMap 175:-", jsonData)
 					eventMap["json"] = jsonData
 				}
 			}
