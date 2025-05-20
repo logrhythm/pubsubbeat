@@ -175,8 +175,12 @@ func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 				var jsonData interface{}
 				unmarshalErr = json.Unmarshal(m.Data, &jsonData)
 				if unmarshalErr == nil {
-					bt.logger.Info("print service name:- ", extractServiceName(jsonData))
+
+					if extractServiceName(jsonData) != "" {
+						eventMap["device_type"] = extractServiceName(jsonData)
+					}
 					eventMap["json"] = jsonData
+					logp.Info("pubsubbeat eventMap 183:-", eventMap)
 				}
 			}
 
