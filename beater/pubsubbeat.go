@@ -175,6 +175,7 @@ func (bt *Pubsubbeat) Run(b *beat.Beat) error {
 				var jsonData interface{}
 				unmarshalErr = json.Unmarshal(m.Data, &jsonData)
 				if unmarshalErr == nil {
+					bt.logger.Info("print service name:- ", extractServiceName(jsonData))
 					eventMap["json"] = jsonData
 				}
 			}
@@ -306,4 +307,26 @@ func cycleRoutine(n time.Duration) {
 		logp.Info("Total number of logs received :  %d", logsReceived)
 		logp.Info("Events Flush Rate:  %v messages per second", recordsPerSecond)
 	}
+}
+
+func extractServiceName(data interface{}) string {
+	// Step 1: Assert top-level object is a map
+	eventMap, ok := data.(map[string]interface{})
+	if !ok {
+		return ""
+	}
+
+	// Step 2: Access protoPayload
+	protoPayload, ok := eventMap["protoPayload"].(map[string]interface{})
+	if !ok {
+		return ""
+	}
+
+	// Step 3: Access serviceName
+	serviceName, ok := protoPayload["serviceName"].(string)
+	if !ok {
+		return ""
+	}
+
+	return serviceName
 }
