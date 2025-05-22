@@ -1,0 +1,100 @@
+{
+    "@timestamp": "2025-05-21T06:17:38.067Z",
+    "@metadata": {
+        "beat": "pubsubbeat",
+        "type": "_doc",
+        "version": "8.0.0"
+    },
+    "device_type": "login.googleapis.com",
+    "message_id": "14988960204122254",
+    "attributes": {
+        "logging.googleapis.com/timestamp": "2025-05-21T05:07:57.557303Z"
+    },
+    "ecs": {
+        "version": "1.0.0"
+    },
+    "host": {
+        "name": "f607de03d2db"
+    },
+    "agent": {
+        "id": "c300fd2f-05b0-4ede-a7bc-5ca96e45642d",
+        "version": "8.0.0",
+        "type": "pubsubbeat",
+        "ephemeral_id": "bff26624-b1f1-4375-9685-80c4e8dc3b91",
+        "hostname": "f607de03d2db"
+    },
+    "type": "f607de03d2db",
+    "fullyqualifiedbeatname": "pubsubbeat_devtest8",
+    "publish_time": "2025-05-21T06:17:38.510Z",
+    "message": "{\"insertId\":\"32u8b7e58n7f\",\"logName\":\"organizations/354625619193/logs/cloudaudit.googleapis.com%2Fdata_access\",\"protoPayload\":{\"@type\":\"type.googleapis.com/google.cloud.audit.AuditLog\",\"authenticationInfo\":{\"principalEmail\":\"admin@logrhythmbeat.com\"},\"metadata\":{\"@type\":\"type.googleapis.com/ccc_hosted_reporting.ActivityProto\",\"activityId\":{\"timeUsec\":\"1747804077557303\",\"uniqQualifier\":\"-2454549993105968695\"},\"event\":[{\"eventId\":\"c26e7dbe\",\"eventName\":\"login_success\",\"eventType\":\"login\",\"parameter\":[{\"label\":\"LABEL_OPTIONAL\",\"name\":\"login_type\",\"type\":\"TYPE_STRING\",\"value\":\"reauth\"},{\"label\":\"LABEL_REPEATED\",\"multiStrValue\":[\"password\"],\"name\":\"login_challenge_method\",\"type\":\"TYPE_STRING\"},{\"boolValue\":false,\"label\":\"LABEL_OPTIONAL\",\"name\":\"is_suspicious\",\"type\":\"TYPE_BOOL\"},{\"label\":\"LABEL_OPTIONAL\",\"name\":\"dusi\",\"type\":\"TYPE_STRING\",\"value\":\"INbXsd_n_7f2fg\"}]}]},\"methodName\":\"google.login.LoginService.loginSuccess\",\"requestMetadata\":{\"callerIp\":\"65.38.174.94\",\"destinationAttributes\":{},\"requestAttributes\":{}},\"resourceName\":\"organizations/354625619193\",\"serviceName\":\"login.googleapis.com\"},\"receiveTimestamp\":\"2025-05-21T06:17:36.155242998Z\",\"resource\":{\"labels\":{\"method\":\"google.login.LoginService.loginSuccess\",\"service\":\"login.googleapis.com\"},\"type\":\"audited_resource\"},\"severity\":\"NOTICE\",\"timestamp\":\"2025-05-21T05:07:57.557303Z\"}",
+    "json": {
+        "protoPayload": {
+            "requestMetadata": {
+                "requestAttributes": {},
+                "callerIp": "65.38.174.94",
+                "destinationAttributes": {}
+            },
+            "resourceName": "organizations/354625619193",
+            "serviceName": "login.googleapis.com",
+            "@type": "type.googleapis.com/google.cloud.audit.AuditLog",
+            "authenticationInfo": {
+                "principalEmail": "admin@logrhythmbeat.com"
+            },
+            "metadata": {
+                "activityId": {
+                    "timeUsec": "1747804077557303",
+                    "uniqQualifier": "-2454549993105968695"
+                },
+                "event": [
+                    {
+                        "parameter": [
+                            {
+                                "label": "LABEL_OPTIONAL",
+                                "name": "login_type",
+                                "type": "TYPE_STRING",
+                                "value": "reauth"
+                            },
+                            {
+                                "name": "login_challenge_method",
+                                "type": "TYPE_STRING",
+                                "label": "LABEL_REPEATED",
+                                "multiStrValue": [
+                                    "password"
+                                ]
+                            },
+                            {
+                                "label": "LABEL_OPTIONAL",
+                                "name": "is_suspicious",
+                                "type": "TYPE_BOOL",
+                                "boolValue": false
+                            },
+                            {
+                                "label": "LABEL_OPTIONAL",
+                                "name": "dusi",
+                                "type": "TYPE_STRING",
+                                "value": "INbXsd_n_7f2fg"
+                            }
+                        ],
+                        "eventId": "c26e7dbe",
+                        "eventName": "login_success",
+                        "eventType": "login"
+                    }
+                ],
+                "@type": "type.googleapis.com/ccc_hosted_reporting.ActivityProto"
+            },
+            "methodName": "google.login.LoginService.loginSuccess"
+        },
+        "receiveTimestamp": "2025-05-21T06:17:36.155242998Z",
+        "resource": {
+            "labels": {
+                "method": "google.login.LoginService.loginSuccess",
+                "service": "login.googleapis.com"
+            },
+            "type": "audited_resource"
+        },
+        "severity": "NOTICE",
+        "timestamp": "2025-05-21T05:07:57.557303Z",
+        "insertId": "32u8b7e58n7f",
+        "logName": "organizations/354625619193/logs/cloudaudit.googleapis.com%2Fdata_access"
+    }
+}
